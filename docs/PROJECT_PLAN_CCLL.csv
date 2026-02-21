@@ -1,0 +1,45 @@
+Phase,Quarter,Workstream,Task,Deliverable,Owner,Dependencies,Start_date,End_date,Status,Notes
+Inception,Pre-Q1,Governance,Project setup and engagement plan,Stakeholder onboarding; site selection; ethics clearance; pilot planning; community engagement plan; co-design workshop schedule,Monash + CrowdLab,,2025-11-01,2025-11-30,Not started,Per application milestone table
+Inception,Pre-Q1,Governance,Stakeholder onboarding,Kickoff with Council; confirm advisory group; monthly meeting schedule,Monash (lead),,2025-11-01,2025-11-15,Not started,
+Inception,Pre-Q1,Governance,Site selection and pilot area,Pilot area boundaries confirmed; Bunjil Place bookings for 3 sessions,CrowdLab + Council,,2025-11-08,2025-11-22,Not started,Council in-kind: Bunjil Place
+Inception,Pre-Q1,Governance,Ethics clearance,Monash ethics approval for co-design and data collection,Monash,,2025-11-01,2025-11-30,Not started,
+Inception,Pre-Q1,Engagement,Community engagement plan,Document: channels; audiences; materials; timeline,Monash (lead),,2025-11-15,2025-11-30,Not started,
+Inception,Pre-Q1,Engagement,Co-design workshop schedule,Dates and venues for consultation; co-design; feedback sessions,Monash,,2025-11-15,2025-11-30,Not started,Council in-kind: 3 sessions at Bunjil Place
+Q1 Initiation and co-design,Q1,Partnerships,Establish governance,Governance structure; roles; decision log,Monash (lead),Inception,2025-12-01,2025-12-15,Not started,
+Q1 Initiation and co-design,Q1,Partnerships,Confirm partnerships with council,MoU or agreement; data access pathway; advisory group terms,Council + Monash,,2025-12-01,2026-01-15,Not started,
+Q1 Initiation and co-design,Q1,Partnerships,Confirm partnerships with community groups,List of partner groups; engagement commitments,Monash,,2025-12-01,2026-01-10,Not started,
+Q1 Initiation and co-design,Q1,Data,Compile datasets: lighting,Inventory and access for lighting data (Council + open),CrowdLab + Council,,2025-12-01,2026-01-15,Not started,
+Q1 Initiation and co-design,Q1,Data,Compile datasets: footpaths,Inventory and access for footpath/crossing data,CrowdLab + Council,,2025-12-01,2026-01-15,Not started,
+Q1 Initiation and co-design,Q1,Data,Compile datasets: crossings,Inventory and access for crossing data,CrowdLab + Council,,2025-12-01,2026-01-15,Not started,
+Q1 Initiation and co-design,Q1,Data,Compile datasets: urban heat,Inventory and access for urban heat/shade data,CrowdLab,,2025-12-01,2026-01-15,Not started,
+Q1 Initiation and co-design,Q1,Co-design,Run co-design workshops,Workshops to refine objectives; prioritise focus areas; define requirements,Monash (lead),Partnerships + Bunjil Place,2026-01-15,2026-01-31,Not started,
+Q1 Initiation and co-design,Q1,Co-design,Refine objectives and prioritise focus areas,Documented objectives; prioritised focus areas,Monash,,Co-design workshops,2026-01-20,2026-01-31,Not started,
+Q1 Initiation and co-design,Q1,Co-design,Define requirements for route-planning app,Requirements doc; user stories; acceptance criteria,Monash + CrowdLab,,Co-design workshops,2026-01-20,2026-01-31,Not started,Feeds into PRD/backlog
+Q1 Initiation and co-design,Q1,Co-design,Define requirements for council dashboard,Dashboard requirements; KPIs; export needs,Council + Monash + CrowdLab,,Co-design workshops,2026-01-20,2026-01-31,Not started,
+Q2 Data integration and vulnerability analysis,Q2,Data,Harmonise datasets,Unified schema; linked geometry; quality checks,CrowdLab (lead),Q1 data compile,2026-02-01,2026-02-28,Not started,
+Q2 Data integration and vulnerability analysis,Q2,Data,Analyse datasets for vulnerability,Methods doc; analysis scripts; results,CrowdLab,,Harmonise datasets,2026-03-01,2026-03-20,Not started,
+Q2 Data integration and vulnerability analysis,Q2,Analysis,Create vulnerability index,Vulnerability index scoring locations on lighting; accessibility; heat stress,CrowdLab,,Harmonise + analyse,2026-03-01,2026-04-15,Not started,
+Q2 Data integration and vulnerability analysis,Q2,Analysis,Validate assumptions with co-design insights,Validation report; alignment to workshop priorities,Monash + CrowdLab,,Vulnerability index + co-design,2026-03-15,2026-04-15,Not started,
+Q2 Data integration and vulnerability analysis,Q2,Analysis,Form evidence base for app and dashboard,Evidence base doc; data dictionary; confidence approach,Both,,Vulnerability index,2026-03-20,2026-04-20,Not started,
+Q2 Data integration and vulnerability analysis,Q2,Reporting,Peer-reviewed report "YourWalk: AI enabled insights for lighting visibility and nighttime safety",Draft and submit peer-reviewed report,Monash (lead),Evidence base,2026-04-01,2026-04-30,Not started,Application deliverable
+Q3 Tool and dashboard development,Q3,Build,Build YourWalk app: safe accessible climate-sensitive routes,Route-planning app (MVP per PRD),CrowdLab (lead),Q2 evidence base,2026-05-01,2026-07-15,Not started,
+Q3 Tool and dashboard development,Q3,Build,Develop council dashboard,Dashboard for exploring data; identifying gaps; modelling interventions,CrowdLab,,Q2 evidence base,2026-05-01,2026-07-15,Not started,
+Q3 Tool and dashboard development,Q3,Build,App: routing and scoring,Routes with lighting; accessibility; climate scores,CrowdLab,,Vulnerability index available,2026-05-01,2026-06-15,Not started,
+Q3 Tool and dashboard development,Q3,Build,App: map layers,Lighting; accessibility; heat/shade layers,CrowdLab,,Data integrated,2026-05-15,2026-06-30,Not started,
+Q3 Tool and dashboard development,Q3,Build,Dashboard: hotspots and exports,Hotspot visualisations; ranked zones; exports,CrowdLab,,Vulnerability index,2026-06-01,2026-07-15,Not started,
+Q3 Tool and dashboard development,Q3,Review,Mid-project review,Evaluation and stakeholder feedback session,Monash + CrowdLab + Council,,Q3 build progress,2026-07-15,2026-07-31,Not started,Application milestone
+Q3 Tool and dashboard development,Q3,Review,Stakeholder feedback on app and dashboard,Feedback log; prioritised refinements,Monash,,Mid-project review,2026-07-20,2026-07-31,Not started,
+Q4 Pilot testing and evaluation,Q4,Pilot,Pilot tools with community,Deploy app; engagement; usage monitoring,CrowdLab + Monash,,Q3 build complete,2026-08-01,2026-09-30,Not started,
+Q4 Pilot testing and evaluation,Q4,Pilot,Pilot tools with council stakeholders,Dashboard access; training; usage,CrowdLab + Council,,Q3 build complete,2026-08-01,2026-09-30,Not started,
+Q4 Pilot testing and evaluation,Q4,Pilot,Gather feedback,Surveys; interviews; usability feedback,Monash (lead),,Pilot running,2026-08-15,2026-10-15,Not started,
+Q4 Pilot testing and evaluation,Q4,Pilot,Refine features,Iterations based on feedback,CrowdLab,,Feedback gathered,2026-09-15,2026-10-15,Not started,
+Q4 Pilot testing and evaluation,Q4,Evaluation,Assess effectiveness: route uptake,Metrics on route requests; geographic spread,Both,,Pilot data,2026-09-01,2026-10-31,Not started,
+Q4 Pilot testing and evaluation,Q4,Evaluation,Assess effectiveness: user satisfaction,Survey results; qualitative themes,Monash,,Pilot data,2026-10-01,2026-10-31,Not started,
+Q4 Pilot testing and evaluation,Q4,Evaluation,Assess effectiveness: policy alignment,Evidence of council use; planning alignment,Monash + Council,,Pilot data,2026-10-01,2026-10-31,Not started,
+Q4 Pilot testing and evaluation,Q4,Deliverables,Ranked priority zones,Output: ranked priority zones for council,CrowdLab,,Vulnerability + pilot,2026-09-15,2026-10-31,Not started,
+Q4 Pilot testing and evaluation,Q4,Deliverables,Interactive visualisations,Dashboard and app finalised for handover,Both,,Pilot complete,2026-10-15,2026-10-31,Not started,
+Q4 Pilot testing and evaluation,Q4,Deliverables,Downloadable datasets,Datasets for council-led planning and investment,Both,,Open access ready,2026-10-15,2026-10-31,Not started,
+Q4-Q5 Reporting and dissemination,Q4-Q5,Reporting,Finalise maps; dashboard; datasets; documentation,Production-ready assets; versioned datasets; user and technical docs,Both,,Q4 deliverables,2026-11-01,2026-11-30,Not started,
+Q4-Q5 Reporting and dissemination,Q4-Q5,Dissemination,Publish via Monash open access,Open access publication; replication materials,Monash (lead),,Finalised assets,2026-11-15,2026-12-15,Not started,Application deliverable
+Q4-Q5 Reporting and dissemination,Q4-Q5,Dissemination,Share results with partners,Partner briefings; case studies; presentations,Monash + CrowdLab,,Finalised assets,2026-11-15,2026-12-31,Not started,
+Q4-Q5 Reporting and dissemination,Q4-Q5,Reporting,Complete reporting,Grant report; final evaluation report; lessons learned,Monash (lead),,All deliverables,2026-12-01,2027-01-15,Not started,12-14 month timeline

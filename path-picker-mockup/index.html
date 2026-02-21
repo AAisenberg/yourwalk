@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Path Picker - Mockup</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
+</head>
+<body>
+  <div class="app-container">
+    
+    <!-- Screen 1: Welcome -->
+    <div id="screen-welcome" class="screen active">
+      <div class="screen-content">
+        <div class="logo-area">
+          <span class="mdi mdi-routes icon-large"></span>
+        </div>
+        <h1 class="title">Path Picker</h1>
+        <p class="subtitle">Which path would you walk?</p>
+        <div class="instructions">
+          <p>You'll see <strong>a few pairs</strong> of paths.</p>
+          <p>Tap the one you'd prefer!</p>
+        </div>
+        <button class="btn-primary" onclick="showScreen('screen-comparison-hot')">
+          Start!
+        </button>
+        <div class="branding">
+          <span class="brand-text">Part of YourWalk · Casey Kids Carnival 2026</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Screen 2a: Comparison - Hot Day (real photos) -->
+    <div id="screen-comparison-hot" class="screen">
+      <div class="screen-content comparison-screen">
+        <div class="scenario-context warm">
+          <span class="mdi mdi-white-balance-sunny scenario-icon"></span>
+          <span class="scenario-temp">21°</span>
+        </div>
+        <p class="question-prompt">Which path would you prefer?</p>
+        <div class="comparison-container">
+          <div class="photo-card" onclick="selectPhoto(this, 'left')">
+            <div class="photo-real" style="background-image: url('0A0A5401a.jpg');"></div>
+          </div>
+          <div class="photo-card" onclick="selectPhoto(this, 'right')">
+            <div class="photo-real" style="background-image: url('0A0A5209a.jpg');"></div>
+          </div>
+        </div>
+        <div class="progress-dots">
+          <span class="dot filled"></span>
+          <span class="dot filled"></span>
+          <span class="dot filled"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+        </div>
+        <button class="btn-secondary" onclick="showScreen('screen-comparison-night')">
+          Next (demo) →
+        </button>
+      </div>
+    </div>
+
+    <!-- Screen 2b: Comparison - Nighttime (placeholders) -->
+    <div id="screen-comparison-night" class="screen">
+      <div class="screen-content comparison-screen">
+        <div class="scenario-context">
+          <span class="mdi mdi-weather-night scenario-icon"></span>
+          <span class="scenario-temp">15°</span>
+        </div>
+        <p class="question-prompt">Which path would you prefer at night?</p>
+        <div class="comparison-container">
+          <div class="photo-card" onclick="selectPhoto(this, 'left')">
+            <div class="photo-real" style="background-image: url('0A0A0029a.jpg');"></div>
+          </div>
+          <div class="photo-card" onclick="selectPhoto(this, 'right')">
+            <div class="photo-real" style="background-image: url('0A0A9986a.jpg');"></div>
+          </div>
+        </div>
+        <div class="progress-dots">
+          <span class="dot filled"></span>
+          <span class="dot filled"></span>
+          <span class="dot filled"></span>
+          <span class="dot filled"></span>
+          <span class="dot filled"></span>
+          <span class="dot filled"></span>
+          <span class="dot filled"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+        </div>
+        <button class="btn-secondary" onclick="showScreen('screen-thankyou')">
+          Next (demo) →
+        </button>
+      </div>
+    </div>
+
+    <!-- Screen 3: Thank You with Preferences -->
+    <div id="screen-thankyou" class="screen">
+      <div class="screen-content thankyou-screen">
+        <div class="logo-area-small">
+          <span class="mdi mdi-check-circle icon-medium icon-success"></span>
+        </div>
+        <h1 class="title-small">Thanks!</h1>
+        <p class="subtitle-small">Here's what your picks tell us:</p>
+        
+        <div class="preferences-card">
+          <h2 class="preferences-title">Your Path Preferences</h2>
+          <div class="preference-items">
+            <div class="preference-item">
+              <span class="mdi mdi-tree preference-icon"></span>
+              <span class="preference-text">You prefer tree-lined paths</span>
+            </div>
+            <div class="preference-item">
+              <span class="mdi mdi-broom preference-icon"></span>
+              <span class="preference-text">Well-maintained paths matter to you</span>
+            </div>
+            <div class="preference-item">
+              <span class="mdi mdi-eye preference-icon"></span>
+              <span class="preference-text">You like paths with good sightlines</span>
+            </div>
+          </div>
+        </div>
+        
+        <p class="thankyou-note">Your choices help us build better walking routes for Casey.</p>
+        
+        <div class="thankyou-actions">
+          <button class="btn-outline" onclick="window.open('https://yourwalk.org', '_blank')">
+            <span class="mdi mdi-information-outline btn-icon"></span>
+            Learn about YourWalk
+          </button>
+          <button class="btn-primary" onclick="showScreen('screen-welcome')">
+            <span class="mdi mdi-replay btn-icon"></span>
+            Play Again
+          </button>
+        </div>
+        <div class="branding">
+          <span class="brand-text">Monash XYX Lab · CrowdLab · City of Casey</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    function showScreen(screenId) {
+      // Hide all screens
+      document.querySelectorAll('.screen').forEach(screen => {
+        screen.classList.remove('active');
+      });
+      // Show target screen
+      document.getElementById(screenId).classList.add('active');
+      // Reset any selected photos
+      document.querySelectorAll('.photo-card').forEach(card => {
+        card.classList.remove('selected');
+      });
+    }
+
+    function selectPhoto(element, side) {
+      // Remove selection from siblings
+      const container = element.parentElement;
+      container.querySelectorAll('.photo-card').forEach(card => {
+        card.classList.remove('selected');
+      });
+      // Add selection to clicked
+      element.classList.add('selected');
+      
+      // Brief delay then auto-advance (in real app)
+      // For mockup, just show selection
+    }
+  </script>
+</body>
+</html>
