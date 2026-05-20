@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YourWalk — Council Insights Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet">
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* YourWalk brand */
+  --blue:        #27AAE1;
+  --navy:        #292984;
+  --teal:        #00AAA6;
+  --lime:        #8DC63F;
+  --green:       #009444;
+  --amber:       #FFCB1F;
+  --orange:      #F6871F;
+  --pink:        #EC008C;
+  --midblue:     #1C75BC;
+
+  /* Dark UI surfaces — navy/teal/black blend */
+  --bg:          #0B0C1A;
+  --surface:     #111224;
+  --surface2:    #181930;
+  --surface3:    #1E2040;
+  --border:      rgba(39,170,225,0.12);
+  --border-mid:  rgba(39,170,225,0.22);
+  --border-act:  rgba(0,170,166,0.4);
+
+  /* Text on dark */
+  --text:        #EEF2FF;
+  --text-mid:    #8B93C4;
+  --text-dim:    #545B88;
+  --text-faint:  #363A60;
+
+  /* Priority colours */
+  --high:        #EC008C;
+  --med:         #F6871F;
+  --low:         #8DC63F;
+  --high-bg:     rgba(236,0,140,0.12);
+  --med-bg:      rgba(246,135,31,0.12);
+  --low-bg:      rgba(141,198,63,0.10);
+
+  /* Theme accents */
+  --lighting:    #FFCB1F;
+  --footpath:    #27AAE1;
+  --heat:        #F6871F;
+}
+
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── TOP BAR ── */
+.topbar {
+  height: 54px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 16px;
+  flex-shrink: 0;
+  z-index: 20;
+}
+
+.logo-wrap img { height: 26px; width: auto; }
+
+.topbar-divider { width: 1px; height: 26px; background: var(--border-mid); }
+
+.nav-pills { display: flex; gap: 2px; }
+.pill {
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--text-mid);
+  border: none;
+  background: transparent;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.pill:hover { color: var(--text); background: var(--surface3); }
+.pill.active { color: var(--bg); background: var(--blue); font-weight: 600; }
+
+.topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+.lga-badge {
+  padding: 4px 12px;
+  background: var(--surface3);
+  border: 1px solid var(--border-mid);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-mid);
+  letter-spacing: 0.3px;
+}
+
+.export-btn {
+  padding: 7px 16px;
+  background: var(--teal);
+  border: none;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: opacity 0.15s;
+}
+.export-btn:hover { opacity: 0.85; }
+
+/* ── LAYOUT ── */
+.layout { display: flex; flex: 1; overflow: hidden; }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width: 288px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.sidebar-section {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.section-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.9px;
+  color: var(--text-faint);
+  margin-bottom: 12px;
+}
+
+/* Filter tabs */
+.filter-tabs { display: flex; gap: 5px; flex-wrap: wrap; }
+.ftab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+  cursor: pointer;
+  background: transparent;
+  font-family: inherit;
+  transition: all 0.12s;
+}
+.ftab:hover { border-color: var(--border-mid); color: var(--text-mid); }
+.ftab-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.ftab-lighting.active { color: var(--amber); border-color: rgba(255,203,31,0.35); background: rgba(255,203,31,0.07); }
+.ftab-footpath.active { color: var(--blue);  border-color: rgba(39,170,225,0.35);  background: rgba(39,170,225,0.07); }
+.ftab-heat.active     { color: var(--heat);  border-color: rgba(246,135,31,0.35);  background: rgba(246,135,31,0.07); }
+
+/* Selected area card */
+.area-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+}
+.area-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+.area-name { font-size: 15px; font-weight: 700; color: var(--text); }
+.area-sub  { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+.risk-badge {
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  flex-shrink: 0;
+}
+.risk-high { background: var(--high-bg); color: var(--high); }
+.risk-med  { background: var(--med-bg);  color: var(--med); }
+.risk-low  { background: var(--low-bg);  color: var(--low); }
+
+.score-rows { display: flex; flex-direction: column; gap: 9px; }
+.score-row  { display: flex; align-items: center; gap: 9px; }
+.score-name { font-size: 11px; width: 74px; flex-shrink: 0; }
+.score-track {
+  flex: 1;
+  height: 5px;
+  background: var(--surface3);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.score-fill { height: 100%; border-radius: 3px; }
+.score-num { font-size: 11px; font-weight: 700; width: 24px; text-align: right; flex-shrink: 0; }
+
+.index-row {
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.index-label { font-size: 11px; font-weight: 600; color: var(--text-mid); }
+.index-value { font-size: 28px; font-weight: 800; color: var(--high); line-height: 1; }
+.index-sub   { font-size: 10px; color: var(--text-dim); }
+
+/* Community need */
+.need-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.need-item {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 11px;
+}
+.need-val { font-size: 18px; font-weight: 800; line-height: 1; }
+.need-lbl { font-size: 10px; color: var(--text-dim); margin-top: 3px; line-height: 1.3; }
+
+/* Data sources */
+.source-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.source-row:last-child { border-bottom: none; }
+.source-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.source-name { flex: 1; color: var(--text-mid); }
+.source-status {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+.status-live { background: rgba(0,148,68,0.12); color: var(--green); }
+.status-aged { background: rgba(255,203,31,0.10); color: #C8A000; }
+
+/* ── MAP ── */
+.map-area { flex: 1; position: relative; overflow: hidden; }
+#map { width: 100%; height: 100%; }
+
+/* Map overlay widgets — dark glass style */
+.map-search {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  width: 255px;
+  z-index: 5;
+}
+.map-search-inner { position: relative; }
+.map-search-input {
+  width: 100%;
+  padding: 9px 14px 9px 36px;
+  background: rgba(17,18,36,0.92);
+  border: 1px solid var(--border-mid);
+  border-radius: 9px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+  backdrop-filter: blur(8px);
+}
+.map-search-input::placeholder { color: var(--text-dim); }
+.map-search-icon {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-dim);
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.map-controls {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 5;
+}
+.map-btn {
+  width: 34px;
+  height: 34px;
+  background: rgba(17,18,36,0.92);
+  border: 1px solid var(--border-mid);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 17px;
+  color: var(--text-mid);
+  backdrop-filter: blur(8px);
+  transition: all 0.12s;
+  user-select: none;
+}
+.map-btn:hover { color: var(--text); border-color: var(--border-act); }
+
+/* Tooltip */
+.map-tooltip {
+  position: absolute;
+  top: 58px;
+  left: 14px;
+  background: rgba(17,18,36,0.95);
+  border: 1px solid var(--border-act);
+  border-radius: 12px;
+  padding: 14px 16px;
+  width: 210px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  z-index: 5;
+  pointer-events: none;
+}
+.tooltip-name { font-size: 14px; font-weight: 700; margin-bottom: 10px; color: var(--text); }
+.tooltip-row  { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; }
+.tooltip-dot  { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.tooltip-label { font-size: 12px; color: var(--text-mid); flex: 1; }
+.tooltip-score { font-size: 12px; font-weight: 600; }
+.tooltip-index {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.tooltip-index-label { font-size: 11px; color: var(--text-mid); }
+.tooltip-index-val   { font-size: 26px; font-weight: 800; color: var(--high); line-height: 1; }
+
+/* Legend */
+.map-legend {
+  position: absolute;
+  bottom: 28px;
+  left: 14px;
+  background: rgba(17,18,36,0.92);
+  border: 1px solid var(--border-mid);
+  border-radius: 10px;
+  padding: 11px 13px;
+  backdrop-filter: blur(8px);
+  z-index: 5;
+}
+.legend-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-dim);
+  margin-bottom: 7px;
+}
+.legend-gradient {
+  width: 140px;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, #8DC63F, #FFCB1F, #F6871F, #EC008C);
+  margin-bottom: 5px;
+}
+.legend-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-dim); }
+
+/* Stats strip */
+.stats-strip {
+  position: absolute;
+  bottom: 28px;
+  right: 14px;
+  display: flex;
+  gap: 7px;
+  z-index: 5;
+}
+.stat-chip {
+  background: rgba(17,18,36,0.92);
+  border: 1px solid var(--border-mid);
+  border-radius: 10px;
+  padding: 9px 13px;
+  text-align: center;
+  backdrop-filter: blur(8px);
+}
+.stat-val { font-size: 22px; font-weight: 800; line-height: 1; }
+.stat-lbl { font-size: 10px; color: var(--text-dim); margin-top: 2px; white-space: nowrap; }
+
+/* ── RIGHT PANEL ── */
+.right-panel {
+  width: 252px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.panel-title {
+  padding: 14px 16px 11px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-faint);
+  border-bottom: 1px solid var(--border);
+}
+
+.hotspot-item {
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.hotspot-item:hover { background: var(--surface2); }
+.hotspot-item.selected {
+  background: rgba(0,170,166,0.07);
+  border-left: 2px solid var(--teal);
+  padding-left: 14px;
+}
+
+.hotspot-rank {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.hotspot-item.selected .hotspot-rank {
+  background: var(--teal);
+  border-color: var(--teal);
+  color: white;
+}
+
+.hotspot-info { flex: 1; min-width: 0; }
+.hotspot-name { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hotspot-tags { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
+.htag { font-size: 10px; font-weight: 500; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+.htag-l { background: rgba(255,203,31,0.12); color: var(--amber); }
+.htag-f { background: rgba(39,170,225,0.10); color: var(--blue); }
+.htag-h { background: rgba(246,135,31,0.10); color: var(--orange); }
+
+.hotspot-score {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.score-critical { background: var(--high-bg); color: var(--high); }
+.score-high     { background: var(--med-bg);  color: var(--med); }
+.score-mod      { background: var(--low-bg);  color: var(--low); }
+
+.view-all {
+  margin: 10px 16px;
+  padding: 8px;
+  background: rgba(0,170,166,0.07);
+  border: 1px solid var(--border-act);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--teal);
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.view-all:hover { background: rgba(0,170,166,0.12); }
+
+.confidence-section { padding: 12px 16px 16px; }
+.conf-label { font-size: 11px; color: var(--text-mid); margin-bottom: 8px; line-height: 1.5; }
+.conf-bar-wrap { display: flex; align-items: center; gap: 8px; }
+.conf-bar-track { flex: 1; height: 4px; background: var(--surface3); border-radius: 2px; overflow: hidden; }
+.conf-bar-fill  { height: 100%; border-radius: 2px; background: linear-gradient(to right, var(--teal), var(--blue)); }
+.conf-pct  { font-size: 12px; font-weight: 700; color: var(--teal); }
+.conf-note { font-size: 10px; color: var(--text-dim); margin-top: 5px; }
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="logo-wrap">
+    <img src="logo.svg" alt="YourWalk" />
+  </div>
+  <div class="topbar-divider"></div>
+  <span style="font-size:13px;font-weight:500;color:var(--text-mid)">Council Insights</span>
+  <div class="topbar-divider"></div>
+  <nav class="nav-pills">
+    <button class="pill active" onclick="setTab(this)">Vulnerability Map</button>
+    <button class="pill" onclick="setTab(this)">Corridors</button>
+    <button class="pill" onclick="setTab(this)">Priority Zones</button>
+  </nav>
+  <div class="topbar-right">
+    <span class="lga-badge">City of Casey</span>
+    <button class="export-btn">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export Report
+    </button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+
+    <div class="sidebar-section">
+      <div class="section-label">View by theme</div>
+      <div class="filter-tabs">
+        <button class="ftab ftab-lighting active" onclick="this.classList.toggle('active')">
+          <span class="ftab-dot" style="background:var(--amber)"></span>Lighting
+        </button>
+        <button class="ftab ftab-footpath active" onclick="this.classList.toggle('active')">
+          <span class="ftab-dot" style="background:var(--blue)"></span>Footpaths
+        </button>
+        <button class="ftab ftab-heat active" onclick="this.classList.toggle('active')">
+          <span class="ftab-dot" style="background:var(--heat)"></span>Heat &amp; shade
+        </button>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-label">Selected suburb</div>
+      <div class="area-card">
+        <div class="area-header">
+          <div>
+            <div class="area-name">Cranbourne East</div>
+            <div class="area-sub">City of Casey LGA</div>
+          </div>
+          <span class="risk-badge risk-high">High risk</span>
+        </div>
+        <div class="score-rows">
+          <div class="score-row">
+            <span class="score-name" style="color:var(--amber)">Lighting</span>
+            <div class="score-track"><div class="score-fill" style="width:72%;background:var(--amber)"></div></div>
+            <span class="score-num" style="color:var(--amber)">72</span>
+          </div>
+          <div class="score-row">
+            <span class="score-name" style="color:var(--blue)">Footpaths</span>
+            <div class="score-track"><div class="score-fill" style="width:58%;background:var(--blue)"></div></div>
+            <span class="score-num" style="color:var(--blue)">58</span>
+          </div>
+          <div class="score-row">
+            <span class="score-name" style="color:var(--heat)">Heat &amp; shade</span>
+            <div class="score-track"><div class="score-fill" style="width:81%;background:var(--heat)"></div></div>
+            <span class="score-num" style="color:var(--heat)">81</span>
+          </div>
+        </div>
+        <div class="index-row">
+          <div>
+            <div class="index-label">Vulnerability index</div>
+            <div class="index-sub">Combined score</div>
+          </div>
+          <div style="text-align:right">
+            <div class="index-value">70</div>
+            <div class="index-sub">/ 100</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-label">Community need</div>
+      <div class="need-grid">
+        <div class="need-item">
+          <div class="need-val" style="color:var(--blue)">31%</div>
+          <div class="need-lbl">Older residents (65+)</div>
+        </div>
+        <div class="need-item">
+          <div class="need-val" style="color:var(--teal)">18%</div>
+          <div class="need-lbl">Disability reported</div>
+        </div>
+        <div class="need-item">
+          <div class="need-val" style="color:var(--text-mid)">SEIFA 4</div>
+          <div class="need-lbl">Decile (lower income)</div>
+        </div>
+        <div class="need-item">
+          <div class="need-val" style="color:var(--orange)">12%</div>
+          <div class="need-lbl">No vehicle access</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section" style="border-bottom:none">
+      <div class="section-label">Data sources</div>
+      <div class="source-row">
+        <div class="source-dot" style="background:var(--green)"></div>
+        <span class="source-name">Casey lighting assets</span>
+        <span class="source-status status-live">Live</span>
+      </div>
+      <div class="source-row">
+        <div class="source-dot" style="background:var(--green)"></div>
+        <span class="source-name">Vicmap footpaths</span>
+        <span class="source-status status-live">Live</span>
+      </div>
+      <div class="source-row">
+        <div class="source-dot" style="background:var(--amber)"></div>
+        <span class="source-name">Urban heat (2018)</span>
+        <span class="source-status status-aged">Aged</span>
+      </div>
+      <div class="source-row">
+        <div class="source-dot" style="background:var(--green)"></div>
+        <span class="source-name">VicRoads crash data</span>
+        <span class="source-status status-live">Live</span>
+      </div>
+      <div class="source-row" style="border-bottom:none">
+        <div class="source-dot" style="background:var(--green)"></div>
+        <span class="source-name">ABS Census 2021</span>
+        <span class="source-status status-live">Live</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- MAP -->
+  <div class="map-area">
+    <div id="map"></div>
+
+    <!-- Search -->
+    <div class="map-search">
+      <div class="map-search-inner">
+        <span class="map-search-icon">&#128269;</span>
+        <input class="map-search-input" placeholder="Search suburb or street&hellip;" />
+      </div>
+    </div>
+
+    <!-- Tooltip -->
+    <div class="map-tooltip">
+      <div class="tooltip-name">Cranbourne East</div>
+      <div class="tooltip-row">
+        <div class="tooltip-dot" style="background:var(--amber)"></div>
+        <div class="tooltip-label">Lighting deficit</div>
+        <div class="tooltip-score" style="color:var(--amber)">72 / 100</div>
+      </div>
+      <div class="tooltip-row">
+        <div class="tooltip-dot" style="background:var(--blue)"></div>
+        <div class="tooltip-label">Footpath gaps</div>
+        <div class="tooltip-score" style="color:var(--blue)">58 / 100</div>
+      </div>
+      <div class="tooltip-row">
+        <div class="tooltip-dot" style="background:var(--heat)"></div>
+        <div class="tooltip-label">Heat exposure</div>
+        <div class="tooltip-score" style="color:var(--heat)">81 / 100</div>
+      </div>
+      <div class="tooltip-index">
+        <div class="tooltip-index-label">Vulnerability index</div>
+        <div class="tooltip-index-val">70</div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="map-controls">
+      <div class="map-btn" onclick="map.zoomIn()">+</div>
+      <div class="map-btn" style="font-size:20px;line-height:1" onclick="map.zoomOut()">&#8722;</div>
+      <div class="map-btn" style="margin-top:4px;font-size:13px" onclick="map.resetNorth()">N</div>
+    </div>
+
+    <!-- Legend -->
+    <div class="map-legend">
+      <div class="legend-title">Vulnerability score</div>
+      <div class="legend-gradient"></div>
+      <div class="legend-labels"><span>Low</span><span>Medium</span><span>High</span></div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-strip">
+      <div class="stat-chip">
+        <div class="stat-val" style="color:var(--high)">3</div>
+        <div class="stat-lbl">High priority</div>
+      </div>
+      <div class="stat-chip">
+        <div class="stat-val" style="color:var(--orange)">7</div>
+        <div class="stat-lbl">Medium priority</div>
+      </div>
+      <div class="stat-chip">
+        <div class="stat-val" style="color:var(--blue)">14</div>
+        <div class="stat-lbl">Suburbs assessed</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right-panel">
+    <div class="panel-title">Priority hotspots</div>
+
+    <div class="hotspot-item selected" onclick="selectHotspot(this)">
+      <div class="hotspot-rank">1</div>
+      <div class="hotspot-info">
+        <div class="hotspot-name">Cranbourne East</div>
+        <div class="hotspot-tags">
+          <span class="htag htag-l">Lighting</span>
+          <span class="htag htag-f">Footpaths</span>
+          <span class="htag htag-h">Heat</span>
+        </div>
+      </div>
+      <div class="hotspot-score score-critical">70</div>
+    </div>
+
+    <div class="hotspot-item" onclick="selectHotspot(this)">
+      <div class="hotspot-rank">2</div>
+      <div class="hotspot-info">
+        <div class="hotspot-name">Clyde North</div>
+        <div class="hotspot-tags">
+          <span class="htag htag-h">Heat</span>
+          <span class="htag htag-f">Footpaths</span>
+        </div>
+      </div>
+      <div class="hotspot-score score-critical">65</div>
+    </div>
+
+    <div class="hotspot-item" onclick="selectHotspot(this)">
+      <div class="hotspot-rank">3</div>
+      <div class="hotspot-info">
+        <div class="hotspot-name">Narre Warren South</div>
+        <div class="hotspot-tags">
+          <span class="htag htag-l">Lighting</span>
+          <span class="htag htag-f">Footpaths</span>
+        </div>
+      </div>
+      <div class="hotspot-score score-high">54</div>
+    </div>
+
+    <div class="hotspot-item" onclick="selectHotspot(this)">
+      <div class="hotspot-rank">4</div>
+      <div class="hotspot-info">
+        <div class="hotspot-name">Hampton Park</div>
+        <div class="hotspot-tags">
+          <span class="htag htag-l">Lighting</span>
+        </div>
+      </div>
+      <div class="hotspot-score score-high">48</div>
+    </div>
+
+    <div class="hotspot-item" onclick="selectHotspot(this)">
+      <div class="hotspot-rank">5</div>
+      <div class="hotspot-info">
+        <div class="hotspot-name">Lynbrook</div>
+        <div class="hotspot-tags">
+          <span class="htag htag-f">Footpaths</span>
+        </div>
+      </div>
+      <div class="hotspot-score score-mod">34</div>
+    </div>
+
+    <div class="hotspot-item" onclick="selectHotspot(this)">
+      <div class="hotspot-rank">6</div>
+      <div class="hotspot-info">
+        <div class="hotspot-name">Berwick</div>
+        <div class="hotspot-tags">
+          <span class="htag htag-h">Heat</span>
+        </div>
+      </div>
+      <div class="hotspot-score score-mod">29</div>
+    </div>
+
+    <div class="view-all">View all 14 suburbs &rarr;</div>
+
+    <div class="panel-title" style="margin-top:4px">Data confidence</div>
+    <div class="confidence-section">
+      <div class="conf-label">Index based on 5 integrated datasets. Heat data is 2018 vintage.</div>
+      <div class="conf-bar-wrap">
+        <div class="conf-bar-track"><div class="conf-bar-fill" style="width:89%"></div></div>
+        <span class="conf-pct">89%</span>
+      </div>
+      <div class="conf-note">Overall coverage across Casey LGA</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+mapboxgl.accessToken = 'pk.eyJ1IjoiY3Jvd2RzcG90MSIsImEiOiIwTFItekZ3In0.M_0CqFroH04TUc-K1_CHXQ';
+
+const map = new mapboxgl.Map({
+  container: 'map',
+  style: 'mapbox://styles/mapbox/dark-v11',
+  center: [145.28, -38.09],  /* City of Casey centroid */
+  zoom: 11,
+  attributionControl: true
+});
+
+/* Vulnerability hotspot data — approx centroids for Casey suburbs */
+const hotspots = [
+  { id: 'cranbourne-east',    name: 'Cranbourne East',    coords: [145.310, -38.102], score: 70, priority: 'critical', colour: '#EC008C' },
+  { id: 'clyde-north',        name: 'Clyde North',        coords: [145.340, -38.140], score: 65, priority: 'critical', colour: '#EC008C' },
+  { id: 'narre-warren-south', name: 'Narre Warren South', coords: [145.220, -38.075], score: 54, priority: 'high',     colour: '#F6871F' },
+  { id: 'hampton-park',       name: 'Hampton Park',       coords: [145.248, -38.044], score: 48, priority: 'high',     colour: '#F6871F' },
+  { id: 'lynbrook',           name: 'Lynbrook',           coords: [145.245, -38.065], score: 34, priority: 'mod',      colour: '#8DC63F' },
+  { id: 'berwick',            name: 'Berwick',            coords: [145.350, -38.036], score: 29, priority: 'mod',      colour: '#8DC63F' },
+];
+
+
+map.on('load', () => {
+
+  /* Add vulnerability circle layers */
+  hotspots.forEach(h => {
+    /* GeoJSON source */
+    map.addSource(h.id, {
+      type: 'geojson',
+      data: {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: h.coords },
+        properties: { name: h.name, score: h.score, colour: h.colour }
+      }
+    });
+
+    /* Marker dot */
+    map.addLayer({
+      id: h.id + '-dot',
+      type: 'circle',
+      source: h.id,
+      paint: {
+        'circle-radius': h.priority === 'critical' ? 9 : h.priority === 'high' ? 7 : 6,
+        'circle-color': h.colour,
+        'circle-stroke-color': 'rgba(255,255,255,0.9)',
+        'circle-stroke-width': 1.5,
+        'circle-pitch-alignment': 'map'
+      }
+    });
+  });
+
+});
+
+/* UI interactions */
+function setTab(el) {
+  document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function selectHotspot(el) {
+  document.querySelectorAll('.hotspot-item').forEach(i => i.classList.remove('selected'));
+  el.classList.add('selected');
+  document.querySelectorAll('.hotspot-rank').forEach(r => {
+    r.style.background = ''; r.style.borderColor = ''; r.style.color = '';
+  });
+  const rank = el.querySelector('.hotspot-rank');
+  rank.style.background = 'var(--teal)';
+  rank.style.borderColor = 'var(--teal)';
+  rank.style.color = 'white';
+}
+</script>
+</body>
+</html>
