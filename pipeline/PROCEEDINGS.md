@@ -61,7 +61,7 @@ This document tracks ingestion order, dependencies, and what is blocked on disco
 
 **Vicmap Tree Density** — [DataVic](https://discover.data.vic.gov.au/dataset/vicmap-vegetation-tree-density-polygon): polygon layer with **Dense / Medium / Sparse** tree cover classes (2019/2020). Ingested via DEECA open-data WFS (`open-data-platform:tree_density`), clipped to Casey footpaths envelope + buffer.
 
-**Discovery resolved (May 2026):** WFS GeoJSON ~15 MB / ~4k polygons for Casey; attributes `tree_density`, `feature_subtype` (forest), source dates 2019-12-17 → 2020-04-28. Segment join rule still TBD in Wave 5 harmonisation.
+**Discovery resolved (May 2026):** WFS GeoJSON ~15 MB / ~4k polygons for Casey; attributes `tree_density`, `feature_subtype` (forest), source dates 2019-12-17 → 2020-04-28. Segment join rule: area-weighted overlap — see [`docs/SEGMENT_HARMONISATION.md`](../docs/SEGMENT_HARMONISATION.md) §5.5.
 
 **Metro Melbourne Urban Heat 2018** — [DataVic](https://discover.data.vic.gov.au/dataset/metropolitan-melbourne-urban-heat-islands-and-urban-vegetation-2018): 2016 ABS **mesh blocks** with **`UHI18_M`** (urban heat island, °C above non-urban baseline from Landsat-8 LST). Ingested via Plan Melbourne ArcGIS REST (`Vegetation_and_heat_mapping/MapServer/6`), clipped to Casey footpaths envelope.
 
@@ -74,12 +74,12 @@ This document tracks ingestion order, dependencies, and what is blocked on disco
 | **Casey coverage** | ~3,400 mesh blocks in pilot envelope; ~2,970 tagged `Casey (C)` LGA |
 | **Access** | ArcGIS REST GeoJSON (paginated); DataShare SHP/GDB also available |
 | **Capture** | Summer Landsat-8, ~10:50 AM; 2018 vintage |
-| **Scoring** | Lower `UHI18_M` = better; segment join TBD in Wave 5 |
+| **Scoring** | Lower `UHI18_M` = better; segment join: area-weighted intersection — [`SEGMENT_HARMONISATION.md`](../docs/SEGMENT_HARMONISATION.md) §5.4 |
 | **Optional enrichment** | HVI 2018 at SA1 (MapServer layer 4); co-located `PERANYVEG` on mesh blocks |
 
 **Discovery still open:**
 
-1. **Segment join:** mesh-block centroid vs length-weighted intersection along footpaths.
+1. **Segment join:** area-weighted mesh-block intersection (primary); 50 m nearest fallback — [`SEGMENT_HARMONISATION.md`](../docs/SEGMENT_HARMONISATION.md) §5.4.
 2. **Vintage:** document 2018 heat + 2019/2020 canopy in scoring output.
 
 ---
@@ -102,8 +102,8 @@ This document tracks ingestion order, dependencies, and what is blocked on disco
 
 | Step | Description | Status |
 |------|-------------|--------|
-| Harmonise all layers to T1EAM segment network | Snap/join points and lines; derive segment attributes | Not started |
-| Scoring algorithm | `day_index_score`, `night_index_score` + sub-scores | Not started |
+| Harmonise all layers to T1EAM segment network | Snap/join points and lines; derive segment attributes — see [`docs/SEGMENT_HARMONISATION.md`](../docs/SEGMENT_HARMONISATION.md) | Spec drafted (v0.1) |
+| Scoring algorithm | `day_index_score`, `night_index_score` + sub-scores — see scoring spec (TBD) | Not started |
 | PostGIS / Supabase load | GeoParquet → production layer | Not started |
 | Confidence model (ADR-005) | Per-component high/medium/low | Not started |
 
@@ -132,4 +132,5 @@ This document tracks ingestion order, dependencies, and what is blocked on disco
 
 - [`README.md`](README.md) — runbook and per-dataset detail
 - [`docs/DATA_SET_REGISTER.md`](../docs/DATA_SET_REGISTER.md) — full inventory
+- [`docs/SEGMENT_HARMONISATION.md`](../docs/SEGMENT_HARMONISATION.md) — Wave 5 join rules and `segment_features.parquet` schema
 - [`docs/meeting-prep/nikki-29-may-pipeline.html`](../docs/meeting-prep/nikki-29-may-pipeline.html) — pipeline visual
