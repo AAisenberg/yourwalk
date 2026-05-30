@@ -66,12 +66,34 @@ python scripts/ingest_streetlights.py --force-download
 | **Key fields** | `light_id`, `globe_type`, `wattage_w`, `provider`, `suburb`, `street_name`, `source_extracted_date`, geometry (Point) |
 | **QA** | Wattage flags: `ok`, `missing_wattage`, `zero_wattage`, `high_wattage` (>400 W). Duplicate `light_id` flagged. Proxies only — no lux in source. |
 
+### Speed Zones (Transport Victoria) ✅
+
+Road speed exposure for shared Accessibility stream (v1.1). Clipped to City of Casey from Victoria-wide monthly extract.
+
+**Prerequisite:** run `ingest_footpaths_t1eam.py` first (Casey clip envelope).
+
+```bash
+python scripts/ingest_speed_zones.py
+python scripts/ingest_speed_zones.py --force-download
+python scripts/ingest_speed_zones.py --vintage 2026-02
+```
+
+| Item | Detail |
+|------|--------|
+| **Source** | [DataVic — Speed Zones](https://discover.data.vic.gov.au/dataset/speed-zones) / [Transport Victoria open data](https://opendata.transport.vic.gov.au/dataset/speed-zones) |
+| **Default vintage** | April 2026 (`--vintage 2026-04`); February 2026 also available (`2026-02`) |
+| **Raw file** | `data/raw/speed_zones_victoria_{vintage}.geojson` (~500–670 MB Victoria-wide) |
+| **Output** | `data/intermediate/speed_zones_casey_{vintage}.parquet` |
+| **QA report** | `data/qa/speed_zones_casey_{vintage}_qa.json` |
+| **Key fields** | `zone_id`, `speed_limit_kmh`, `zone_length_m`, `zone_conditions`, `travel_direction`, `road_name`, `lga`, geometry (LineString/MultiLineString) |
+| **Casey clip** | Footpaths envelope + ~400 m buffer; `Casey (C)` LGA tag or null LGA (non-Casey LGA tags excluded) |
+| **QA** | Speed limit flags: `ok`, `missing_limit`, `below_range` (<10 km/h), `above_range` (>110 km/h). Zone length `missing_length` / `invalid_length`. DTP documents lowest 24h limit per segment. |
+
 ### Planned (not yet implemented)
 
 | Dataset | Source | Stream | Priority |
 |---------|--------|--------|----------|
 | Casey Asset Lights (parks/reserves) | Casey Open Data | Night Index enrichment | Medium |
-| Speed Zones | DataVic / Transport Victoria | Accessibility (shared) | High |
 | Graffiti Locations | Casey Open Data | Accessibility (shared) | High |
 | Vicmap Tree Urban | DataVic REST | Day Index (Heat & Shade) | High |
 | Metro Melbourne Urban Heat 2018 | DataVic | Day Index (Heat & Shade) | High |

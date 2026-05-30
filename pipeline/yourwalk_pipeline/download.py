@@ -1,4 +1,4 @@
-"""Download helpers for Casey Open Data (OpenDataSoft v2.1 API)."""
+"""Download helpers for Casey Open Data and Transport Victoria direct URLs."""
 
 from __future__ import annotations
 
@@ -33,5 +33,27 @@ def download_geojson_export(
     # Validate JSON parses (GeoJSON FeatureCollection)
     with dest.open(encoding="utf-8") as handle:
         json.load(handle)
+
+    return dest
+
+
+def download_file(
+    url: str,
+    dest: Path,
+    *,
+    force: bool = False,
+    timeout: float = 1800.0,
+) -> Path:
+    """Stream-download a file from a direct URL (e.g. Transport Victoria CKAN)."""
+    if dest.exists() and not force:
+        return dest
+
+    dest.parent.mkdir(parents=True, exist_ok=True)
+
+    with httpx.stream("GET", url, timeout=timeout, follow_redirects=True) as response:
+        response.raise_for_status()
+        with dest.open("wb") as handle:
+            for chunk in response.iter_bytes():
+                handle.write(chunk)
 
     return dest
