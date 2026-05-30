@@ -102,7 +102,7 @@ This document tracks ingestion order, dependencies, and what is blocked on disco
 
 | Step | Description | Status |
 |------|-------------|--------|
-| Harmonise all layers to T1EAM segment network | Snap/join points and lines; derive segment attributes — see [`docs/SEGMENT_HARMONISATION.md`](../docs/SEGMENT_HARMONISATION.md) | Spec drafted (v0.1) |
+| Harmonise all layers to T1EAM segment network | Snap/join points and lines; derive segment attributes — see [`docs/SEGMENT_HARMONISATION.md`](../docs/SEGMENT_HARMONISATION.md) | ✅ `harmonise_segments.py` |
 | Scoring algorithm | `day_index_score`, `night_index_score` + sub-scores — see scoring spec (TBD) | Not started |
 | PostGIS / Supabase load | GeoParquet → production layer | Not started |
 | Confidence model (ADR-005) | Per-component high/medium/low | Not started |

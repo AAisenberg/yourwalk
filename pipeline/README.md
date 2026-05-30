@@ -277,7 +277,9 @@ Casey Open Data + DataVic + Transport Victoria
         ↓
    scripts/build_viewer_layers.py  (optional local QA map)
         ↓
-   [future] PostGIS / Supabase load + scoring
+   scripts/harmonise_segments.py  (segment_features.parquet)
+        ↓
+   [future] Scoring algorithm → PostGIS / Supabase load
         ↓
    Resident app + Council dashboard (Q3 2026)
 ```
@@ -322,5 +324,21 @@ python scripts/serve_viewer.py --rebuild --open
 | **Council dashboard filters** | Suburb (primary), ward (secondary), SA2 (reporting aggregate) |
 
 Toggle layers in the sidebar to check alignment (footpaths vs heat/canopy vs lights/points) before Wave 5 harmonisation.
+
+### Segment harmonisation (Wave 5)
+
+Join all ingested layers to T1EAM footpath segments — 25 m corridor for speed, crashes, graffiti.
+
+```bash
+python scripts/harmonise_segments.py
+python scripts/harmonise_segments.py --skip-council-trees   # faster, omit tree counts
+```
+
+| Item | Detail |
+|------|--------|
+| **Script** | `scripts/harmonise_segments.py` |
+| **Output** | `data/intermediate/segment_features.parquet` |
+| **QA report** | `data/qa/segment_harmonisation.json` |
+| **Spec** | [`docs/SEGMENT_HARMONISATION.md`](../docs/SEGMENT_HARMONISATION.md) |
 
 See also: [`docs/meeting-prep/nikki-29-may-pipeline.html`](../docs/meeting-prep/nikki-29-may-pipeline.html)
