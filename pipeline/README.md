@@ -89,12 +89,30 @@ python scripts/ingest_speed_zones.py --vintage 2026-02
 | **Casey clip** | Footpaths envelope + ~400 m buffer; `Casey (C)` LGA tag or null LGA (non-Casey LGA tags excluded) |
 | **QA** | Speed limit flags: `ok`, `missing_limit`, `below_range` (<10 km/h), `above_range` (>110 km/h). Zone length `missing_length` / `invalid_length`. DTP documents lowest 24h limit per segment. |
 
+### Graffiti Locations ✅
+
+Environmental order / maintenance proxy for shared Accessibility stream (v1.1). Not crime data — use density and recency when scoring.
+
+```bash
+python scripts/ingest_graffiti.py
+python scripts/ingest_graffiti.py --force-download
+```
+
+| Item | Detail |
+|------|--------|
+| **Source** | [Casey Open Data — Graffiti Locations](https://data.casey.vic.gov.au/explore/dataset/graffiti-locations) |
+| **API export** | `https://data.casey.vic.gov.au/api/explore/v2.1/catalog/datasets/graffiti-locations/exports/geojson` |
+| **Raw file** | `data/raw/graffiti-locations.geojson` |
+| **Output** | `data/intermediate/graffiti-locations.parquet` |
+| **QA report** | `data/qa/graffiti-locations_qa.json` |
+| **Key fields** | `record_id`, `graffiti_type` (Offensive / Non-Offensive), `created_date`, `completed_date`, `days_to_remove`, `area_removed_m2`, `suburb`, `ward`, geometry (Point) |
+| **QA** | Type, date, and area flags. `high_area` (>500 m²), `completed_before_created`, `unknown_type`. Portal field `response_times` holds graffiti type. |
+
 ### Planned (not yet implemented)
 
 | Dataset | Source | Stream | Priority |
 |---------|--------|--------|----------|
 | Casey Asset Lights (parks/reserves) | Casey Open Data | Night Index enrichment | Medium |
-| Graffiti Locations | Casey Open Data | Accessibility (shared) | High |
 | Vicmap Tree Urban | DataVic REST | Day Index (Heat & Shade) | High |
 | Metro Melbourne Urban Heat 2018 | DataVic | Day Index (Heat & Shade) | High |
 | Victoria Road Crash Data | Transport Victoria | Night Index | Medium |
