@@ -190,16 +190,75 @@ python scripts/ingest_vic_crashes.py --force-download
 | **Night Index** | `night_index_eligible = true` when `light_category` is `dark_lighted` or `dark_not_lighted` |
 | **Reference** | CrashDash field mapping: `crashdash/etl/vic/VIC_FIELD_MAPPING_VERIFICATION.md` |
 
+### Drinking Fountains (T1EAM) ✅
+
+Day Index comfort input — heat/shade stream amenity proximity.
+
+```bash
+python scripts/ingest_drinking_fountains.py
+python scripts/ingest_drinking_fountains.py --force-download
+```
+
+| Item | Detail |
+|------|--------|
+| **Source** | [Drinking Fountains (T1EAM)](https://data.casey.vic.gov.au/explore/dataset/drinkingfountains_pt_t1eam/) |
+| **Output** | `data/intermediate/drinkingfountains_pt_t1eam.parquet` |
+| **Records** | 199 |
+| **Key fields** | `fountain_type`, `material`, `condition`, `suburb`, `ward`, geometry (Point) |
+
+### Benches and Seats (T1EAM) ✅
+
+Day Index comfort input — score on **presence/location only** (quantity/capacity unreliable).
+
+```bash
+python scripts/ingest_benches_seats.py
+python scripts/ingest_benches_seats.py --force-download
+```
+
+| Item | Detail |
+|------|--------|
+| **Source** | [Benches and Seats (T1EAM)](https://data.casey.vic.gov.au/explore/dataset/benches_seats_pt_t1eam/) |
+| **Output** | `data/intermediate/benches_seats_pt_t1eam.parquet` |
+| **Records** | 3,411 |
+| **QA** | ~64% have `quantity=0`; `capacity` mostly `TBD` — documented, not used in scoring |
+
+### Casey Asset Lights — parks/reserves (T1EAM) ✅
+
+Night Index lighting enrichment for off-road paths and reserves.
+
+```bash
+python scripts/ingest_park_lights.py
+python scripts/ingest_park_lights.py --force-download
+```
+
+| Item | Detail |
+|------|--------|
+| **Source** | [Park/Reserve Lights (T1EAM)](https://data.casey.vic.gov.au/explore/dataset/parkreserve_light_pt_t1eam/) |
+| **Output** | `data/intermediate/parkreserve_light_pt_t1eam.parquet` |
+| **Records** | 3,162 |
+| **Combine with** | `ausnet_unitedenergy_mvp4_streetlights` for full lighting picture |
+
+### School Crossings (T1EAM) ✅
+
+Accessibility enrichment — school crossings only (not general crossings).
+
+```bash
+python scripts/ingest_school_crossings.py
+python scripts/ingest_school_crossings.py --force-download
+```
+
+| Item | Detail |
+|------|--------|
+| **Source** | [School Crossings (T1EAM)](https://data.casey.vic.gov.au/explore/dataset/school_crossings_pt_t1eam/) |
+| **Output** | `data/intermediate/school_crossings_pt_t1eam.parquet` |
+| **Records** | 142 |
+
 ### Planned (not yet implemented)
 
 | Dataset | Source | Stream | Priority |
 |---------|--------|--------|----------|
-| Casey Asset Lights (parks/reserves) | Casey Open Data | Night Index enrichment | Medium |
-| Metro Melbourne Urban Heat 2018 | DataVic / ArcGIS REST | Day Index heat (primary) | High — ✅ ingested |
-| Vicmap Tree Density | DataVic WFS | Day Index canopy (primary) | High — ✅ ingested |
-| Drinking Fountains, Benches (T1EAM) | Casey Open Data | Day Index | Medium |
-| School Crossings (T1EAM) | Casey Open Data | Accessibility enrichment | Medium |
 | Public toilets, Dog bags (T1EAM) | Casey Open Data | Dashboard overlays | Low |
+| Vicmap Elevation | DataVic | Accessibility gradient | 🔍 discovery |
 
 ## Pending Council data
 

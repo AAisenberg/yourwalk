@@ -36,7 +36,7 @@ This document tracks ingestion order, dependencies, and what is blocked on disco
 |---|---------|--------|--------|--------|
 | 4 | AusNet / United Energy street lights | `ingest_streetlights.py` | Night Index 40% | ✅ |
 | 5 | Victoria Road Crash Data (Casey pedestrian) | `ingest_vic_crashes.py` | Night Index 40% | ✅ |
-| 6 | Casey Asset Lights (parks/reserves) | — | Night Index enrichment | 📋 |
+| 6 | Casey Asset Lights (parks/reserves) | `ingest_park_lights.py` | Night Index enrichment | ✅ |
 
 **Notes:**
 
@@ -54,8 +54,8 @@ This document tracks ingestion order, dependencies, and what is blocked on disco
 | 7 | Casey Council Trees (T1EAM) | `ingest_council_trees.py` | Day Index enriching | ✅ |
 | 8 | Vicmap Vegetation Tree Density | `ingest_vicmap_tree_density.py` | Day Index canopy (primary) | ✅ |
 | 9 | Metro Melbourne Urban Heat 2018 | `ingest_metro_urban_heat_2018.py` | Day Index heat | ✅ |
-| 10 | Drinking Fountains (T1EAM) | TBD | Day Index comfort | 📋 |
-| 11 | Benches and Seats (T1EAM) | TBD | Day Index comfort | 📋 |
+| 10 | Drinking Fountains (T1EAM) | `ingest_drinking_fountains.py` | Day Index comfort | ✅ |
+| 11 | Benches and Seats (T1EAM) | `ingest_benches_seats.py` | Day Index comfort | ✅ |
 
 **Casey Council Trees** — [council_trees_pt_t1eam](https://data.casey.vic.gov.au/explore/dataset/council_trees_pt_t1eam/): ~203k Council-owned assets. Use for proximity, `tree_age`, `tree_height_m`, street vs reserve type. Portal `canopyewwidth_m` / `canopynswidth_m` fields are usually zero — not primary canopy.
 
@@ -88,7 +88,7 @@ This document tracks ingestion order, dependencies, and what is blocked on disco
 
 | # | Dataset | Script | Stream | Status |
 |---|---------|--------|--------|--------|
-| 12 | School Crossings (T1EAM) | TBD | Accessibility enrichment | 📋 |
+| 12 | School Crossings (T1EAM) | `ingest_school_crossings.py` | Accessibility enrichment | ✅ |
 | 13 | Vicmap Elevation (gradient derivation) | TBD | Accessibility | 🔍 |
 | 14 | General pedestrian crossings | — | Accessibility | ⏸ Council request drafted |
 | 15 | Kerb ramps | — | Accessibility | ⏸ Council request drafted |
