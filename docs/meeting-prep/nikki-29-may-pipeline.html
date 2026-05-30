@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YourWalk — Data Pipeline | Nikki review 29 May 2026</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --blue:     #27AAE1;
+  --navy:     #292984;
+  --teal:     #00AAA6;
+  --lime:     #8DC63F;
+  --amber:    #FFCB1F;
+  --orange:   #F6871F;
+  --pink:     #EC008C;
+  --bg:       #0B0C1A;
+  --surface:  #111224;
+  --surface2: #181930;
+  --surface3: #1E2040;
+  --border:   rgba(39,170,225,0.15);
+  --text:     #EEF2FF;
+  --text-mid: #8B93C4;
+  --text-dim: #545B88;
+  --footpath: #27AAE1;
+  --heat:     #F6871F;
+  --lighting: #FFCB1F;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(39,170,225,0.08), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(236,0,140,0.05), transparent);
+}
+
+.slide {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 36px 32px;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Shared site header — keep identical on both slides */
+.site-header {
+  display: grid;
+  grid-template-columns: 200px 1fr 280px;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-shrink: 0;
+  min-height: 52px;
+}
+.header-brand {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.header-logo {
+  height: 36px;
+  width: auto;
+  display: block;
+}
+.header-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+.header-tabs a {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 8px 18px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--text-mid);
+  border: 1px solid var(--border);
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.header-tabs a:hover { color: var(--text); border-color: rgba(39,170,225,0.35); }
+.header-tabs a.active {
+  background: rgba(39,170,225,0.12);
+  color: var(--blue);
+  border-color: rgba(39,170,225,0.4);
+}
+.header-meta {
+  text-align: right;
+  flex-shrink: 0;
+}
+.header-meta-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--teal);
+  line-height: 1.3;
+}
+.header-meta-sub {
+  font-size: 0.72rem;
+  color: var(--text-mid);
+  margin-top: 2px;
+}
+
+/* Hero question */
+.hero {
+  text-align: center;
+  margin-bottom: 22px;
+  flex-shrink: 0;
+}
+.hero q {
+  display: block;
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: var(--text-mid);
+  font-style: italic;
+  quotes: none;
+}
+.hero q::before, .hero q::after { content: none; }
+
+.hero-tags {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.tag {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+.tag.done { background: rgba(141,198,63,0.12); color: var(--lime); border-color: rgba(141,198,63,0.3); }
+.tag.pending { background: rgba(255,203,31,0.1); color: var(--amber); border-color: rgba(255,203,31,0.3); }
+.tag.goal { background: rgba(0,170,166,0.12); color: var(--teal); border-color: rgba(0,170,166,0.35); }
+
+.icon-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  flex-shrink: 0;
+  line-height: 1;
+  vertical-align: middle;
+  margin-right: 5px;
+}
+.icon-badge .mdi { font-size: 14px; line-height: 1; }
+.icon-badge.ib-council { background: rgba(236,0,140,0.1); color: var(--pink); border: 1px solid rgba(236,0,140,0.35); }
+.index-icon .mdi { font-size: 2rem; line-height: 1; }
+.index-card.day .index-icon .mdi { color: var(--heat); }
+.index-card.night .index-icon .mdi { color: var(--lighting); }
+.context-chip { display: inline-flex; align-items: center; }
+
+/* Pipeline */
+.pipeline-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.pipeline {
+  display: grid;
+  grid-template-columns: 1fr 32px 1fr 32px 1.1fr 32px 1fr 32px 1fr;
+  align-items: stretch;
+  gap: 0;
+  flex: 1;
+  min-height: 0;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.col-header {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+  padding-left: 2px;
+}
+
+.col-header .status {
+  display: block;
+  font-weight: 600;
+  font-size: 0.6rem;
+  margin-top: 2px;
+  letter-spacing: 0.04em;
+}
+.col-header .status.complete { color: var(--lime); }
+.col-header .status.planned { color: var(--amber); }
+
+.box {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.box.planned {
+  border-style: dashed;
+  border-color: rgba(246,135,31,0.35);
+  background: rgba(246,135,31,0.04);
+}
+
+.box.highlight {
+  border-color: rgba(0,170,166,0.45);
+  background: rgba(0,170,166,0.06);
+}
+
+.item {
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--text-mid);
+  padding: 5px 8px;
+  background: var(--surface2);
+  border-radius: 6px;
+  border-left: 3px solid var(--text-dim);
+}
+.item strong { color: var(--text); font-weight: 600; display: block; font-size: 0.74rem; }
+
+.item.casey { border-left-color: var(--blue); }
+.item.state { border-left-color: var(--teal); }
+.item.derived { border-left-color: var(--amber); }
+.item.day { border-left-color: var(--heat); }
+.item.night { border-left-color: var(--lighting); }
+.item.shared { border-left-color: var(--footpath); }
+.item.out { border-left-color: var(--lime); }
+
+.arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 1.2rem;
+  padding-top: 18px;
+}
+
+/* Index split */
+.index-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 16px;
+  flex-shrink: 0;
+}
+
+.index-card {
+  border-radius: 12px;
+  padding: 14px 18px;
+  border: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 14px;
+  align-items: center;
+}
+
+.index-card.day {
+  background: linear-gradient(135deg, rgba(246,135,31,0.08), rgba(39,170,225,0.06));
+  border-color: rgba(246,135,31,0.25);
+}
+.index-card.night {
+  background: linear-gradient(135deg, rgba(255,203,31,0.08), rgba(39,170,225,0.06));
+  border-color: rgba(255,203,31,0.25);
+}
+
+.index-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+}
+
+.index-card.day .index-icon { background: rgba(246,135,31,0.15); }
+.index-card.night .index-icon { background: rgba(255,203,31,0.15); }
+
+.index-card h3 {
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.index-card .formula {
+  font-size: 0.78rem;
+  color: var(--text-mid);
+}
+.index-card .formula em {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--text);
+}
+.index-card.day .formula em.accent { color: var(--heat); }
+.index-card.night .formula em.accent { color: var(--lighting); }
+.index-card .formula em.shared { color: var(--footpath); }
+
+.index-card .inputs {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.chip {
+  font-size: 0.62rem;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--surface2);
+  color: var(--text-mid);
+  font-weight: 500;
+}
+
+/* Footer: context + decisions */
+.footer {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 16px;
+  margin-top: 16px;
+  flex-shrink: 0;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.panel h4 {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.context-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.context-chip {
+  font-size: 0.65rem;
+  padding: 4px 9px;
+  border-radius: 6px;
+  border: 1px dashed rgba(139,147,196,0.35);
+  color: var(--text-dim);
+}
+
+.decisions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
+}
+.decision {
+  font-size: 0.65rem;
+  color: var(--text-mid);
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  line-height: 1.3;
+}
+.decision .num {
+  color: var(--teal);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.decision strong { color: var(--text); font-weight: 600; }
+
+.slide-footer {
+  text-align: center;
+  font-size: 0.62rem;
+  color: var(--text-dim);
+  margin-top: 12px;
+  flex-shrink: 0;
+}
+</style>
+</head>
+<body>
+<div class="slide">
+
+  <header class="site-header">
+    <a class="header-brand" href="nikki-29-may-pipeline.html" aria-label="YourWalk home">
+      <img class="header-logo" src="logo.svg" alt="YourWalk" />
+    </a>
+    <nav class="header-tabs" aria-label="Slide navigation">
+      <a href="nikki-29-may-pipeline.html" class="active">Process pipeline</a>
+      <a href="nikki-29-may-data-sources.html">Data sources flow</a>
+    </nav>
+    <div class="header-meta">
+      <div class="header-meta-title">Methodology review — 29 May 2026</div>
+      <div class="header-meta-sub">City of Casey pilot · v1.1</div>
+    </div>
+  </header>
+
+  <div class="hero">
+    <q>Which parts of Casey's walking network are failing the people who need it?</q>
+    <div class="hero-tags">
+      <span class="tag done">Dataset inventory complete</span>
+      <span class="tag pending">Pipeline not built yet</span>
+      <span class="tag goal">Methodology v1.1 — post co-design updates</span>
+    </div>
+  </div>
+
+  <div class="pipeline-wrap">
+    <div class="pipeline">
+
+      <div class="col">
+        <div class="col-header">
+          1 · Data sources
+          <span class="status complete">Inventory complete</span>
+        </div>
+        <div class="box">
+          <div class="item casey"><strong>Casey Open Data</strong>Footpaths T1EAM · street lights · fountains · benches · graffiti · toilets</div>
+          <div class="item state"><strong>DataVic / Vicmap</strong>Canopy REST · urban heat 2018 · elevation DEM</div>
+          <div class="item state"><strong>Transport Victoria</strong>Night pedestrian crashes · speed zones</div>
+          <div class="item casey"><strong>Pending Council request</strong>General crossings · kerb ramps</div>
+        </div>
+      </div>
+
+      <div class="arrow">→</div>
+
+      <div class="col">
+        <div class="col-header">
+          2 · Ingestion
+          <span class="status planned">Planned — June</span>
+        </div>
+        <div class="box planned">
+          <div class="item"><strong>Download / API fetch</strong>DuckDB local processing</div>
+          <div class="item"><strong>Validate + QA</strong>Pilot boundary · width outliers · duplicates</div>
+          <div class="item"><strong>Harmonise</strong>27k footpath segments (T1EAM) · OSM gap-fill TBD</div>
+          <div class="item"><strong>GeoParquet</strong>Clean intermediate datasets</div>
+        </div>
+      </div>
+
+      <div class="arrow">→</div>
+
+      <div class="col">
+        <div class="col-header">
+          3 · Scoring
+          <span class="status planned">Planned — June</span>
+        </div>
+        <div class="box planned highlight">
+          <div class="item shared"><strong>Accessibility 60%</strong>Surface · width · gradient · crossings · speed · graffiti</div>
+          <div class="item day"><strong>Day Index 40%</strong>Heat 2018 · canopy · fountains · benches</div>
+          <div class="item night"><strong>Night Index 40%</strong>Lights · night crashes · coverage gaps</div>
+          <div class="item derived"><strong>Per segment</strong>day_index_score · night_index_score</div>
+        </div>
+      </div>
+
+      <div class="arrow">→</div>
+
+      <div class="col">
+        <div class="col-header">
+          4 · Production
+          <span class="status planned">Planned — June</span>
+        </div>
+        <div class="box planned">
+          <div class="item"><strong>PostGIS / Supabase</strong>Scored segment layer</div>
+          <div class="item"><strong>SA2 aggregation</strong>Council dashboard hotspots</div>
+          <div class="item"><strong>Provenance</strong>Vintage · confidence · methodology v1.1</div>
+        </div>
+      </div>
+
+      <div class="arrow">→</div>
+
+      <div class="col">
+        <div class="col-header">
+          5 · Products
+          <span class="status complete">Mockups ready</span>
+        </div>
+        <div class="box">
+          <div class="item out"><strong>Community app</strong>Day / night route scores · layers</div>
+          <div class="item out"><strong>Council dashboard</strong>Hotspots · corridors · exports</div>
+          <div class="item out"><strong>Evidence base</strong>Q2 grant deliverable → Q3 build</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="index-split">
+      <div class="index-card day">
+        <div class="index-icon"><i class="mdi mdi-white-balance-sunny" aria-hidden="true"></i></div>
+        <div>
+          <h3>Day Index</h3>
+          <div class="formula"><em class="shared">Accessibility 60%</em> + <em class="accent">Heat &amp; Shade 40%</em></div>
+        </div>
+        <div class="inputs">
+          <span class="chip">Urban heat 2018</span>
+          <span class="chip">Vicmap canopy</span>
+          <span class="chip">Fountains</span>
+          <span class="chip">Benches</span>
+        </div>
+      </div>
+      <div class="index-card night">
+        <div class="index-icon"><i class="mdi mdi-weather-night" aria-hidden="true"></i></div>
+        <div>
+          <h3>Night Index</h3>
+          <div class="formula"><em class="shared">Accessibility 60%</em> + <em class="accent">Lighting / After Dark 40%</em></div>
+        </div>
+        <div class="inputs">
+          <span class="chip">Footpaths T1EAM</span>
+          <span class="chip">Speed zones</span>
+          <span class="chip">Graffiti proxy</span>
+          <span class="chip">Street lights (42k)</span>
+          <span class="chip">Night crashes</span>
+          <span class="chip">Coverage gaps (derived)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="panel">
+      <h4>Not in the index — context &amp; overlay layers</h4>
+      <div class="context-items">
+        <span class="context-chip"><span class="icon-badge ib-council" title="Council input"><i class="mdi mdi-account-voice" aria-hidden="true"></i></span>Dog bag dispensers</span>
+        <span class="context-chip">SEIFA / demographics</span>
+        <span class="context-chip">YourGround perception</span>
+        <span class="context-chip"><span class="icon-badge ib-council" title="Council input"><i class="mdi mdi-account-voice" aria-hidden="true"></i></span>Public toilets</span>
+        <span class="context-chip">Cellular mapping</span>
+      </div>
+    </div>
+    <div class="panel">
+      <h4>v1.1 decisions — methodology locked</h4>
+      <div class="decisions">
+        <div class="decision"><span class="num">1</span><span><strong>2018 heat</strong> — include with caveat</span></div>
+        <div class="decision"><span class="num">2</span><span><strong>Fountains + benches</strong> — in Day Index</span></div>
+        <div class="decision"><span class="num">3</span><span><strong>Speed zones</strong> — Accessibility stream (shared)</span></div>
+        <div class="decision"><span class="num">4</span><span><strong>Crossings + ramps</strong> — Council request</span></div>
+        <div class="decision"><span class="num">5</span><span><strong>Perception</strong> — separate layer</span></div>
+        <div class="decision"><span class="num">6</span><span><strong>Toilets</strong> — dashboard overlay</span></div>
+        <div class="decision"><span class="num">7</span><span><strong>Graffiti</strong> — Accessibility stream (shared)</span></div>
+        <div class="decision"><span class="num">8</span><span><strong>v1.1</strong> — unlock pipeline build</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    Segment-level scoring (Footpaths T1EAM) → SA2 dashboard aggregation · docs/VULNERABILITY_INDEX.md · docs/DATA_SET_REGISTER.md
+  </div>
+
+</div>
+</body>
+</html>

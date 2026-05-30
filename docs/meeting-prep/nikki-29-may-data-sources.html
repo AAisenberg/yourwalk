@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YourWalk — Data Sources Flow | 29 May 2026</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --blue:     #27AAE1;
+  --teal:     #00AAA6;
+  --lime:     #8DC63F;
+  --amber:    #FFCB1F;
+  --orange:   #F6871F;
+  --pink:     #EC008C;
+  --purple:   #9B7EDE;
+  --bg:       #0B0C1A;
+  --surface:  #111224;
+  --surface2: #181930;
+  --border:   rgba(39,170,225,0.15);
+  --text:     #EEF2FF;
+  --text-mid: #8B93C4;
+  --text-dim: #545B88;
+  --footpath: #27AAE1;
+  --heat:     #F6871F;
+  --lighting: #FFCB1F;
+  --context:  #6B7394;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  background-image:
+    radial-gradient(ellipse 70% 45% at 50% 0%, rgba(39,170,225,0.07), transparent),
+    radial-gradient(ellipse 50% 40% at 90% 100%, rgba(155,126,222,0.05), transparent);
+}
+
+.slide {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px 36px 32px;
+}
+
+/* Shared site header — keep identical on both slides */
+.site-header {
+  display: grid;
+  grid-template-columns: 200px 1fr 280px;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  min-height: 52px;
+}
+.header-brand {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.header-logo {
+  height: 36px;
+  width: auto;
+  display: block;
+}
+.header-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+.header-tabs a {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 8px 18px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--text-mid);
+  border: 1px solid var(--border);
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.header-tabs a:hover { color: var(--text); border-color: rgba(39,170,225,0.35); }
+.header-tabs a.active {
+  background: rgba(39,170,225,0.12);
+  color: var(--blue);
+  border-color: rgba(39,170,225,0.4);
+}
+.header-meta {
+  text-align: right;
+  flex-shrink: 0;
+}
+.header-meta-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--teal);
+  line-height: 1.3;
+}
+.header-meta-sub {
+  font-size: 0.72rem;
+  color: var(--text-mid);
+  margin-top: 2px;
+}
+
+/* Title block */
+.title-block {
+  text-align: center;
+  margin-bottom: 20px;
+}
+.title-block h1 {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+}
+.title-block p {
+  font-size: 0.88rem;
+  color: var(--text-mid);
+}
+
+/* Legend */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px 24px;
+  margin-bottom: 24px;
+  padding: 12px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  color: var(--text-mid);
+  font-weight: 500;
+}
+.legend-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.legend-swatch.shared { background: rgba(39,170,225,0.25); border: 2px solid var(--footpath); }
+.legend-swatch.day { background: rgba(246,135,31,0.2); border: 2px solid var(--heat); }
+.legend-swatch.night { background: rgba(255,203,31,0.2); border: 2px solid var(--lighting); }
+.legend-swatch.context { background: transparent; border: 2px dashed var(--context); }
+.legend-swatch.pending { background: transparent; border: 2px dashed var(--orange); }
+.legend-swatch.perception { background: rgba(155,126,222,0.15); border: 2px dashed var(--purple); }
+.legend-swatch.council-input { background: rgba(236,0,140,0.12); border: 2px solid var(--pink); }
+
+/* MDI icon badges — flat, icon-only with tooltip via title */
+.icon-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.icon-badge .mdi { font-size: 16px; line-height: 1; }
+.icon-badge.legend-size { width: 22px; height: 22px; }
+.icon-badge.legend-size .mdi { font-size: 14px; }
+.icon-badge.ib-shared { background: rgba(39,170,225,0.15); color: var(--footpath); }
+.icon-badge.ib-day { background: rgba(246,135,31,0.15); color: var(--heat); }
+.icon-badge.ib-night { background: rgba(255,203,31,0.15); color: var(--lighting); }
+.icon-badge.ib-council { background: rgba(236,0,140,0.1); color: var(--pink); border: 1px solid rgba(236,0,140,0.35); }
+.icon-badge.ib-context { background: rgba(107,115,148,0.15); color: #A8AEC8; border: 1px dashed rgba(107,115,148,0.4); }
+.icon-badge.ib-pending { background: rgba(246,135,31,0.1); color: var(--orange); border: 1px dashed rgba(246,135,31,0.45); }
+.icon-badge.ib-conditional { background: rgba(255,203,31,0.08); color: var(--amber); border: 1px dashed rgba(255,203,31,0.4); }
+.icon-badge.ib-perception { background: rgba(155,126,222,0.12); color: var(--purple); border: 1px dashed rgba(155,126,222,0.4); }
+.icon-badge.inline { width: 22px; height: 22px; vertical-align: middle; margin-left: 6px; }
+.icon-badge.inline .mdi { font-size: 14px; }
+.index-out .index-mdi { font-size: 2.2rem; color: var(--footpath); line-height: 1; margin-bottom: 6px; }
+.index-out.day-out .index-mdi { color: var(--heat); }
+.index-out.night-out .index-mdi { color: var(--lighting); }
+
+.ds-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+}
+.stream-input .icon-badge.inline { margin-left: 0; margin-top: 4px; display: inline-flex; }
+.ctx-card .role { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.stream-box.shared.council-priority {
+  border-color: rgba(39,170,225,0.55);
+  box-shadow: 0 0 0 1px rgba(236,0,140,0.12);
+}
+.stream-box .council-note {
+  font-size: 0.68rem;
+  color: var(--pink);
+  font-weight: 600;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.stream-box .council-note .mdi { font-size: 16px; }
+
+/* Vertical flow stages */
+.stage {
+  margin-bottom: 8px;
+}
+.stage-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.stage-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0,170,166,0.15);
+  border: 1px solid rgba(0,170,166,0.4);
+  color: var(--teal);
+  font-size: 0.78rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.stage-header h2 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text);
+}
+.stage-header span {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Down arrow between stages */
+.flow-down {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 0 14px;
+  gap: 4px;
+}
+.flow-down .arrow {
+  font-size: 1.5rem;
+  color: var(--teal);
+  line-height: 1;
+  opacity: 0.7;
+}
+.flow-down .label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Source grid — uses WIDTH not height */
+.sources-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.source-group {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.source-group-header {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.source-group-header.casey { background: rgba(39,170,225,0.1); color: var(--blue); }
+.source-group-header.datavic { background: rgba(0,170,166,0.1); color: var(--teal); }
+.source-group-header.transport { background: rgba(141,198,63,0.08); color: var(--lime); }
+.source-group-header.pending { background: rgba(246,135,31,0.08); color: var(--orange); }
+.source-group-header.perception { background: rgba(155,126,222,0.12); color: var(--purple); }
+
+.ds {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.ds:last-child { border-bottom: none; }
+.ds-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+.ds-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.25;
+}
+.ds-meta {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  line-height: 1.35;
+}
+
+/* legacy ds-badge kept for reference — use icon-badge */
+
+/* Context-only mini group inside sources */
+.source-group.context-only {
+  border-style: dashed;
+  border-color: rgba(107,115,148,0.35);
+}
+.source-group.context-only .source-group-header {
+  background: rgba(107,115,148,0.1);
+  color: var(--context);
+}
+
+/* Streams row */
+.streams-row {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr 1fr;
+  gap: 14px;
+}
+.stream-box {
+  border-radius: 12px;
+  padding: 16px 18px;
+  border: 2px solid;
+}
+.stream-box.shared {
+  background: rgba(39,170,225,0.06);
+  border-color: rgba(39,170,225,0.4);
+}
+.stream-box.day-only {
+  background: rgba(246,135,31,0.06);
+  border-color: rgba(246,135,31,0.4);
+}
+.stream-box.night-only {
+  background: rgba(255,203,31,0.06);
+  border-color: rgba(255,203,31,0.4);
+}
+.stream-box h3 {
+  font-size: 0.95rem;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+.stream-box.shared h3 { color: var(--footpath); }
+.stream-box.day-only h3 { color: var(--heat); }
+.stream-box.night-only h3 { color: var(--lighting); }
+.stream-box .weight {
+  font-size: 0.78rem;
+  color: var(--text-mid);
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+.stream-inputs { display: flex; flex-direction: column; gap: 6px; }
+.stream-input {
+  font-size: 0.78rem;
+  color: var(--text-mid);
+  padding: 7px 10px;
+  background: var(--surface2);
+  border-radius: 6px;
+  line-height: 1.35;
+}
+.stream-input strong { color: var(--text); font-weight: 600; }
+.stream-input .note {
+  display: block;
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+/* Index row */
+.index-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 14px;
+  align-items: stretch;
+}
+.segment-hub {
+  background: var(--surface);
+  border: 1px solid rgba(0,170,166,0.35);
+  border-radius: 12px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+}
+.segment-hub h4 {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--teal);
+  margin-bottom: 8px;
+}
+.segment-hub p {
+  font-size: 0.78rem;
+  color: var(--text-mid);
+  line-height: 1.45;
+}
+.index-out {
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  border: 2px solid;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.index-out.day-out {
+  background: linear-gradient(160deg, rgba(246,135,31,0.1), rgba(39,170,225,0.06));
+  border-color: rgba(246,135,31,0.45);
+}
+.index-out.night-out {
+  background: linear-gradient(160deg, rgba(255,203,31,0.1), rgba(39,170,225,0.06));
+  border-color: rgba(255,203,31,0.45);
+}
+.index-out .icon { font-size: 2rem; margin-bottom: 6px; }
+.index-out h3 { font-size: 1.05rem; font-weight: 800; margin-bottom: 6px; }
+.index-out .formula { font-size: 0.82rem; color: var(--text-mid); line-height: 1.45; }
+.index-out .formula b { color: var(--text); }
+.index-out .field {
+  margin-top: 12px;
+  font-size: 0.72rem;
+  font-family: ui-monospace, monospace;
+  color: var(--teal);
+  background: var(--surface2);
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+/* Products row */
+.products-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.product-box {
+  background: var(--surface);
+  border: 1px solid rgba(141,198,63,0.35);
+  border-radius: 12px;
+  padding: 16px 18px;
+}
+.product-box.teal { border-color: rgba(0,170,166,0.35); }
+.product-box h4 {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--lime);
+  margin-bottom: 10px;
+}
+.product-box.teal h4 { color: var(--teal); }
+.product-box li {
+  font-size: 0.78rem;
+  color: var(--text-mid);
+  padding: 4px 0 4px 14px;
+  position: relative;
+  list-style: none;
+  line-height: 1.35;
+}
+.product-box li::before {
+  content: '→';
+  position: absolute;
+  left: 0;
+  color: var(--lime);
+  font-size: 0.7rem;
+}
+.product-box.teal li::before { color: var(--teal); }
+
+/* Context lane */
+.context-lane {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px dashed rgba(107,115,148,0.35);
+}
+.context-lane-header {
+  text-align: center;
+  margin-bottom: 16px;
+}
+.context-lane-header h3 {
+  font-size: 0.88rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--context);
+  margin-bottom: 4px;
+}
+.context-lane-header p {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  font-style: italic;
+}
+.context-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.ctx-card {
+  background: var(--surface);
+  border: 1px dashed rgba(107,115,148,0.45);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.ctx-card.perception {
+  border-color: rgba(155,126,222,0.45);
+  background: rgba(155,126,222,0.04);
+}
+.ctx-card h5 {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.ctx-card .src {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+.ctx-card .role {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--context);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ctx-card.perception .role { color: var(--purple); }
+
+.footer {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+@media (max-width: 1100px) {
+  .sources-grid { grid-template-columns: repeat(2, 1fr); }
+  .streams-row, .index-row, .products-row, .context-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="slide">
+
+  <header class="site-header">
+    <a class="header-brand" href="nikki-29-may-pipeline.html" aria-label="YourWalk home">
+      <img class="header-logo" src="logo.svg" alt="YourWalk" />
+    </a>
+    <nav class="header-tabs" aria-label="Slide navigation">
+      <a href="nikki-29-may-pipeline.html">Process pipeline</a>
+      <a href="nikki-29-may-data-sources.html" class="active">Data sources flow</a>
+    </nav>
+    <div class="header-meta">
+      <div class="header-meta-title">Methodology review — 29 May 2026</div>
+      <div class="header-meta-sub">City of Casey pilot · v1.1</div>
+    </div>
+  </header>
+
+  <div class="title-block">
+    <h1>Data sources → Index → Products</h1>
+    <p>What feeds the score · what stays as context · methodology v1.1</p>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><span class="icon-badge ib-shared legend-size" title="Shared"><i class="mdi mdi-theme-light-dark" aria-hidden="true"></i></span> Shared — both indexes (60%)</div>
+    <div class="legend-item"><span class="icon-badge ib-day legend-size" title="Day"><i class="mdi mdi-white-balance-sunny" aria-hidden="true"></i></span> Day Index only (40%)</div>
+    <div class="legend-item"><span class="icon-badge ib-night legend-size" title="Night"><i class="mdi mdi-weather-night" aria-hidden="true"></i></span> Night Index only (40%)</div>
+    <div class="legend-item"><span class="icon-badge ib-context legend-size" title="Context"><i class="mdi mdi-layers-outline" aria-hidden="true"></i></span> Context — not scored</div>
+    <div class="legend-item"><span class="icon-badge ib-pending legend-size" title="Pending"><i class="mdi mdi-clock-outline" aria-hidden="true"></i></span> Pending Council</div>
+    <div class="legend-item"><span class="icon-badge ib-perception legend-size" title="Perception"><i class="mdi mdi-comment-quote-outline" aria-hidden="true"></i></span> Perception layer</div>
+    <div class="legend-item"><span class="icon-badge ib-council legend-size" title="Council input"><i class="mdi mdi-account-voice" aria-hidden="true"></i></span> Council input — Apr 2026 co-design</div>
+  </div>
+
+  <!-- STAGE 1: SOURCES -->
+  <div class="stage">
+    <div class="stage-header">
+      <div class="stage-num">1</div>
+      <h2>Data sources <span>— grouped by portal · icons show stream assignment</span></h2>
+    </div>
+    <div class="sources-grid">
+
+      <div class="source-group">
+        <div class="source-group-header casey">Casey Open Data — index inputs</div>
+        <div class="ds">
+          <div class="ds-top"><div class="ds-name">Footpaths (T1EAM)</div><span class="icon-badge ib-shared" title="Shared — both indexes (60%)"><i class="mdi mdi-theme-light-dark" aria-hidden="true"></i></span></div>
+          <div class="ds-meta">27,458 segments · surface, width, network</div>
+        </div>
+        <div class="ds">
+          <div class="ds-top"><div class="ds-name">School Crossings</div><span class="icon-badge ib-shared" title="Shared — both indexes (60%)"><i class="mdi mdi-theme-light-dark" aria-hidden="true"></i></span></div>
+          <div class="ds-meta">142 points · enrichment</div>
+        </div>
+        <div class="ds">
+          <div class="ds-top"><div class="ds-name">Drinking Fountains</div><div class="ds-badges"><span class="icon-badge ib-day" title="Day Index only (40%)"><i class="mdi mdi-white-balance-sunny" aria-hidden="true"></i></span><span class="icon-badge ib-council" title="Council input — Apr 2026 co-design"><i class="mdi mdi-account-voice" aria-hidden="true"></i></span></div></div>
+          <div class="ds-meta">199 points</div>
+        </div>
+        <div class="ds">
+          <div class="ds-top"><div class="ds-name">Benches &amp; Seats</div><div class="ds-badges"><span class="icon-badge ib-day" title="Day Index only (40%)"><i class="mdi mdi-white-balance-sunny" aria-hidden="true"></i></span><span class="icon-badge ib-council" title="Council input — Apr 2026 co-design"><i class="mdi mdi-account-voice" aria-hidden="true"></i></span></div></div>
+          <div class="ds-meta">3,411 points · presence only</div>
+        </div>
+        <div class="ds">
+          <div class="ds-top"><div class="ds-name">Street Lights (AusNet/United)</div><span class="icon-badge ib-night" title="Night Index only (40%)"><i class="mdi mdi-weather-night" aria-hidden="true"></i></span></div>
+          <div class="ds-meta">42,258 points · no lux</div>
+        </div>
+        <div class="ds">
+          <div class="ds-top"><div class="ds-name">Park / Reserve Lights</div><span class="icon-badge ib-night" title="Night Index only (40%)"><i class="mdi mdi-weather-night" aria-hidden="true"></i></span></div>
+          <div class="ds-meta">Enriching off-road paths</div>
+        </div>
+        <div class="ds">
+          <div class="ds-top"><div class="ds-name">Graffiti Locations</div><div class="ds-badges"><span class="icon-badge ib-shared" title="Shared — both indexes (60%)"><i class="mdi mdi-theme-light-dark" aria-hidden="true"></i></span><span class="icon-badge ib-council" title="Council input — Apr 2026 co-design"><i class="mdi mdi-account-voice" aria-hidden="true"></i></span></div></div>
+          <div class="ds-meta">34,879 · environmental order proxy · day and night</div>
+        </div>
+      </div>
+
+      <div class="source-group">
+        <div class="source-group-header datavic">DataVic / DEECA</div>
+        <div class="ds">
+          <div class="ds-top"><div class="ds-name">Vicmap Tree Urban REST</div><span class="icon-badge ib-day" title="Day Index only (40%)"><i class="mdi mdi-white-balance-sunny" aria-hidden="true"></i></span></div>
+          <div class="ds-meta">Canopy 2019/2020 · primary shade</div>
+        </div>
+        <div class="ds">
+          <div class="ds-top"><div class="ds-name">Urban Heat Islands 2018</div><span class="icon-badge ib-day" title="Day Index only (40%)"><i class="mdi mdi-white-balance-sunny" aria-hidden="true"></i></span></div>
+          <div class="ds-meta">LST mesh block</div>
+        </div>
+        <div class="ds">
+          <div class="ds-top"><div class="ds-name">Vicmap Elevation REST / DEM</div><span class="icon-badge ib-conditional" title="Shared stream — conditional"><i class="mdi mdi-help-circle-outline" aria-hidden="true"></i></span></div>
+          <div class="ds-meta">Gradient · method pending</div>
+        </div>
+        <div class="source-group-header transport" style="border-top:1px solid var(--border); border-bottom:1px solid var(--border); margin-top:4px;">Transport Victoria</div>
+        <div class="ds">
+          <div class="ds-top"><div class="ds-name">Road Crash Data</div><span class="icon-badge ib-night" title="Night Index only (40%)"><i class="mdi mdi-weather-night" aria-hidden="true"></i></span></div>
+          <div class="ds-meta">Pedestrian + light condition</div>
+        </div>
+        <div class="ds">
+          <div class="ds-top"><div class="ds-name">Speed Zones</div><span class="icon-badge ib-shared" title="Shared — both indexes (60%)"><i class="mdi mdi-theme-light-dark" aria-hidden="true"></i></span></div>
+          <div class="ds-meta">Feb 2026 · traffic exposure · Accessibility stream</div>
+        </div>
+        <div class="source-group-header transport" style="border-bottom:1px solid var(--border);">OpenStreetMap</div>
+        <div class="ds">
+          <div class="ds-top"><div class="ds-name">Footways / Crossings</div><span class="icon-badge ib-conditional" title="Shared stream — conditional"><i class="mdi mdi-help-circle-outline" aria-hidden="true"></i></span></div>
+          <div class="ds-meta">Gap-fill · ODbL TBD</div>
+        </div>
+      </div>
+
+      <div class="source-group">
+        <div class="source-group-header pending">Pending — Council request</div>
+        <div class="ds">
+          <div class="ds-top"><div class="ds-name">General Pedestrian Crossings</div><div class="ds-badges"><span class="icon-badge ib-pending" title="Pending Council request"><i class="mdi mdi-clock-outline" aria-hidden="true"></i></span><span class="icon-badge ib-council" title="Council input — Apr 2026 co-design"><i class="mdi mdi-account-voice" aria-hidden="true"></i></span></div></div>
+          <div class="ds-meta">Not on open portal · score when received</div>
+        </div>
+        <div class="ds">
+          <div class="ds-top"><div class="ds-name">Kerb Ramps / Tactile</div><div class="ds-badges"><span class="icon-badge ib-pending" title="Pending Council request"><i class="mdi mdi-clock-outline" aria-hidden="true"></i></span><span class="icon-badge ib-council" title="Council input — Apr 2026 co-design"><i class="mdi mdi-account-voice" aria-hidden="true"></i></span></div></div>
+          <div class="ds-meta">Reduced confidence until data arrives</div>
+        </div>
+        <div class="source-group-header perception" style="border-top:1px solid var(--border); border-bottom:1px solid var(--border); margin-top:8px;">Perception — separate layer</div>
+        <div class="ds">
+          <div class="ds-top"><div class="ds-name">YourGround (2021)</div><span class="icon-badge ib-perception" title="Perception layer — not in index"><i class="mdi mdi-comment-quote-outline" aria-hidden="true"></i></span></div>
+          <div class="ds-meta">Not in index · XYX Lab access TBD</div>
+        </div>
+        <div class="ds">
+          <div class="ds-top"><div class="ds-name">WalkSpot (2017)</div><span class="icon-badge ib-perception" title="Perception layer — not in index"><i class="mdi mdi-comment-quote-outline" aria-hidden="true"></i></span></div>
+          <div class="ds-meta">Reference only · dated</div>
+        </div>
+      </div>
+
+      <div class="source-group context-only">
+        <div class="source-group-header">Context only — not scored</div>
+        <div class="ds">
+          <div class="ds-top"><div class="ds-name">SEIFA 2021</div><span class="icon-badge ib-context" title="Context — not scored"><i class="mdi mdi-layers-outline" aria-hidden="true"></i></span></div>
+          <div class="ds-meta">Community need · SA2 overlay</div>
+        </div>
+        <div class="ds">
+          <div class="ds-top"><div class="ds-name">Public Toilet Blocks</div><div class="ds-badges"><span class="icon-badge ib-context" title="Dashboard overlay — not scored"><i class="mdi mdi-layers-plus" aria-hidden="true"></i></span><span class="icon-badge ib-council" title="Council input — Apr 2026 co-design"><i class="mdi mdi-account-voice" aria-hidden="true"></i></span></div></div>
+          <div class="ds-meta">~67 · inclusion workshops</div>
+        </div>
+        <div class="ds">
+          <div class="ds-top"><div class="ds-name">Dog Bag Dispensers</div><div class="ds-badges"><span class="icon-badge ib-context" title="Dashboard overlay — not scored"><i class="mdi mdi-layers-plus" aria-hidden="true"></i></span><span class="icon-badge ib-council" title="Council input — Apr 2026 co-design"><i class="mdi mdi-account-voice" aria-hidden="true"></i></span></div></div>
+          <div class="ds-meta">~164 · dog-walking routes · not in index</div>
+        </div>
+        <div class="ds">
+          <div class="ds-top"><div class="ds-name">Cellular Mapping</div><span class="icon-badge ib-context" title="Context — not scored"><i class="mdi mdi-layers-outline" aria-hidden="true"></i></span></div>
+          <div class="ds-meta">Confidence / emergency context</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="flow-down">
+    <div class="arrow">↓</div>
+    <div class="label">Harmonise to footpath segment network (T1EAM · 27k segments)</div>
+  </div>
+
+  <!-- STAGE 2: STREAMS -->
+  <div class="stage">
+    <div class="stage-header">
+      <div class="stage-num">2</div>
+      <h2>Scoring streams <span>— datasets join here</span></h2>
+    </div>
+    <div class="streams-row">
+      <div class="stream-box shared council-priority">
+        <h3>Footpath Accessibility</h3>
+        <div class="weight">60% · both Day and Night</div>
+        <div class="council-note"><i class="mdi mdi-account-voice" aria-hidden="true"></i> Council co-design priority stream</div>
+        <div class="stream-inputs">
+          <div class="stream-input"><strong>Surface + width</strong> — Footpaths T1EAM</div>
+          <div class="stream-input"><strong>Gradient</strong> — Vicmap elevation<span class="note">method TBD</span></div>
+          <div class="stream-input"><strong>Network gaps</strong> — T1EAM + OSM<span class="note">OSM licensing TBD</span></div>
+          <div class="stream-input"><strong>Speed zones</strong> — traffic exposure</div>
+          <div class="stream-input"><strong>Graffiti</strong> — environmental order proxy<span class="note">day and night · not crime data</span><span class="icon-badge ib-council inline" title="Council input — Apr 2026 co-design"><i class="mdi mdi-account-voice" aria-hidden="true"></i></span></div>
+          <div class="stream-input"><strong>Crossings + kerb ramps</strong><span class="note">Council request pending · reduced confidence</span><span class="icon-badge ib-council inline" title="Council input — Apr 2026 co-design"><i class="mdi mdi-account-voice" aria-hidden="true"></i></span></div>
+        </div>
+      </div>
+      <div class="stream-box day-only">
+        <h3>Heat &amp; Shade</h3>
+        <div class="weight">40% · Day Index only</div>
+        <div class="stream-inputs">
+          <div class="stream-input"><strong>Urban heat 2018</strong></div>
+          <div class="stream-input"><strong>Tree canopy</strong> — Vicmap REST</div>
+          <div class="stream-input"><strong>Drinking fountains</strong><span class="icon-badge ib-council inline" title="Council input — Apr 2026 co-design"><i class="mdi mdi-account-voice" aria-hidden="true"></i></span></div>
+          <div class="stream-input"><strong>Benches / seating</strong><span class="icon-badge ib-council inline" title="Council input — Apr 2026 co-design"><i class="mdi mdi-account-voice" aria-hidden="true"></i></span></div>
+        </div>
+      </div>
+      <div class="stream-box night-only">
+        <h3>Lighting / After Dark</h3>
+        <div class="weight">40% · Night Index only</div>
+        <div class="stream-inputs">
+          <div class="stream-input"><strong>Street + park lights</strong></div>
+          <div class="stream-input"><strong>Coverage gaps</strong> — derived</div>
+          <div class="stream-input"><strong>Night pedestrian crashes</strong></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-down">
+    <div class="arrow">↓</div>
+    <div class="label">Score each segment · ADR-008</div>
+  </div>
+
+  <!-- STAGE 3: INDEX -->
+  <div class="stage">
+    <div class="stage-header">
+      <div class="stage-num">3</div>
+      <h2>Index output <span>— two scores per segment · SA2 for dashboard</span></h2>
+    </div>
+    <div class="index-row">
+      <div class="segment-hub">
+        <h4>Segment network</h4>
+        <p>Footpaths (T1EAM)<br>One row per walkable segment<br>Aggregated to SA2 for Council hotspots</p>
+      </div>
+      <div class="index-out day-out">
+        <div class="index-mdi"><i class="mdi mdi-white-balance-sunny" aria-hidden="true"></i></div>
+        <h3>Day Index</h3>
+        <div class="formula"><b>Accessibility 60%</b> + <b>Heat &amp; Shade 40%</b></div>
+        <div class="field">day_index_score</div>
+      </div>
+      <div class="index-out night-out">
+        <div class="index-mdi"><i class="mdi mdi-weather-night" aria-hidden="true"></i></div>
+        <h3>Night Index</h3>
+        <div class="formula"><b>Accessibility 60%</b> + <b>Lighting 40%</b></div>
+        <div class="field">night_index_score</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-down">
+    <div class="arrow">↓</div>
+    <div class="label">PostGIS / Supabase production layer</div>
+  </div>
+
+  <!-- STAGE 4: PRODUCTS -->
+  <div class="stage">
+    <div class="stage-header">
+      <div class="stage-num">4</div>
+      <h2>Products</h2>
+    </div>
+    <div class="products-row">
+      <div class="product-box">
+        <h4>Community app</h4>
+        <ul>
+          <li>Day or night route scores</li>
+          <li>Stream breakdown + confidence</li>
+          <li>Context layers toggleable</li>
+        </ul>
+      </div>
+      <div class="product-box">
+        <h4>Council dashboard</h4>
+        <ul>
+          <li>SA2 hotspot maps</li>
+          <li>Day / Night views</li>
+          <li>Community Need + exports</li>
+        </ul>
+      </div>
+      <div class="product-box teal">
+        <h4>Scored data layer</h4>
+        <ul>
+          <li>Segment geometry + scores</li>
+          <li>Sub-scores + data vintage</li>
+          <li>methodology_version: 1.0</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTEXT BYPASS -->
+  <div class="context-lane">
+    <div class="context-lane-header">
+      <h3>↳ Context bypass — never enters the index</h3>
+      <p>Displayed alongside scores in the app and dashboard · toggled on/off independently</p>
+    </div>
+    <div class="context-grid">
+      <div class="ctx-card">
+        <h5>SEIFA / Demographics</h5>
+        <div class="src">ABS 2021 · Casey SA2</div>
+        <div class="role">Community need</div>
+      </div>
+      <div class="ctx-card">
+        <h5>Public Toilets</h5>
+        <div class="src">T1EAM · ~67 blocks</div>
+        <div class="role">Inclusion overlay · <span class="icon-badge ib-council inline" title="Council input — Apr 2026 co-design"><i class="mdi mdi-account-voice" aria-hidden="true"></i></span></div>
+      </div>
+      <div class="ctx-card">
+        <h5>Dog Bag Dispensers</h5>
+        <div class="src">T1EAM · ~164 points</div>
+        <div class="role">Dog-walking overlay · <span class="icon-badge ib-council inline" title="Council input — Apr 2026 co-design"><i class="mdi mdi-account-voice" aria-hidden="true"></i></span></div>
+      </div>
+      <div class="ctx-card">
+        <h5>Cellular Mapping</h5>
+        <div class="src">Casey · Sep–Oct 2025</div>
+        <div class="role">Confidence context</div>
+      </div>
+      <div class="ctx-card perception">
+        <h5>YourGround / WalkSpot</h5>
+        <div class="src">Monash XYX Lab</div>
+        <div class="role">Perception map layer</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Scroll to walk through · docs/VULNERABILITY_INDEX.md · docs/DATA_SET_REGISTER.md
+  </div>
+
+</div>
+</body>
+</html>
