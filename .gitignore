@@ -35,6 +35,8 @@ pipeline/data/intermediate/*
 !pipeline/data/intermediate/.gitkeep
 pipeline/data/qa/*
 !pipeline/data/qa/.gitkeep
+pipeline/data/viewer/*
+!pipeline/data/viewer/.gitkeep
 pipeline/.venv/
 pipeline/**/*.egg-info/
 pipeline/**/__pycache__/

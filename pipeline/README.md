@@ -275,9 +275,39 @@ Casey Open Data + DataVic + Transport Victoria
         ↓
    data/intermediate/*.parquet  (GeoParquet)
         ↓
+   scripts/build_viewer_layers.py  (optional local QA map)
+        ↓
    [future] PostGIS / Supabase load + scoring
         ↓
    Resident app + Council dashboard (Q3 2026)
 ```
+
+## Local QA map viewer
+
+Inspect ingested layers on a Leaflet map centred on the Casey pilot area — **not** the production app.
+
+```bash
+cd pipeline
+source .venv/bin/activate
+
+# Build lightweight GeoJSON from intermediate Parquet (first time, or after re-ingest)
+python scripts/build_viewer_layers.py
+
+# Serve at http://127.0.0.1:8765/viewer/index.html
+python scripts/serve_viewer.py --open
+
+# Rebuild GeoJSON then serve
+python scripts/serve_viewer.py --rebuild --open
+```
+
+| Item | Detail |
+|------|--------|
+| **UI** | `viewer/index.html` |
+| **Export script** | `scripts/build_viewer_layers.py` → `data/viewer/*.geojson` |
+| **Council trees** | Random sample of 8,000 points for browser performance |
+| **Speed zones** | Casey clip only (`speed_zones_casey_2026-02.parquet`) |
+| **Git** | `data/viewer/` is gitignored — generated locally from your Parquet files |
+
+Toggle layers in the sidebar to check alignment (footpaths vs heat/canopy vs lights/points) before Wave 5 harmonisation.
 
 See also: [`docs/meeting-prep/nikki-29-may-pipeline.html`](../docs/meeting-prep/nikki-29-may-pipeline.html)

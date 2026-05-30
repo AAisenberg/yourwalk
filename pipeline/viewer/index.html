@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>YourWalk — Casey pipeline QA map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --border: #334155;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); }
+    #app { display: grid; grid-template-columns: 320px 1fr; height: 100%; }
+    #sidebar {
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    header { padding: 1rem 1rem 0.75rem; border-bottom: 1px solid var(--border); }
+    header h1 { margin: 0 0 0.25rem; font-size: 1.05rem; font-weight: 600; }
+    header p { margin: 0; font-size: 0.8rem; color: var(--muted); line-height: 1.4; }
+    #layer-list { flex: 1; overflow-y: auto; padding: 0.5rem 0; }
+    .layer-group { padding: 0.35rem 1rem 0.15rem; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .layer-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      padding: 0.55rem 1rem;
+      cursor: pointer;
+      border-left: 3px solid transparent;
+    }
+    .layer-item:hover { background: rgba(255,255,255,0.04); }
+    .layer-item.active { border-left-color: var(--accent); background: rgba(56,189,248,0.08); }
+    .layer-item input { margin-top: 0.15rem; accent-color: var(--accent); }
+    .layer-meta { flex: 1; min-width: 0; }
+    .layer-name { font-size: 0.88rem; display: flex; align-items: center; gap: 0.4rem; }
+    .swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+    .layer-detail { font-size: 0.75rem; color: var(--muted); margin-top: 0.15rem; }
+    #status {
+      padding: 0.75rem 1rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.75rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    #map { height: 100%; background: #0b1220; }
+    .leaflet-popup-content { font-size: 0.82rem; line-height: 1.45; margin: 0.65rem 0.85rem; }
+    .leaflet-popup-content strong { color: #0f172a; }
+    @media (max-width: 860px) {
+      #app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+      #sidebar { max-height: 42vh; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <header>
+        <h1>Casey pipeline QA map</h1>
+        <p>Local layer inspection for City of Casey (LGA). Toggle layers to check spatial alignment before Wave 5 harmonisation.</p>
+      </header>
+      <div id="layer-list"></div>
+      <div id="status">Loading manifest…</div>
+    </aside>
+    <div id="map"></div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script>
+    const map = L.map('map', { zoomControl: true });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+      maxZoom: 19,
+    }).addTo(map);
+
+    const loadedLayers = new Map();
+    let manifest = null;
+
+    function popupHtml(props, fields) {
+      const rows = fields
+        .filter((f) => props[f] !== undefined && props[f] !== null && props[f] !== '')
+        .map((f) => `<div><strong>${f.replace(/_/g, ' ')}:</strong> ${props[f]}</div>`);
+      if (props.qa_flag && props.qa_flag !== 'ok') {
+        rows.push(`<div><strong>qa:</strong> ${props.qa_flag}</div>`);
+      }
+      return rows.length ? rows.join('') : '<em>No attributes</em>';
+    }
+
+    function styleForLayer(spec) {
+      if (spec.geometry === 'point') return {};
+      return {
+        color: spec.color,
+        weight: spec.weight ?? 2,
+        fillColor: spec.color,
+        fillOpacity: spec.fill_opacity ?? 0.35,
+        opacity: 0.85,
+      };
+    }
+
+    function pointToLayer(spec) {
+      return (feature, latlng) => {
+        if (spec.cluster) return L.marker(latlng);
+        return L.circleMarker(latlng, {
+          radius: 5,
+          color: spec.color,
+          fillColor: spec.color,
+          fillOpacity: 0.85,
+          weight: 1,
+        });
+      };
+    }
+
+    async function loadLayer(spec) {
+      if (loadedLayers.has(spec.id)) {
+        map.addLayer(loadedLayers.get(spec.id));
+        return;
+      }
+      setStatus(`Loading ${spec.name}…`);
+      const res = await fetch(`/${spec.file}`);
+      if (!res.ok) throw new Error(`Failed to load ${spec.file}`);
+      const geojson = await res.json();
+
+      const layerOptions = {
+        style: () => styleForLayer(spec),
+        onEachFeature: (feature, layer) => {
+          if (feature.properties) {
+            layer.bindPopup(popupHtml(feature.properties, spec.popup_fields));
+          }
+        },
+      };
+
+      let layer;
+      if (spec.geometry === 'point') {
+        if (spec.cluster) {
+          layer = L.markerClusterGroup({
+            maxClusterRadius: 40,
+            disableClusteringAtZoom: 17,
+          });
+          L.geoJSON(geojson, {
+            ...layerOptions,
+            pointToLayer: pointToLayer(spec),
+          }).eachLayer((l) => layer.addLayer(l));
+        } else {
+          layer = L.geoJSON(geojson, {
+            ...layerOptions,
+            pointToLayer: pointToLayer(spec),
+          });
+        }
+      } else {
+        layer = L.geoJSON(geojson, layerOptions);
+      }
+
+      loadedLayers.set(spec.id, layer);
+      map.addLayer(layer);
+      setStatus(`${spec.name} loaded (${spec.feature_count?.toLocaleString() ?? '?'} features).`);
+    }
+
+    function unloadLayer(spec) {
+      const layer = loadedLayers.get(spec.id);
+      if (layer) map.removeLayer(layer);
+    }
+
+    function setStatus(msg) {
+      document.getElementById('status').textContent = msg;
+    }
+
+    function groupLayers(layers) {
+      const groups = new Map();
+      for (const layer of layers) {
+        const key = layer.stream || 'Other';
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(layer);
+      }
+      return groups;
+    }
+
+    function renderLayerList(layers) {
+      const container = document.getElementById('layer-list');
+      container.innerHTML = '';
+      const groups = groupLayers(layers);
+
+      for (const [stream, items] of groups) {
+        const heading = document.createElement('div');
+        heading.className = 'layer-group';
+        heading.textContent = stream;
+        container.appendChild(heading);
+
+        for (const spec of items) {
+          const row = document.createElement('label');
+          row.className = 'layer-item';
+          row.dataset.id = spec.id;
+
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.checked = !!spec.default_on;
+
+          const meta = document.createElement('div');
+          meta.className = 'layer-meta';
+
+          const name = document.createElement('div');
+          name.className = 'layer-name';
+          name.innerHTML = `<span class="swatch" style="background:${spec.color}"></span>${spec.name}`;
+
+          const detail = document.createElement('div');
+          detail.className = 'layer-detail';
+          let detailText = `${spec.feature_count?.toLocaleString() ?? '?'} features`;
+          if (spec.sampled) detailText += ` (sample of ${spec.sample_size?.toLocaleString()})`;
+          detail.textContent = detailText;
+
+          meta.append(name, detail);
+          row.append(cb, meta);
+          container.appendChild(row);
+
+          cb.addEventListener('change', async () => {
+            row.classList.toggle('active', cb.checked);
+            try {
+              if (cb.checked) await loadLayer(spec);
+              else unloadLayer(spec);
+            } catch (err) {
+              cb.checked = false;
+              row.classList.remove('active');
+              setStatus(`Error: ${err.message}`);
+            }
+          });
+
+          if (spec.default_on) row.classList.add('active');
+        }
+      }
+    }
+
+    async function init() {
+      const res = await fetch('/data/viewer/layers.json');
+      if (!res.ok) {
+        setStatus('Missing layers.json — run: python scripts/build_viewer_layers.py');
+        return;
+      }
+      manifest = await res.json();
+      renderLayerList(manifest.layers);
+
+      const b = manifest.bounds;
+      map.fitBounds([[b.south, b.west], [b.north, b.east]], { padding: [12, 12] });
+
+      setStatus(manifest.notes || 'Toggle layers to inspect.');
+      for (const spec of manifest.layers.filter((l) => l.default_on)) {
+        await loadLayer(spec);
+      }
+    }
+
+    init().catch((err) => setStatus(`Error: ${err.message}`));
+  </script>
+</body>
+</html>

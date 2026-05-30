@@ -115,6 +115,8 @@ This document tracks ingestion order, dependencies, and what is blocked on disco
 - OSM footway gap-fill until ODbL licensing review
 - Combined day/night crash scoring in index (methodology: night crashes in Night Index only)
 
+**Local QA map** (`pipeline/viewer/`) is allowed — Leaflet layer toggles for spatial inspection before Wave 5; not production UI.
+
 ---
 
 ## Related docs
