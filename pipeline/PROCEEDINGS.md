@@ -45,22 +45,42 @@ This document tracks ingestion order, dependencies, and what is blocked on disco
 
 ---
 
-### Wave 3 — Day Index (Heat & Shade) — discovery first
+### Wave 3 — Day Index (Heat & Shade)
+
+**Confirmed approach (May 2026):** ingest **Casey Council Trees** for local inventory/maturity/proximity; ingest **Vicmap Tree Density** polygons as **primary canopy/shade** for Day Index scoring; **Metro Melbourne Urban Heat 2018** for LST.
 
 | # | Dataset | Script | Stream | Status |
 |---|---------|--------|--------|--------|
-| 7 | **Discovery:** heat + canopy products and segment join method | — | — | 🔍 |
-| 8 | Metro Melbourne Urban Heat 2018 | TBD | Day Index 40% | 🔍 |
-| 9 | Vicmap Vegetation Tree Urban / Tree Density | TBD | Day Index 40% | 🔍 |
+| 7 | Casey Council Trees (T1EAM) | `ingest_council_trees.py` | Day Index enriching | ✅ |
+| 8 | Vicmap Vegetation Tree Density | `ingest_vicmap_tree_density.py` | Day Index canopy (primary) | ✅ |
+| 9 | Metro Melbourne Urban Heat 2018 | `ingest_metro_urban_heat_2018.py` | Day Index heat | ✅ |
 | 10 | Drinking Fountains (T1EAM) | TBD | Day Index comfort | 📋 |
 | 11 | Benches and Seats (T1EAM) | TBD | Day Index comfort | 📋 |
 
-**Discovery questions (validate before ingest):**
+**Casey Council Trees** — [council_trees_pt_t1eam](https://data.casey.vic.gov.au/explore/dataset/council_trees_pt_t1eam/): ~203k Council-owned assets. Use for proximity, `tree_age`, `tree_height_m`, street vs reserve type. Portal `canopyewwidth_m` / `canopynswidth_m` fields are usually zero — not primary canopy.
 
-1. **Heat:** Which product and attributes — mesh block LST, HVI, or both? DataShare SHP/GDB download vs alternative. Casey coverage within Greater Melbourne boundary.
-2. **Canopy:** Tree Density polygons vs Tree Urban points vs REST API — trade-off between coverage simplicity and file size for ~27k segments.
-3. **Segment join:** Centroid sample vs buffer mean for LST; canopy distance/buffer rule for shade along footpath segments.
-4. **Vintage:** Document 2018 heat + 2019/2020 canopy in `data_vintage` JSON per methodology.
+**Vicmap Tree Density** — [DataVic](https://discover.data.vic.gov.au/dataset/vicmap-vegetation-tree-density-polygon): polygon layer with **Dense / Medium / Sparse** tree cover classes (2019/2020). Ingested via DEECA open-data WFS (`open-data-platform:tree_density`), clipped to Casey footpaths envelope + buffer.
+
+**Discovery resolved (May 2026):** WFS GeoJSON ~15 MB / ~4k polygons for Casey; attributes `tree_density`, `feature_subtype` (forest), source dates 2019-12-17 → 2020-04-28. Segment join rule still TBD in Wave 5 harmonisation.
+
+**Metro Melbourne Urban Heat 2018** — [DataVic](https://discover.data.vic.gov.au/dataset/metropolitan-melbourne-urban-heat-islands-and-urban-vegetation-2018): 2016 ABS **mesh blocks** with **`UHI18_M`** (urban heat island, °C above non-urban baseline from Landsat-8 LST). Ingested via Plan Melbourne ArcGIS REST (`Vegetation_and_heat_mapping/MapServer/6`), clipped to Casey footpaths envelope.
+
+**Urban heat discovery resolved (May 2026):**
+
+| Item | Finding |
+|------|---------|
+| **Primary metric** | `UHI18_M` — not absolute LST; deviation from native-vegetation baseline |
+| **Geography** | Mesh block polygons (~30 m landscape); 2016 ABS codes |
+| **Casey coverage** | ~3,400 mesh blocks in pilot envelope; ~2,970 tagged `Casey (C)` LGA |
+| **Access** | ArcGIS REST GeoJSON (paginated); DataShare SHP/GDB also available |
+| **Capture** | Summer Landsat-8, ~10:50 AM; 2018 vintage |
+| **Scoring** | Lower `UHI18_M` = better; segment join TBD in Wave 5 |
+| **Optional enrichment** | HVI 2018 at SA1 (MapServer layer 4); co-located `PERANYVEG` on mesh blocks |
+
+**Discovery still open:**
+
+1. **Segment join:** mesh-block centroid vs length-weighted intersection along footpaths.
+2. **Vintage:** document 2018 heat + 2019/2020 canopy in scoring output.
 
 ---
 

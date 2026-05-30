@@ -109,6 +109,65 @@ python scripts/ingest_graffiti.py --force-download
 | **Key fields** | `record_id`, `graffiti_type` (Offensive / Non-Offensive), `created_date`, `completed_date`, `days_to_remove`, `area_removed_m2`, `suburb`, `ward`, geometry (Point) |
 | **QA** | Type, date, and area flags. `high_area` (>500 m²), `completed_before_created`, `unknown_type`. Portal field `response_times` holds graffiti type. |
 
+### Casey Council Trees (T1EAM) ✅
+
+Council-owned tree inventory (~203k assets). **Enriching** Day Index input — proximity, maturity, street vs reserve. **Not** primary canopy (use Vicmap Tree Density).
+
+```bash
+python scripts/ingest_council_trees.py
+python scripts/ingest_council_trees.py --force-download
+```
+
+| Item | Detail |
+|------|--------|
+| **Source** | [Casey Open Data — Council Trees (T1EAM)](https://data.casey.vic.gov.au/explore/dataset/council_trees_pt_t1eam/) |
+| **Raw file** | `data/raw/council_trees_pt_t1eam.geojson` |
+| **Output** | `data/intermediate/council_trees_pt_t1eam.parquet` |
+| **QA report** | `data/qa/council_trees_pt_t1eam_qa.json` |
+| **Key fields** | `asset_number`, `tree_type`, `tree_age`, `tree_height_m`, `suburb`, `ward`, geometry (Point) |
+| **QA** | `canopy_width_unpopulated` expected for most records; height and age flags. |
+| **Canopy scoring** | Use [`Vicmap Tree Density`](https://discover.data.vic.gov.au/dataset/vicmap-vegetation-tree-density-polygon) (planned) — Dense/Medium/Sparse polygons, 2019/2020 |
+
+### Vicmap Tree Density — Casey clip ✅
+
+Primary canopy/shade layer for Day Index Heat & Shade (40%). Dense / Medium / Sparse forest polygons via DEECA WFS.
+
+```bash
+python scripts/ingest_vicmap_tree_density.py
+python scripts/ingest_vicmap_tree_density.py --force-download
+```
+
+| Item | Detail |
+|------|--------|
+| **Source** | [DataVic — Vicmap Vegetation Tree Density](https://discover.data.vic.gov.au/dataset/vicmap-vegetation-tree-density-polygon) |
+| **Access** | WFS `open-data-platform:tree_density` on opendata.maps.vic.gov.au |
+| **Raw file** | `data/raw/vicmap_tree_density_casey.geojson` |
+| **Output** | `data/intermediate/vicmap_tree_density_casey.parquet` |
+| **QA report** | `data/qa/vicmap_tree_density_casey_qa.json` |
+| **Requires** | Footpaths raw (Casey envelope clip) |
+| **Key fields** | `tree_density` (dense/medium/sparse), `area_m2`, source dates, geometry (EPSG:4326) |
+| **Vintage** | Source imagery 2019-12-17 → 2020-04-28 |
+
+### Metro Melbourne Urban Heat 2018 — Casey clip ✅
+
+Primary heat exposure layer for Day Index Heat & Shade (40%). Mesh-block UHI (°C above baseline).
+
+```bash
+python scripts/ingest_metro_urban_heat_2018.py
+python scripts/ingest_metro_urban_heat_2018.py --force-download
+```
+
+| Item | Detail |
+|------|--------|
+| **Source** | [DataVic — Urban Heat Islands and Urban Vegetation 2018](https://discover.data.vic.gov.au/dataset/metropolitan-melbourne-urban-heat-islands-and-urban-vegetation-2018) |
+| **Access** | ArcGIS REST `Radius/Vegetation_and_heat_mapping/MapServer/6` |
+| **Raw file** | `data/raw/metro_urban_heat_2018_casey.geojson` |
+| **Output** | `data/intermediate/metro_urban_heat_2018_casey.parquet` |
+| **QA report** | `data/qa/metro_urban_heat_2018_casey_qa.json` |
+| **Requires** | Footpaths raw (Casey envelope clip) |
+| **Key field** | `uhi18_m` — lower is cooler (better for walking) |
+| **Vintage** | 2018 Landsat-8; document limitation in UI |
+
 ### Victoria Road Crash Data — Casey pedestrian ✅
 
 Night Index crash history (methodology v1.1 §6.3). Pedestrian-involved crashes in City of Casey with day/night light tags. Segment density scoring is deferred.
@@ -136,8 +195,8 @@ python scripts/ingest_vic_crashes.py --force-download
 | Dataset | Source | Stream | Priority |
 |---------|--------|--------|----------|
 | Casey Asset Lights (parks/reserves) | Casey Open Data | Night Index enrichment | Medium |
-| Metro Melbourne Urban Heat 2018 | DataVic | Day Index (Heat & Shade) | High — 🔍 discovery |
-| Vicmap Tree Urban / Tree Density | DataVic | Day Index (Heat & Shade) | High — 🔍 discovery |
+| Metro Melbourne Urban Heat 2018 | DataVic / ArcGIS REST | Day Index heat (primary) | High — ✅ ingested |
+| Vicmap Tree Density | DataVic WFS | Day Index canopy (primary) | High — ✅ ingested |
 | Drinking Fountains, Benches (T1EAM) | Casey Open Data | Day Index | Medium |
 | School Crossings (T1EAM) | Casey Open Data | Accessibility enrichment | Medium |
 | Public toilets, Dog bags (T1EAM) | Casey Open Data | Dashboard overlays | Low |
