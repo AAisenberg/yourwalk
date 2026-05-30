@@ -27,3 +27,14 @@ build/
 
 # Large mockup images (use reduced versions in path-picker-mockup/)
 path-picker-mockup/*_original.jpg
+
+# Pipeline data (raw downloads and intermediate GeoParquet)
+pipeline/data/raw/*
+!pipeline/data/raw/.gitkeep
+pipeline/data/intermediate/*
+!pipeline/data/intermediate/.gitkeep
+pipeline/data/qa/*
+!pipeline/data/qa/.gitkeep
+pipeline/.venv/
+pipeline/**/*.egg-info/
+pipeline/**/__pycache__/

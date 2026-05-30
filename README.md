@@ -5,6 +5,8 @@ This repository contains the complete product requirements documentation and del
 ## Quick Start
 
 - **Product Requirements**: Start with [`docs/PRD.md`](docs/PRD.md) for the high-level product vision and requirements
+- **Methodology (v1.1)**: [`docs/VULNERABILITY_INDEX.md`](docs/VULNERABILITY_INDEX.md) — data pipeline gate
+- **Data pipeline**: [`pipeline/README.md`](pipeline/README.md) — Phase B ingestion (DuckDB → GeoParquet)
 - **Project Context**: Read [`docs/CONTEXT.md`](docs/CONTEXT.md) to understand the three integrated streams (lighting, accessibility, climate resilience) and project scope
 - **Delivery Plan**: See [`docs/DELIVERY_PLAN.md`](docs/DELIVERY_PLAN.md) for phased delivery approach and timelines
 - **Decisions**: Track architectural and product decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)

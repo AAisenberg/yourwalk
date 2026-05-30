@@ -1,0 +1,44 @@
+---
+description: YourWalk Casey pilot — methodology, pipeline, and doc conventions
+alwaysApply: true
+---
+
+# YourWalk
+
+City of Casey pilot. Phase B = data pipeline only (DuckDB → GeoParquet → PostGIS). No Next.js app until pipeline base datasets are ingested.
+
+## Methodology gate
+
+Before ingestion or scoring code, read `docs/VULNERABILITY_INDEX.md` **v1.1** (not v0.2).
+
+Locked model:
+- Day Index = Accessibility 60% + Heat/Shade 40%
+- Night Index = Accessibility 60% + Lighting/After Dark 40%
+- Speed zones and graffiti → shared Accessibility 60%
+- Fountains + benches → Day Index (Heat & Shade stream)
+- Toilets, dog bags, YourGround → overlays only, not in index
+- Segment network = Footpaths T1EAM (~27k segments)
+
+Pending Council data (crossings, kerb ramps): reduced confidence until received; never impute missing as zero.
+
+## Pipeline
+
+- Scripts live in `pipeline/scripts/`
+- Shared helpers in `pipeline/yourwalk_pipeline/`
+- Raw and intermediate data under `pipeline/data/` (gitignored)
+- Document downloads in `pipeline/README.md`
+- One ingestion script per dataset; include QA step before GeoParquet export
+
+## Docs and style
+
+- Repo is source of truth; link Notion to repo paths, do not duplicate methodology
+- Australian English; no em dashes
+- PRD in `docs/PRD.md` is product source of truth
+- Update `docs/DECISIONS.md` for architecture changes
+- Given/When/Then acceptance criteria for requirements
+
+## Privacy and language
+
+- Anonymous by default (ADR-004 leaning)
+- Never imply safety guarantees or crime prediction
+- Graffiti is environmental order proxy, not crime data
