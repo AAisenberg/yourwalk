@@ -3,7 +3,8 @@
 Phase B data pipeline for the City of Casey pilot. Stack: **DuckDB → GeoParquet → PostGIS/Supabase**.
 
 Methodology gate: [`docs/VULNERABILITY_INDEX.md`](../docs/VULNERABILITY_INDEX.md) v1.1  
-Dataset inventory: [`docs/DATA_SET_REGISTER.md`](../docs/DATA_SET_REGISTER.md)
+Dataset inventory: [`docs/DATA_SET_REGISTER.md`](../docs/DATA_SET_REGISTER.md)  
+**Ingestion order:** [`PROCEEDINGS.md`](PROCEEDINGS.md)
 
 ## Setup
 
@@ -108,14 +109,35 @@ python scripts/ingest_graffiti.py --force-download
 | **Key fields** | `record_id`, `graffiti_type` (Offensive / Non-Offensive), `created_date`, `completed_date`, `days_to_remove`, `area_removed_m2`, `suburb`, `ward`, geometry (Point) |
 | **QA** | Type, date, and area flags. `high_area` (>500 m²), `completed_before_created`, `unknown_type`. Portal field `response_times` holds graffiti type. |
 
+### Victoria Road Crash Data — Casey pedestrian ✅
+
+Night Index crash history (methodology v1.1 §6.3). Pedestrian-involved crashes in City of Casey with day/night light tags. Segment density scoring is deferred.
+
+```bash
+python scripts/ingest_vic_crashes.py
+python scripts/ingest_vic_crashes.py --force-download
+```
+
+| Item | Detail |
+|------|--------|
+| **Source** | [Transport Victoria — Victoria Road Crash Data](https://opendata.transport.vic.gov.au/dataset/victoria-road-crash-data) |
+| **CSV URL** | `victorian_road_crash_data.csv` (statewide; filtered in pipeline) |
+| **Raw file** | `data/raw/victorian_road_crash_data.csv` (~70 MB) |
+| **Output** | `data/intermediate/vic_crashes_casey_pedestrian.parquet` |
+| **QA report** | `data/qa/vic_crashes_casey_pedestrian_qa.json` |
+| **Filter** | `LGA_NAME = CASEY`, `PEDESTRIAN > 0` |
+| **Key fields** | `crash_id`, `crash_date`, `crash_time`, `light_condition`, `light_category`, `night_index_eligible`, `injury_severity`, `road_name`, geometry (Point) |
+| **Light categories** | `daylight`, `dawn_dusk`, `dark_lighted`, `dark_not_lighted`, `other`, `missing` |
+| **Night Index** | `night_index_eligible = true` when `light_category` is `dark_lighted` or `dark_not_lighted` |
+| **Reference** | CrashDash field mapping: `crashdash/etl/vic/VIC_FIELD_MAPPING_VERIFICATION.md` |
+
 ### Planned (not yet implemented)
 
 | Dataset | Source | Stream | Priority |
 |---------|--------|--------|----------|
 | Casey Asset Lights (parks/reserves) | Casey Open Data | Night Index enrichment | Medium |
-| Vicmap Tree Urban | DataVic REST | Day Index (Heat & Shade) | High |
-| Metro Melbourne Urban Heat 2018 | DataVic | Day Index (Heat & Shade) | High |
-| Victoria Road Crash Data | Transport Victoria | Night Index | Medium |
+| Metro Melbourne Urban Heat 2018 | DataVic | Day Index (Heat & Shade) | High — 🔍 discovery |
+| Vicmap Tree Urban / Tree Density | DataVic | Day Index (Heat & Shade) | High — 🔍 discovery |
 | Drinking Fountains, Benches (T1EAM) | Casey Open Data | Day Index | Medium |
 | School Crossings (T1EAM) | Casey Open Data | Accessibility enrichment | Medium |
 | Public toilets, Dog bags (T1EAM) | Casey Open Data | Dashboard overlays | Low |
