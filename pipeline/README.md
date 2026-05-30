@@ -303,10 +303,23 @@ python scripts/serve_viewer.py --rebuild --open
 | Item | Detail |
 |------|--------|
 | **UI** | `viewer/index.html` |
-| **Export script** | `scripts/build_viewer_layers.py` → `data/viewer/*.geojson` |
+| **Export script** | `scripts/build_viewer_layers.py` → `data/viewer/*.geojson`, `filters.json` |
+| **Area filters** | Suburb / ward dropdowns with boundary overlay and per-area **coverage stats** |
 | **Council trees** | Random sample of 8,000 points for browser performance |
+| **Symbology** | Choropleth / graded colors on footpaths, speed zones, UHI, canopy; style dropdown per layer |
+| **Lights** | Street & park lights as individual points (not clustered) |
+| **QA mode** | Toggle **QA issues** to highlight `qa_flag ≠ ok` |
 | **Speed zones** | Casey clip only (`speed_zones_casey_2026-02.parquet`) |
 | **Git** | `data/viewer/` is gitignored — generated locally from your Parquet files |
+
+### Geographic scope (pilot)
+
+| Scope | Boundary |
+|-------|----------|
+| **Index scoring** | City of Casey LGA only |
+| **Routing graph** (future) | OSM clip — Casey + **2 km buffer**; reduced confidence outside LGA |
+| **MVP O/D** | Both origin and destination within Casey LGA |
+| **Council dashboard filters** | Suburb (primary), ward (secondary), SA2 (reporting aggregate) |
 
 Toggle layers in the sidebar to check alignment (footpaths vs heat/canopy vs lights/points) before Wave 5 harmonisation.
 

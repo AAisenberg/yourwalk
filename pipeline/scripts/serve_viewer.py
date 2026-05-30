@@ -23,6 +23,7 @@ from pathlib import Path
 PIPELINE_ROOT = Path(__file__).resolve().parent.parent
 BUILD_SCRIPT = PIPELINE_ROOT / "scripts" / "build_viewer_layers.py"
 MANIFEST = PIPELINE_ROOT / "data" / "viewer" / "layers.json"
+FILTERS = PIPELINE_ROOT / "data" / "viewer" / "filters.json"
 DEFAULT_PORT = 8765
 
 
@@ -48,9 +49,10 @@ def parse_args() -> argparse.Namespace:
 
 
 def ensure_layers(*, rebuild: bool) -> None:
-    if rebuild or not MANIFEST.exists():
+    missing_filters = not FILTERS.exists()
+    if rebuild or not MANIFEST.exists() or missing_filters:
         cmd = [sys.executable, str(BUILD_SCRIPT)]
-        if rebuild:
+        if rebuild or missing_filters:
             cmd.append("--force")
         subprocess.run(cmd, cwd=PIPELINE_ROOT, check=True)
 

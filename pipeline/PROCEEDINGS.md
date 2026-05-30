@@ -115,7 +115,16 @@ This document tracks ingestion order, dependencies, and what is blocked on disco
 - OSM footway gap-fill until ODbL licensing review
 - Combined day/night crash scoring in index (methodology: night crashes in Night Index only)
 
-**Local QA map** (`pipeline/viewer/`) is allowed — Leaflet layer toggles for spatial inspection before Wave 5; not production UI.
+**Local QA map** (`pipeline/viewer/`) is allowed — Leaflet layer toggles, suburb/ward filters, coverage stats; not production UI.
+
+### Geographic scope (locked for pilot)
+
+| Scope | Policy |
+|-------|--------|
+| **Index scoring** | City of Casey LGA — T1EAM footpath segments + harmonised layers |
+| **Routing graph** (Phase C) | OSM clip, Casey LGA **+ 2 km buffer**; segments outside LGA scored with **reduced confidence** |
+| **MVP origin/destination** | Both endpoints **within Casey LGA** |
+| **Council dashboard filters** | **Suburb** (primary), **ward** (secondary), **SA2** (hotspot reporting aggregate) |
 
 ---
 

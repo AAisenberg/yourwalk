@@ -18,34 +18,88 @@
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; height: 100%; font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); }
-    #app { display: grid; grid-template-columns: 320px 1fr; height: 100%; }
+    #app { display: grid; grid-template-columns: 340px 1fr; height: 100%; }
     #sidebar {
       background: var(--panel);
       border-right: 1px solid var(--border);
       display: flex;
       flex-direction: column;
-      overflow: hidden;
+      min-height: 0;
     }
     header { padding: 1rem 1rem 0.75rem; border-bottom: 1px solid var(--border); }
     header h1 { margin: 0 0 0.25rem; font-size: 1.05rem; font-weight: 600; }
-    header p { margin: 0; font-size: 0.8rem; color: var(--muted); line-height: 1.4; }
-    #layer-list { flex: 1; overflow-y: auto; padding: 0.5rem 0; }
+    header p { margin: 0 0 0.65rem; font-size: 0.8rem; color: var(--muted); line-height: 1.4; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+    .toolbar label { font-size: 0.72rem; color: var(--muted); display: flex; align-items: center; gap: 0.35rem; }
+    .toolbar select, .toolbar button {
+      background: #0f172a;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 0.75rem;
+      padding: 0.25rem 0.4rem;
+    }
+    .toolbar button { cursor: pointer; }
+    .toolbar button.active { border-color: var(--accent); color: var(--accent); }
+    .filter-bar {
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid var(--border);
+      display: grid;
+      gap: 0.45rem;
+      position: relative;
+      z-index: 20;
+      flex-shrink: 0;
+    }
+    .filter-bar label { font-size: 0.72rem; color: var(--muted); display: grid; gap: 0.2rem; }
+    .filter-bar select {
+      background: #0f172a;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 0.78rem;
+      padding: 0.35rem 0.4rem;
+      width: 100%;
+    }
+    #coverage-stats {
+      margin: 0 1rem 0.5rem;
+      padding: 0.65rem 0.75rem;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.72rem;
+      line-height: 1.45;
+      max-height: 180px;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    #coverage-stats h3 { margin: 0 0 0.35rem; font-size: 0.78rem; color: var(--accent); }
+    #coverage-stats dl { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 0.15rem 0.75rem; }
+    #coverage-stats dt { color: var(--muted); }
+    #coverage-stats dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+    #layer-list { flex: 1; overflow-y: auto; padding: 0.5rem 0; min-height: 0; }
     .layer-group { padding: 0.35rem 1rem 0.15rem; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
     .layer-item {
-      display: flex;
-      align-items: flex-start;
-      gap: 0.6rem;
       padding: 0.55rem 1rem;
-      cursor: pointer;
       border-left: 3px solid transparent;
     }
     .layer-item:hover { background: rgba(255,255,255,0.04); }
     .layer-item.active { border-left-color: var(--accent); background: rgba(56,189,248,0.08); }
-    .layer-item input { margin-top: 0.15rem; accent-color: var(--accent); }
+    .layer-head { display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer; }
+    .layer-head input { margin-top: 0.15rem; accent-color: var(--accent); }
     .layer-meta { flex: 1; min-width: 0; }
     .layer-name { font-size: 0.88rem; display: flex; align-items: center; gap: 0.4rem; }
     .swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
     .layer-detail { font-size: 0.75rem; color: var(--muted); margin-top: 0.15rem; }
+    .layer-controls {
+      display: none;
+      margin-top: 0.5rem;
+      padding-top: 0.5rem;
+      border-top: 1px dashed var(--border);
+      font-size: 0.75rem;
+    }
+    .layer-item.active .layer-controls { display: block; }
+    .layer-controls label { display: block; color: var(--muted); margin-bottom: 0.2rem; }
+    .layer-controls select, .layer-controls input[type=range] { width: 100%; margin-bottom: 0.45rem; }
     #status {
       padding: 0.75rem 1rem;
       border-top: 1px solid var(--border);
@@ -54,11 +108,32 @@
       line-height: 1.4;
     }
     #map { height: 100%; background: #0b1220; }
-    .leaflet-popup-content { font-size: 0.82rem; line-height: 1.45; margin: 0.65rem 0.85rem; }
+    .leaflet-popup-content { font-size: 0.82rem; line-height: 1.45; margin: 0.65rem 0.85rem; max-width: 260px; }
     .leaflet-popup-content strong { color: #0f172a; }
-    @media (max-width: 860px) {
+    .map-legend {
+      background: rgba(15, 23, 42, 0.92);
+      color: #e2e8f0;
+      padding: 0.55rem 0.65rem;
+      border-radius: 6px;
+      border: 1px solid #334155;
+      font-size: 0.72rem;
+      line-height: 1.35;
+      max-width: 220px;
+    }
+    .map-legend h4 { margin: 0 0 0.35rem; font-size: 0.78rem; font-weight: 600; }
+    .legend-row { display: flex; align-items: center; gap: 0.4rem; margin: 0.15rem 0; }
+    .legend-swatch {
+      width: 14px; height: 10px; border-radius: 2px; flex-shrink: 0;
+      border: 1px solid rgba(255,255,255,0.15);
+    }
+    .legend-gradient {
+      height: 10px; border-radius: 3px; margin: 0.25rem 0 0.15rem;
+      border: 1px solid rgba(255,255,255,0.15);
+    }
+    .legend-scale { display: flex; justify-content: space-between; color: #94a3b8; font-size: 0.68rem; }
+    @media (max-width: 900px) {
       #app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
-      #sidebar { max-height: 42vh; }
+      #sidebar { max-height: 46vh; }
     }
   </style>
 </head>
@@ -67,8 +142,32 @@
     <aside id="sidebar">
       <header>
         <h1>Casey pipeline QA map</h1>
-        <p>Local layer inspection for City of Casey (LGA). Toggle layers to check spatial alignment before Wave 5 harmonisation.</p>
+        <p>Click features for attributes. Use <strong>Style by</strong> on active layers for choropleth / graded symbology. Street &amp; park lights show as individual points.</p>
+        <div class="toolbar">
+          <label>Basemap
+            <select id="basemap-select">
+              <option value="osm">OpenStreetMap</option>
+              <option value="dark">Carto dark</option>
+              <option value="light">Carto light</option>
+            </select>
+          </label>
+          <button type="button" id="qa-toggle" title="Highlight features with qa_flag ≠ ok">QA issues</button>
+          <button type="button" id="reset-view" title="Reset map extent">Reset view</button>
+        </div>
       </header>
+      <div class="filter-bar">
+        <label>Area filter
+          <select id="filter-type">
+            <option value="all">All Casey LGA</option>
+            <option value="suburb">Suburb</option>
+            <option value="ward">Ward</option>
+          </select>
+        </label>
+        <label id="filter-value-wrap" style="display:none">Select
+          <select id="filter-value"></select>
+        </label>
+      </div>
+      <div id="coverage-stats"><h3>Coverage</h3><p style="color:var(--muted);margin:0">Loading…</p></div>
       <div id="layer-list"></div>
       <div id="status">Loading manifest…</div>
     </aside>
@@ -77,93 +176,488 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
   <script>
+    const BASEMAPS = {
+      osm: {
+        url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        options: { attribution: '&copy; OpenStreetMap', maxZoom: 19 },
+      },
+      dark: {
+        url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+        options: { attribution: '&copy; OSM &copy; CARTO', maxZoom: 20 },
+      },
+      light: {
+        url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+        options: { attribution: '&copy; OSM &copy; CARTO', maxZoom: 20 },
+      },
+    };
+
     const map = L.map('map', { zoomControl: true });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors',
-      maxZoom: 19,
-    }).addTo(map);
+    let basemapLayer = L.tileLayer(BASEMAPS.osm.url, BASEMAPS.osm.options).addTo(map);
 
     const loadedLayers = new Map();
+    const layerState = new Map();
+    const geojsonCache = new Map();
     let manifest = null;
+    let filtersIndex = null;
+    let suburbBoundaries = null;
+    let wardBoundaries = null;
+    let areaFilter = { type: 'all', value: null };
+    let boundaryLayer = null;
+    let highlightedFeature = null;
+    let qaHighlightOn = false;
+    let legendControl = null;
+    let filterApplyToken = 0;
+    let filterApplyTimer = null;
 
-    function popupHtml(props, fields) {
+    const VIEWER_DATA = '../data/viewer';
+
+    function setStatus(msg) { document.getElementById('status').textContent = msg; }
+
+    function currentAreaStats() {
+      if (!filtersIndex || areaFilter.type === 'all') return filtersIndex?.lga_stats || null;
+      if (areaFilter.type === 'suburb' && areaFilter.value) {
+        return filtersIndex.suburb_stats?.[areaFilter.value] || null;
+      }
+      if (areaFilter.type === 'ward' && areaFilter.value) {
+        return filtersIndex.ward_stats?.[areaFilter.value] || null;
+      }
+      return null;
+    }
+
+    function activeBoundaryFeature() {
+      if (areaFilter.type === 'all' || !areaFilter.value) return null;
+      const collection = areaFilter.type === 'suburb' ? suburbBoundaries : wardBoundaries;
+      if (!collection?.features?.length) return null;
+      return collection.features.find((f) => f.properties?.area_name === areaFilter.value) || null;
+    }
+
+    function featureInAreaBounds(feature) {
+      const stats = currentAreaStats();
+      if (!stats?.bounds) return true;
+      const b = stats.bounds;
+      try {
+        const [minX, minY, maxX, maxY] = turf.bbox(feature);
+        return !(maxX < b.west || minX > b.east || maxY < b.south || minY > b.north);
+      } catch {
+        return true;
+      }
+    }
+
+    function featureMatchesFilter(feature, spec) {
+      if (areaFilter.type === 'all') return true;
+      const props = feature.properties || {};
+
+      const field = areaFilter.type === 'suburb' ? 'suburb' : 'ward';
+      if (props[field] === areaFilter.value) return true;
+
+      if (spec.filter_by === 'spatial') {
+        const boundary = activeBoundaryFeature();
+        if (boundary) {
+          try {
+            return turf.booleanIntersects(feature, boundary);
+          } catch {
+            return featureInAreaBounds(feature);
+          }
+        }
+        return featureInAreaBounds(feature);
+      }
+
+      return false;
+    }
+
+    function filterGeoJSON(geojson, spec) {
+      if (areaFilter.type === 'all') return geojson;
+      return {
+        ...geojson,
+        features: geojson.features.filter((f) => featureMatchesFilter(f, spec)),
+      };
+    }
+
+    function renderCoverageStats() {
+      const el = document.getElementById('coverage-stats');
+      if (!filtersIndex) {
+        el.innerHTML = '<h3>Coverage</h3><p style="color:#f87171;margin:0">Missing filters.json — run <code>python scripts/build_viewer_layers.py --force</code> then refresh.</p>';
+        return;
+      }
+
+      let title = 'All Casey LGA';
+      let stats = filtersIndex.lga_stats;
+      if (areaFilter.type === 'suburb' && areaFilter.value) {
+        title = areaFilter.value;
+        stats = filtersIndex.suburb_stats[areaFilter.value] || stats;
+      } else if (areaFilter.type === 'ward' && areaFilter.value) {
+        title = `${areaFilter.value} ward`;
+        stats = filtersIndex.ward_stats[areaFilter.value] || stats;
+      }
+
+      const boundaryNote = (areaFilter.type !== 'all' && !activeBoundaryFeature())
+        ? '<p style="color:#fbbf24;margin:0.35rem 0 0;font-size:0.68rem">Boundary overlay unavailable — using attribute / bbox filter.</p>'
+        : '';
+
+      const rows = [
+        ['Footpath segments', stats.footpath_segments?.toLocaleString()],
+        ['Footpath length', stats.footpath_length_km != null ? `${stats.footpath_length_km} km` : '—'],
+        ['Median width', stats.median_width_m != null ? `${stats.median_width_m} m` : '—'],
+        ['Street lights', stats.streetlights?.toLocaleString()],
+        ['Park / reserve lights', stats.park_lights?.toLocaleString()],
+        ['Mean UHI °C', stats.mean_uhi18_m ?? '—'],
+        ['Heat mesh blocks', stats.heat_mesh_blocks?.toLocaleString()],
+        ['Tree density polys', stats.tree_density_polygons?.toLocaleString()],
+        ['Speed zone segments', stats.speed_zone_segments?.toLocaleString()],
+        ['Ped. crashes', stats.crashes?.toLocaleString()],
+        ['Graffiti sites', stats.graffiti?.toLocaleString()],
+        ['Fountains', stats.fountains?.toLocaleString()],
+        ['Benches / seats', stats.benches?.toLocaleString()],
+        ['School crossings', stats.school_crossings?.toLocaleString()],
+      ];
+
+      el.innerHTML = `<h3>${title}</h3><dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v ?? '—'}</dd>`).join('')}</dl>${boundaryNote}`;
+    }
+
+    function updateBoundaryOverlay() {
+      if (boundaryLayer) {
+        map.removeLayer(boundaryLayer);
+        boundaryLayer = null;
+      }
+      const feature = activeBoundaryFeature();
+      if (!feature) return;
+      boundaryLayer = L.geoJSON(feature, {
+        style: {
+          color: '#38bdf8',
+          weight: 2,
+          fillColor: '#38bdf8',
+          fillOpacity: 0.06,
+          dashArray: '6 4',
+        },
+        interactive: false,
+      }).addTo(map);
+    }
+
+    function fitAreaBounds() {
+      if (areaFilter.type === 'all') {
+        const b = manifest.bounds;
+        map.fitBounds([[b.south, b.west], [b.north, b.east]], { padding: [12, 12] });
+        return;
+      }
+      const stats = currentAreaStats();
+      if (stats?.bounds) {
+        const b = stats.bounds;
+        map.fitBounds([[b.south, b.west], [b.north, b.east]], { padding: [24, 24] });
+      }
+    }
+
+    async function reloadActiveLayers() {
+      const active = manifest.layers.filter((spec) => {
+        const row = document.querySelector(`.layer-item[data-id="${spec.id}"] input`);
+        return row && row.checked;
+      });
+      for (const spec of active) {
+        if (loadedLayers.has(spec.id)) {
+          map.removeLayer(loadedLayers.get(spec.id));
+          loadedLayers.delete(spec.id);
+        }
+        await loadLayer(spec);
+      }
+    }
+
+    async function applyAreaFilter() {
+      const token = ++filterApplyToken;
+      setStatus('Applying area filter…');
+      updateBoundaryOverlay();
+      renderCoverageStats();
+      fitAreaBounds();
+      try {
+        await reloadActiveLayers();
+        if (token !== filterApplyToken) return;
+        const label = areaFilter.type === 'all'
+          ? 'All Casey LGA'
+          : areaFilter.type === 'suburb'
+            ? areaFilter.value
+            : `${areaFilter.value} ward`;
+        setStatus(`Area filter: ${label}. Toggle layers or click features to inspect.`);
+      } catch (err) {
+        if (token !== filterApplyToken) return;
+        setStatus(`Filter error: ${err.message}`);
+      }
+    }
+
+    function scheduleAreaFilter() {
+      clearTimeout(filterApplyTimer);
+      filterApplyTimer = setTimeout(() => {
+        applyAreaFilter().catch((err) => setStatus(`Filter error: ${err.message}`));
+      }, 120);
+    }
+
+    function setupFilterControls() {
+      const typeSelect = document.getElementById('filter-type');
+      const valueWrap = document.getElementById('filter-value-wrap');
+      const valueSelect = document.getElementById('filter-value');
+
+      if (!filtersIndex?.suburbs?.length || !filtersIndex?.wards?.length) {
+        typeSelect.disabled = true;
+        renderCoverageStats();
+        return;
+      }
+
+      function populateValues() {
+        valueSelect.innerHTML = '';
+        const type = typeSelect.value;
+        if (type === 'all') {
+          valueWrap.style.display = 'none';
+          areaFilter = { type: 'all', value: null };
+          scheduleAreaFilter();
+          return;
+        }
+        valueWrap.style.display = 'grid';
+        const options = type === 'suburb' ? filtersIndex.suburbs : filtersIndex.wards;
+        options.forEach((name) => {
+          const opt = document.createElement('option');
+          opt.value = name;
+          opt.textContent = name;
+          valueSelect.appendChild(opt);
+        });
+        areaFilter = { type, value: options[0] };
+        scheduleAreaFilter();
+      }
+
+      typeSelect.addEventListener('change', populateValues);
+      valueSelect.addEventListener('change', () => {
+        areaFilter = { type: typeSelect.value, value: valueSelect.value };
+        scheduleAreaFilter();
+      });
+    }
+
+    function popupHtml(props, fields, latlng) {
       const rows = fields
         .filter((f) => props[f] !== undefined && props[f] !== null && props[f] !== '')
         .map((f) => `<div><strong>${f.replace(/_/g, ' ')}:</strong> ${props[f]}</div>`);
       if (props.qa_flag && props.qa_flag !== 'ok') {
-        rows.push(`<div><strong>qa:</strong> ${props.qa_flag}</div>`);
+        rows.unshift(`<div style="color:#b91c1c"><strong>QA flag:</strong> ${props.qa_flag}</div>`);
+      }
+      if (latlng) {
+        rows.push(`<div style="color:#64748b;font-size:0.75rem">${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}</div>`);
       }
       return rows.length ? rows.join('') : '<em>No attributes</em>';
     }
 
-    function styleForLayer(spec) {
-      if (spec.geometry === 'point') return {};
+    function getLayerState(spec) {
+      if (!layerState.has(spec.id)) {
+        const defaultMode = spec.style?.default || null;
+        layerState.set(spec.id, {
+          styleMode: defaultMode,
+          opacity: spec.fill_opacity ?? 0.55,
+        });
+      }
+      return layerState.get(spec.id);
+    }
+
+    function numericColor(value, mode) {
+      const num = Number(value);
+      if (!Number.isFinite(num)) return '#94a3b8';
+      const colors = mode.colors || ['#dbeafe', '#2563eb', '#1e3a8a'];
+      const min = mode.min ?? 0;
+      const max = mode.max_display ?? mode.max ?? min + 1;
+      const clamped = Math.max(min, Math.min(max, num));
+      const t = max === min ? 0 : (clamped - min) / (max - min);
+      const idx = Math.min(colors.length - 1, Math.floor(t * colors.length));
+      return colors[idx];
+    }
+
+    function featureColor(spec, props) {
+      const state = getLayerState(spec);
+      const mode = spec.style?.modes?.[state.styleMode];
+      if (!mode) return spec.color;
+      const raw = props[mode.field];
+      if (mode.type === 'categorical') {
+        const key = raw === null || raw === undefined ? 'null' : String(raw);
+        return (mode.palette && mode.palette[key]) || '#94a3b8';
+      }
+      if (mode.type === 'numeric') return numericColor(raw, mode);
+      return spec.color;
+    }
+
+    function polygonStyle(spec, props) {
+      const state = getLayerState(spec);
+      const fill = featureColor(spec, props);
+      const qaBad = qaHighlightOn && props.qa_flag && props.qa_flag !== 'ok';
       return {
-        color: spec.color,
-        weight: spec.weight ?? 2,
-        fillColor: spec.color,
-        fillOpacity: spec.fill_opacity ?? 0.35,
-        opacity: 0.85,
+        color: qaBad ? '#f43f5e' : fill,
+        weight: qaBad ? 3 : (spec.weight ?? 2),
+        fillColor: fill,
+        fillOpacity: state.opacity,
+        opacity: 0.9,
       };
+    }
+
+    function lineStyle(spec, props) {
+      const state = getLayerState(spec);
+      const stroke = featureColor(spec, props);
+      const qaBad = qaHighlightOn && props.qa_flag && props.qa_flag !== 'ok';
+      return {
+        color: qaBad ? '#f43f5e' : stroke,
+        weight: qaBad ? 5 : (spec.weight ?? 3),
+        opacity: Math.min(1, state.opacity + 0.25),
+      };
+    }
+
+    function pointStyle(spec, props) {
+      const fill = featureColor(spec, props);
+      const qaBad = qaHighlightOn && props.qa_flag && props.qa_flag !== 'ok';
+      return {
+        radius: spec.point_radius ?? 5,
+        color: qaBad ? '#f43f5e' : fill,
+        fillColor: fill,
+        fillOpacity: qaBad ? 1 : 0.85,
+        weight: qaBad ? 2 : 1,
+        opacity: 0.95,
+      };
+    }
+
+    function bindFeatureInteraction(spec, feature, layer) {
+      const props = feature.properties || {};
+      layer.on('click', (e) => {
+        if (highlightedFeature && highlightedFeature.resetStyle) {
+          highlightedFeature.resetStyle();
+        }
+        highlightedFeature = e.target;
+        if (highlightedFeature.setStyle) {
+          highlightedFeature.setStyle({
+            weight: 5,
+            color: '#ffffff',
+            fillOpacity: Math.min(1, (getLayerState(spec).opacity || 0.5) + 0.2),
+          });
+          if (highlightedFeature.bringToFront) highlightedFeature.bringToFront();
+        }
+        L.popup()
+          .setLatLng(e.latlng)
+          .setContent(`<strong>${spec.name}</strong><br>${popupHtml(props, spec.popup_fields, e.latlng)}`)
+          .openOn(map);
+      });
+      layer.on('mouseover', () => {
+        if (layer.setStyle && layer !== highlightedFeature) {
+          layer.setStyle({ weight: (spec.weight ?? 2) + 1 });
+        }
+      });
+      layer.on('mouseout', () => {
+        if (layer !== highlightedFeature && layer.resetStyle) {
+          layer.resetStyle();
+        }
+      });
     }
 
     function pointToLayer(spec) {
       return (feature, latlng) => {
-        if (spec.cluster) return L.marker(latlng);
-        return L.circleMarker(latlng, {
-          radius: 5,
-          color: spec.color,
-          fillColor: spec.color,
-          fillOpacity: 0.85,
-          weight: 1,
-        });
+        const marker = L.circleMarker(latlng, pointStyle(spec, feature.properties || {}));
+        bindFeatureInteraction(spec, feature, marker);
+        return marker;
       };
+    }
+
+    function rebuildLayerStyle(spec) {
+      const entry = loadedLayers.get(spec.id);
+      if (!entry) return;
+      if (entry.eachLayer) {
+        entry.eachLayer((layer) => {
+          const props = layer.feature?.properties || {};
+          if (spec.geometry === 'point' && layer.setStyle) {
+            layer.setStyle(pointStyle(spec, props));
+          } else if (spec.geometry === 'line' && layer.setStyle) {
+            layer.setStyle(lineStyle(spec, props));
+          } else if (layer.setStyle) {
+            layer.setStyle(polygonStyle(spec, props));
+          }
+        });
+      }
+      updateLegend(spec);
+    }
+
+    function updateLegend(spec) {
+      if (!legendControl) {
+        legendControl = L.control({ position: 'bottomright' });
+        legendControl.onAdd = () => {
+          const div = L.DomUtil.create('div', 'map-legend');
+          div.id = 'map-legend';
+          return div;
+        };
+        legendControl.addTo(map);
+      }
+      const el = document.getElementById('map-legend');
+      const state = getLayerState(spec);
+      const mode = spec.style?.modes?.[state.styleMode];
+      if (!mode) {
+        el.innerHTML = '<h4>Legend</h4><em>Select a styled layer</em>';
+        return;
+      }
+      el.innerHTML = `<h4>${spec.name}</h4><div style="color:#94a3b8;margin-bottom:0.25rem">${mode.label}</div>`;
+      if (mode.type === 'categorical') {
+        Object.entries(mode.palette || {}).forEach(([key, color]) => {
+          el.innerHTML += `<div class="legend-row"><span class="legend-swatch" style="background:${color}"></span><span>${key}</span></div>`;
+        });
+      } else {
+        const colors = mode.colors || [];
+        el.innerHTML += `<div class="legend-gradient" style="background:linear-gradient(to right, ${colors.join(',')})"></div>`;
+        const min = (mode.min ?? 0).toFixed(1);
+        const max = (mode.max_display ?? mode.max ?? 0).toFixed(1);
+        el.innerHTML += `<div class="legend-scale"><span>${min}</span><span>${max}${mode.max_display ? ' (cap)' : ''}</span></div>`;
+        if (mode.median !== undefined) {
+          el.innerHTML += `<div style="color:#94a3b8;margin-top:0.15rem">median: ${mode.median.toFixed(2)}</div>`;
+        }
+      }
     }
 
     async function loadLayer(spec) {
       if (loadedLayers.has(spec.id)) {
         map.addLayer(loadedLayers.get(spec.id));
+        updateLegend(spec);
         return;
       }
       setStatus(`Loading ${spec.name}…`);
-      const res = await fetch(`/${spec.file}`);
-      if (!res.ok) throw new Error(`Failed to load ${spec.file}`);
-      const geojson = await res.json();
+      let geojson = geojsonCache.get(spec.id);
+      if (!geojson) {
+        const res = await fetch(`/${spec.file}`);
+        if (!res.ok) throw new Error(`Failed to load ${spec.file}`);
+        geojson = await res.json();
+        geojsonCache.set(spec.id, geojson);
+      }
+      geojson = filterGeoJSON(geojson, spec);
 
-      const layerOptions = {
-        style: () => styleForLayer(spec),
+      const common = {
         onEachFeature: (feature, layer) => {
-          if (feature.properties) {
-            layer.bindPopup(popupHtml(feature.properties, spec.popup_fields));
-          }
+          if (spec.geometry !== 'point') bindFeatureInteraction(spec, feature, layer);
         },
       };
 
       let layer;
       if (spec.geometry === 'point') {
         if (spec.cluster) {
-          layer = L.markerClusterGroup({
-            maxClusterRadius: 40,
-            disableClusteringAtZoom: 17,
-          });
-          L.geoJSON(geojson, {
-            ...layerOptions,
-            pointToLayer: pointToLayer(spec),
-          }).eachLayer((l) => layer.addLayer(l));
+          layer = L.markerClusterGroup({ maxClusterRadius: 40, disableClusteringAtZoom: 17 });
+          L.geoJSON(geojson, { ...common, pointToLayer: pointToLayer(spec) })
+            .eachLayer((l) => layer.addLayer(l));
         } else {
           layer = L.geoJSON(geojson, {
-            ...layerOptions,
+            ...common,
             pointToLayer: pointToLayer(spec),
           });
         }
+      } else if (spec.geometry === 'line') {
+        layer = L.geoJSON(geojson, {
+          ...common,
+          style: (f) => lineStyle(spec, f.properties || {}),
+        });
       } else {
-        layer = L.geoJSON(geojson, layerOptions);
+        layer = L.geoJSON(geojson, {
+          ...common,
+          style: (f) => polygonStyle(spec, f.properties || {}),
+        });
       }
 
       loadedLayers.set(spec.id, layer);
       map.addLayer(layer);
-      setStatus(`${spec.name} loaded (${spec.feature_count?.toLocaleString() ?? '?'} features).`);
+      updateLegend(spec);
+      const n = geojson.features.length;
+      setStatus(`${spec.name}: ${n.toLocaleString()} features in filter.`);
     }
 
     function unloadLayer(spec) {
@@ -171,8 +665,12 @@
       if (layer) map.removeLayer(layer);
     }
 
-    function setStatus(msg) {
-      document.getElementById('status').textContent = msg;
+    function refreshAllActiveStyles() {
+      document.querySelectorAll('.layer-item.active').forEach((row) => {
+        const id = row.dataset.id;
+        const spec = manifest.layers.find((l) => l.id === id);
+        if (spec) rebuildLayerStyle(spec);
+      });
     }
 
     function groupLayers(layers) {
@@ -185,42 +683,86 @@
       return groups;
     }
 
+    function renderLayerControls(spec, container) {
+      const state = getLayerState(spec);
+      const controls = document.createElement('div');
+      controls.className = 'layer-controls';
+
+      if (spec.style?.modes && Object.keys(spec.style.modes).length) {
+        const label = document.createElement('label');
+        label.textContent = 'Style by';
+        const select = document.createElement('select');
+        Object.entries(spec.style.modes).forEach(([id, mode]) => {
+          const opt = document.createElement('option');
+          opt.value = id;
+          opt.textContent = mode.label;
+          if (id === state.styleMode) opt.selected = true;
+          select.appendChild(opt);
+        });
+        select.addEventListener('change', () => {
+          state.styleMode = select.value;
+          rebuildLayerStyle(spec);
+        });
+        controls.append(label, select);
+      }
+
+      if (spec.geometry !== 'point') {
+        const label = document.createElement('label');
+        label.textContent = `Opacity (${Math.round(state.opacity * 100)}%)`;
+        const slider = document.createElement('input');
+        slider.type = 'range';
+        slider.min = '0.05';
+        slider.max = '0.95';
+        slider.step = '0.05';
+        slider.value = String(state.opacity);
+        slider.addEventListener('input', () => {
+          state.opacity = Number(slider.value);
+          label.textContent = `Opacity (${Math.round(state.opacity * 100)}%)`;
+          rebuildLayerStyle(spec);
+        });
+        controls.append(label, slider);
+      }
+
+      container.appendChild(controls);
+    }
+
     function renderLayerList(layers) {
       const container = document.getElementById('layer-list');
       container.innerHTML = '';
-      const groups = groupLayers(layers);
-
-      for (const [stream, items] of groups) {
+      for (const [stream, items] of groupLayers(layers)) {
         const heading = document.createElement('div');
         heading.className = 'layer-group';
         heading.textContent = stream;
         container.appendChild(heading);
 
         for (const spec of items) {
-          const row = document.createElement('label');
+          const row = document.createElement('div');
           row.className = 'layer-item';
           row.dataset.id = spec.id;
 
+          const head = document.createElement('label');
+          head.className = 'layer-head';
           const cb = document.createElement('input');
           cb.type = 'checkbox';
           cb.checked = !!spec.default_on;
 
           const meta = document.createElement('div');
           meta.className = 'layer-meta';
-
           const name = document.createElement('div');
           name.className = 'layer-name';
           name.innerHTML = `<span class="swatch" style="background:${spec.color}"></span>${spec.name}`;
-
           const detail = document.createElement('div');
           detail.className = 'layer-detail';
           let detailText = `${spec.feature_count?.toLocaleString() ?? '?'} features`;
           if (spec.sampled) detailText += ` (sample of ${spec.sample_size?.toLocaleString()})`;
+          if (spec.style?.default) detailText += ' · styled';
+          if (!spec.cluster && spec.geometry === 'point') detailText += ' · points';
           detail.textContent = detailText;
 
           meta.append(name, detail);
-          row.append(cb, meta);
-          container.appendChild(row);
+          head.append(cb, meta);
+          row.appendChild(head);
+          renderLayerControls(spec, row);
 
           cb.addEventListener('change', async () => {
             row.classList.toggle('active', cb.checked);
@@ -235,23 +777,63 @@
           });
 
           if (spec.default_on) row.classList.add('active');
+          container.appendChild(row);
         }
       }
     }
 
-    async function init() {
-      const res = await fetch('/data/viewer/layers.json');
-      if (!res.ok) {
-        setStatus('Missing layers.json — run: python scripts/build_viewer_layers.py');
-        return;
-      }
-      manifest = await res.json();
-      renderLayerList(manifest.layers);
+    document.getElementById('basemap-select').addEventListener('change', (e) => {
+      const cfg = BASEMAPS[e.target.value];
+      map.removeLayer(basemapLayer);
+      basemapLayer = L.tileLayer(cfg.url, cfg.options).addTo(map);
+    });
 
+    document.getElementById('qa-toggle').addEventListener('click', (e) => {
+      qaHighlightOn = !qaHighlightOn;
+      e.target.classList.toggle('active', qaHighlightOn);
+      refreshAllActiveStyles();
+      setStatus(qaHighlightOn ? 'QA issue highlight on (qa_flag ≠ ok).' : 'QA issue highlight off.');
+    });
+
+    document.getElementById('reset-view').addEventListener('click', () => {
       const b = manifest.bounds;
       map.fitBounds([[b.south, b.west], [b.north, b.east]], { padding: [12, 12] });
+    });
 
-      setStatus(manifest.notes || 'Toggle layers to inspect.');
+    async function init() {
+      const [manifestRes, filtersRes, suburbRes, wardRes] = await Promise.all([
+        fetch(`${VIEWER_DATA}/layers.json`),
+        fetch(`${VIEWER_DATA}/filters.json`),
+        fetch(`${VIEWER_DATA}/suburb_boundaries.geojson`),
+        fetch(`${VIEWER_DATA}/ward_boundaries.geojson`),
+      ]);
+      if (!manifestRes.ok) {
+        setStatus('Missing layers.json — run: python scripts/build_viewer_layers.py --force');
+        renderCoverageStats();
+        return;
+      }
+      manifest = await manifestRes.json();
+      if (filtersRes.ok) {
+        filtersIndex = await filtersRes.json();
+      } else {
+        filtersIndex = null;
+        console.warn('filters.json missing — suburb/ward filters disabled');
+      }
+      if (suburbRes.ok) suburbBoundaries = await suburbRes.json();
+      else console.warn('suburb_boundaries.geojson missing');
+      if (wardRes.ok) wardBoundaries = await wardRes.json();
+      else console.warn('ward_boundaries.geojson missing');
+
+      renderLayerList(manifest.layers);
+      setupFilterControls();
+      renderCoverageStats();
+
+      map.fitBounds([
+        [manifest.bounds.south, manifest.bounds.west],
+        [manifest.bounds.north, manifest.bounds.east],
+      ], { padding: [12, 12] });
+
+      setStatus('Toggle layers · filter by suburb/ward · click features to inspect.');
       for (const spec of manifest.layers.filter((l) => l.default_on)) {
         await loadLayer(spec);
       }
