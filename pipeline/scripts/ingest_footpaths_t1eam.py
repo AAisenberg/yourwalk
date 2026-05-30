@@ -18,6 +18,7 @@ from datetime import UTC, datetime
 import duckdb
 
 from yourwalk_pipeline.download import download_geojson_export
+from yourwalk_pipeline.export import export_geoparquet
 from yourwalk_pipeline.paths import INTERMEDIATE_DIR, QA_DIR, RAW_DIR, ensure_data_dirs
 from yourwalk_pipeline.qa_width import WIDTH_QA_SQL
 
@@ -130,22 +131,6 @@ def width_qa_summary(con: duckdb.DuckDBPyConnection) -> dict:
     }
 
 
-def export_geoparquet(con: duckdb.DuckDBPyConnection) -> None:
-    """Export via GeoPackage (DuckDB GDAL) then convert to GeoParquet (geopandas)."""
-    import geopandas as gpd
-
-    gpkg_path = INTERMEDIATE_PARQUET.with_suffix(".gpkg")
-    con.execute(
-        f"""
-        COPY footpaths TO '{gpkg_path.as_posix()}'
-        WITH (FORMAT GDAL, DRIVER 'GPKG')
-        """
-    )
-    gdf = gpd.read_file(gpkg_path)
-    gdf.to_parquet(INTERMEDIATE_PARQUET, index=False)
-    gpkg_path.unlink(missing_ok=True)
-
-
 def main() -> int:
     args = parse_args()
     ensure_data_dirs()
@@ -167,7 +152,7 @@ def main() -> int:
     print(f"  → Width QA flags: {qa_report['width_qa_flags']}")
 
     print("Exporting GeoParquet …")
-    export_geoparquet(con)
+    export_geoparquet(con, "footpaths", INTERMEDIATE_PARQUET)
     print(f"  → {INTERMEDIATE_PARQUET}")
 
     con.close()

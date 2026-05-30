@@ -47,11 +47,30 @@ python scripts/ingest_footpaths_t1eam.py --force-download
 | **Key fields** | `segment_id` (gisfid), `surface_material` (pathsfmat), `width_m`, `length_m`, `function_use`, `ownership`, geometry |
 | **QA** | Width outlier flags: `ok`, `missing`, `zero`, `too_narrow` (<0.5 m), `too_wide` (>6.0 m). Outliers retained with flag for reduced-confidence scoring. |
 
+### AusNet / United Energy street lights ✅
+
+Primary Night Index lighting source. ~42,258 point assets (no lux data).
+
+```bash
+python scripts/ingest_streetlights.py
+python scripts/ingest_streetlights.py --force-download
+```
+
+| Item | Detail |
+|------|--------|
+| **Source** | [Casey Open Data — AusNet / United Energy Street Lights](https://data.casey.vic.gov.au/explore/dataset/ausnet_unitedenergy_mvp4_streetlights) |
+| **API export** | `https://data.casey.vic.gov.au/api/explore/v2.1/catalog/datasets/ausnet_unitedenergy_mvp4_streetlights/exports/geojson` |
+| **Raw file** | `data/raw/ausnet_unitedenergy_mvp4_streetlights.geojson` |
+| **Output** | `data/intermediate/ausnet_unitedenergy_mvp4_streetlights.parquet` |
+| **QA report** | `data/qa/ausnet_unitedenergy_mvp4_streetlights_qa.json` |
+| **Key fields** | `light_id`, `globe_type`, `wattage_w`, `provider`, `suburb`, `street_name`, `source_extracted_date`, geometry (Point) |
+| **QA** | Wattage flags: `ok`, `missing_wattage`, `zero_wattage`, `high_wattage` (>400 W). Duplicate `light_id` flagged. Proxies only — no lux in source. |
+
 ### Planned (not yet implemented)
 
 | Dataset | Source | Stream | Priority |
 |---------|--------|--------|----------|
-| AusNet / United Energy Street Lights | Casey Open Data | Night Index | High |
+| Casey Asset Lights (parks/reserves) | Casey Open Data | Night Index enrichment | Medium |
 | Speed Zones | DataVic / Transport Victoria | Accessibility (shared) | High |
 | Graffiti Locations | Casey Open Data | Accessibility (shared) | High |
 | Vicmap Tree Urban | DataVic REST | Day Index (Heat & Shade) | High |
