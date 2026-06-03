@@ -142,7 +142,7 @@
     <aside id="sidebar">
       <header>
         <h1>Casey pipeline QA map</h1>
-        <p>Click features for attributes. Use <strong>Style by</strong> on active layers for choropleth / graded symbology. Street &amp; park lights show as individual points.</p>
+        <p>Walk network on by default. Toggle <strong>Segment scores</strong> (Scoring group) for Day/Night choropleth review — turn walk network off to see scores clearly. <strong>LGA boundary</strong> stays on.</p>
         <div class="toolbar">
           <label>Basemap
             <select id="basemap-select">
@@ -150,6 +150,9 @@
               <option value="dark">Carto dark</option>
               <option value="light">Carto light</option>
             </select>
+          </label>
+          <label title="City of Casey LGA outline from Open Data">
+            <input type="checkbox" id="lga-boundary-toggle" checked> LGA
           </label>
           <button type="button" id="qa-toggle" title="Highlight features with qa_flag ≠ ok">QA issues</button>
           <button type="button" id="reset-view" title="Reset map extent">Reset view</button>
@@ -165,6 +168,13 @@
         </label>
         <label id="filter-value-wrap" style="display:none">Select
           <select id="filter-value"></select>
+        </label>
+        <label>Path class
+          <select id="path-class-filter">
+            <option value="all">All paths</option>
+            <option value="footpath">Footpath only</option>
+            <option value="shared_use">Shared use only</option>
+          </select>
         </label>
       </div>
       <div id="coverage-stats"><h3>Coverage</h3><p style="color:var(--muted);margin:0">Loading…</p></div>
@@ -204,7 +214,9 @@
     let suburbBoundaries = null;
     let wardBoundaries = null;
     let areaFilter = { type: 'all', value: null };
+    let pathClassFilter = 'all';
     let boundaryLayer = null;
+    let lgaBoundaryLayer = null;
     let highlightedFeature = null;
     let qaHighlightOn = false;
     let legendControl = null;
@@ -246,6 +258,10 @@
     }
 
     function featureMatchesFilter(feature, spec) {
+      if (pathClassFilter !== 'all' && (spec.id === 'footpaths' || spec.id === 'segment_scores')) {
+        const cls = feature.properties?.walk_path_class;
+        if (cls !== pathClassFilter) return false;
+      }
       if (areaFilter.type === 'all') return true;
       const props = feature.properties || {};
 
@@ -268,7 +284,7 @@
     }
 
     function filterGeoJSON(geojson, spec) {
-      if (areaFilter.type === 'all') return geojson;
+      if (pathClassFilter === 'all' && areaFilter.type === 'all') return geojson;
       return {
         ...geojson,
         features: geojson.features.filter((f) => featureMatchesFilter(f, spec)),
@@ -297,9 +313,20 @@
         : '';
 
       const rows = [
-        ['Footpath segments', stats.footpath_segments?.toLocaleString()],
-        ['Footpath length', stats.footpath_length_km != null ? `${stats.footpath_length_km} km` : '—'],
+        ['Walk network segments', stats.footpath_segments?.toLocaleString()],
+        ['Walk network length', stats.footpath_length_km != null ? `${stats.footpath_length_km} km` : '—'],
+        ['Shared use segments', stats.shared_use_segments?.toLocaleString()],
+        ['Shared use length', stats.shared_use_length_km != null ? `${stats.shared_use_length_km} km` : '—'],
         ['Median width', stats.median_width_m != null ? `${stats.median_width_m} m` : '—'],
+      ];
+      if (stats.median_day_index != null) {
+        rows.push(
+          ['Median Day Index', stats.median_day_index],
+          ['Median Night Index', stats.median_night_index],
+          ['Median accessibility', stats.median_accessibility],
+        );
+      }
+      rows.push(
         ['Street lights', stats.streetlights?.toLocaleString()],
         ['Park / reserve lights', stats.park_lights?.toLocaleString()],
         ['Mean UHI °C', stats.mean_uhi18_m ?? '—'],
@@ -311,7 +338,7 @@
         ['Fountains', stats.fountains?.toLocaleString()],
         ['Benches / seats', stats.benches?.toLocaleString()],
         ['School crossings', stats.school_crossings?.toLocaleString()],
-      ];
+      );
 
       el.innerHTML = `<h3>${title}</h3><dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v ?? '—'}</dd>`).join('')}</dl>${boundaryNote}`;
     }
@@ -425,6 +452,14 @@
       typeSelect.addEventListener('change', populateValues);
       valueSelect.addEventListener('change', () => {
         areaFilter = { type: typeSelect.value, value: valueSelect.value };
+        scheduleAreaFilter();
+      });
+
+      const pathClassSelect = document.getElementById('path-class-filter');
+      pathClassSelect.addEventListener('change', () => {
+        pathClassFilter = pathClassSelect.value;
+        geojsonCache.delete('footpaths');
+        geojsonCache.delete('segment_scores');
         scheduleAreaFilter();
       });
     }
@@ -591,6 +626,9 @@
         return;
       }
       el.innerHTML = `<h4>${spec.name}</h4><div style="color:#94a3b8;margin-bottom:0.25rem">${mode.label}</div>`;
+      if (mode.legend_note) {
+        el.innerHTML += `<div style="color:#64748b;font-size:0.65rem;margin-bottom:0.35rem;line-height:1.4">${mode.legend_note}</div>`;
+      }
       if (mode.type === 'categorical') {
         Object.entries(mode.palette || {}).forEach(([key, color]) => {
           el.innerHTML += `<div class="legend-row"><span class="legend-swatch" style="background:${color}"></span><span>${key}</span></div>`;
@@ -701,9 +739,19 @@
         });
         select.addEventListener('change', () => {
           state.styleMode = select.value;
+          refreshModeHint();
           rebuildLayerStyle(spec);
         });
         controls.append(label, select);
+        const modeHint = document.createElement('div');
+        modeHint.style.cssText = 'color:#64748b;font-size:0.68rem;line-height:1.35;margin-bottom:0.35rem';
+        function refreshModeHint() {
+          const mode = spec.style?.modes?.[state.styleMode];
+          modeHint.textContent = mode?.legend_note || '';
+          modeHint.style.display = mode?.legend_note ? 'block' : 'none';
+        }
+        refreshModeHint();
+        controls.appendChild(modeHint);
       }
 
       if (spec.geometry !== 'point') {
@@ -755,6 +803,7 @@
           detail.className = 'layer-detail';
           let detailText = `${spec.feature_count?.toLocaleString() ?? '?'} features`;
           if (spec.sampled) detailText += ` (sample of ${spec.sample_size?.toLocaleString()})`;
+          if (spec.qa_only) detailText += ' · QA context';
           if (spec.style?.default) detailText += ' · styled';
           if (!spec.cluster && spec.geometry === 'point') detailText += ' · points';
           detail.textContent = detailText;
@@ -800,6 +849,45 @@
       map.fitBounds([[b.south, b.west], [b.north, b.east]], { padding: [12, 12] });
     });
 
+    async function loadLgaBoundary() {
+      if (!manifest?.boundary?.file) return;
+      if (lgaBoundaryLayer) {
+        map.removeLayer(lgaBoundaryLayer);
+        lgaBoundaryLayer = null;
+      }
+      const res = await fetch(`/${manifest.boundary.file}`);
+      if (!res.ok) {
+        console.warn('LGA boundary missing — run build_viewer_layers.py --force');
+        return;
+      }
+      const geojson = await res.json();
+      if (!map.getPane('lgaBoundaryPane')) {
+        const pane = map.createPane('lgaBoundaryPane');
+        pane.style.zIndex = 380;
+      }
+      lgaBoundaryLayer = L.geoJSON(geojson, {
+        pane: 'lgaBoundaryPane',
+        interactive: false,
+        style: {
+          color: '#38bdf8',
+          weight: 2.5,
+          opacity: 0.95,
+          fillColor: '#38bdf8',
+          fillOpacity: 0.03,
+          dashArray: '10 6',
+        },
+      });
+      const toggle = document.getElementById('lga-boundary-toggle');
+      const show = manifest.boundary.default_on !== false && toggle?.checked !== false;
+      if (show) lgaBoundaryLayer.addTo(map);
+    }
+
+    document.getElementById('lga-boundary-toggle')?.addEventListener('change', (e) => {
+      if (!lgaBoundaryLayer) return;
+      if (e.target.checked) lgaBoundaryLayer.addTo(map);
+      else map.removeLayer(lgaBoundaryLayer);
+    });
+
     async function init() {
       const [manifestRes, filtersRes, suburbRes, wardRes] = await Promise.all([
         fetch(`${VIEWER_DATA}/layers.json`),
@@ -827,6 +915,7 @@
       renderLayerList(manifest.layers);
       setupFilterControls();
       renderCoverageStats();
+      await loadLgaBoundary();
 
       map.fitBounds([
         [manifest.bounds.south, manifest.bounds.west],

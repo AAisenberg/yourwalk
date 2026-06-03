@@ -20,7 +20,8 @@ from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 
-from yourwalk_pipeline.paths import INTERMEDIATE_DIR, PIPELINE_ROOT
+from yourwalk_pipeline.download import download_geojson_export
+from yourwalk_pipeline.paths import INTERMEDIATE_DIR, PIPELINE_ROOT, RAW_DIR
 
 VIEWER_DIR = PIPELINE_ROOT / "data" / "viewer"
 MANIFEST_PATH = VIEWER_DIR / "layers.json"
@@ -47,6 +48,14 @@ TREE_DENSITY_COLORS = {
     "dense": "#15803d",
 }
 
+SCORE_INDEX_COLORS = ["#b91c1c", "#f97316", "#facc15", "#84cc16", "#15803d"]
+
+WALK_PATH_CLASS_COLORS = {
+    "footpath": "#2563eb",
+    "shared_use": "#0d9488",
+    "other": "#94a3b8",
+}
+
 WIDTH_QA_COLORS = {
     "ok": "#2563eb",
     "missing_width": "#94a3b8",
@@ -64,6 +73,16 @@ SURFACE_COLORS = {
     "Brick Paving": "#b45309",
     "Timber": "#92400e",
     "Other": "#cbd5e1",
+}
+
+PARK_RESERVE_TYPE_COLORS = {
+    "Major Passive Park": "#166534",
+    "Neighbourhood Parks, LINKING CRT HDS": "#4ade80",
+    "Arterial Reserve": "#a3e635",
+    "Community Reserve": "#22d3ee",
+    "Sports Reserve": "#f97316",
+    "Leisure Facilities": "#c084fc",
+    "Undeveloped Reserve": "#94a3b8",
 }
 
 LIGHT_CATEGORY_COLORS = {
@@ -120,18 +139,42 @@ def layer_spec(
 LAYER_SPECS = [
     layer_spec(
         "footpaths",
-        "Footpaths (T1EAM)",
+        "Walk network (T1EAM)",
         "footpaths_ply_t1eam.parquet",
         stream="Segment network",
         geometry="polygon",
         color="#2563eb",
-        popup_fields=["segment_id", "surface_material", "width_m", "length_m", "suburb", "ward", "width_qa_flag"],
-        export_fields=["segment_id", "surface_material", "width_m", "length_m", "suburb", "ward", "width_qa_flag"],
+        popup_fields=[
+            "segment_id",
+            "walk_path_class",
+            "surface_material",
+            "width_m",
+            "length_m",
+            "suburb",
+            "ward",
+            "width_qa_flag",
+        ],
+        export_fields=[
+            "segment_id",
+            "walk_path_class",
+            "surface_material",
+            "width_m",
+            "length_m",
+            "suburb",
+            "ward",
+            "width_qa_flag",
+        ],
         default_on=True,
         simplify=0.00003,
         fill_opacity=0.55,
         filter_by="suburb",
         style_modes={
+            "walk_path_class": {
+                "label": "Path class",
+                "type": "categorical",
+                "field": "walk_path_class",
+                "palette": WALK_PATH_CLASS_COLORS,
+            },
             "width_m": {
                 "label": "Width (m)",
                 "type": "numeric",
@@ -150,6 +193,126 @@ LAYER_SPECS = [
                 "type": "categorical",
                 "field": "width_qa_flag",
                 "palette": WIDTH_QA_COLORS,
+            },
+        },
+    ),
+    layer_spec(
+        "segment_scores",
+        "Segment scores (Day / Night)",
+        "segment_scores.parquet",
+        stream="Scoring",
+        geometry="polygon",
+        color="#15803d",
+        popup_fields=[
+            "segment_id",
+            "walk_path_class",
+            "score_eligible",
+            "day_index_score",
+            "night_index_score",
+            "day_index_display",
+            "night_index_display",
+            "accessibility_score",
+            "heat_shade_score",
+            "lighting_after_dark_score",
+            "score_width",
+            "score_surface",
+            "score_speed",
+            "score_graffiti",
+            "score_heat",
+            "score_canopy",
+            "score_comfort",
+            "score_lighting",
+            "score_crash",
+            "confidence_day",
+            "confidence_night",
+            "suburb",
+            "ward",
+        ],
+        export_fields=[
+            "segment_id",
+            "walk_path_class",
+            "score_eligible",
+            "day_index_score",
+            "night_index_score",
+            "day_index_display",
+            "night_index_display",
+            "accessibility_score",
+            "heat_shade_score",
+            "lighting_after_dark_score",
+            "score_width",
+            "score_surface",
+            "score_speed",
+            "score_graffiti",
+            "score_heat",
+            "score_canopy",
+            "score_comfort",
+            "score_lighting",
+            "score_crash",
+            "confidence_day",
+            "confidence_night",
+            "suburb",
+            "ward",
+        ],
+        default_on=False,
+        simplify=0.00003,
+        fill_opacity=0.65,
+        weight=1,
+        filter_by="suburb",
+        style_modes={
+            "day_index_score": {
+                "label": "Day Index (0–100)",
+                "type": "numeric",
+                "field": "day_index_score",
+                "colors": SCORE_INDEX_COLORS,
+                "max_display": 100,
+            },
+            "night_index_score": {
+                "label": "Night Index (0–100)",
+                "type": "numeric",
+                "field": "night_index_score",
+                "colors": SCORE_INDEX_COLORS,
+                "max_display": 100,
+            },
+            "accessibility_score": {
+                "label": "Accessibility (0–100)",
+                "type": "numeric",
+                "field": "accessibility_score",
+                "colors": SCORE_INDEX_COLORS,
+                "max_display": 100,
+            },
+            "heat_shade_score": {
+                "label": "Heat & shade (0–100)",
+                "type": "numeric",
+                "field": "heat_shade_score",
+                "colors": SCORE_INDEX_COLORS,
+                "max_display": 100,
+            },
+            "lighting_after_dark_score": {
+                "label": "Lighting / after dark (0–100)",
+                "type": "numeric",
+                "field": "lighting_after_dark_score",
+                "colors": SCORE_INDEX_COLORS,
+                "max_display": 100,
+            },
+            "confidence_day": {
+                "label": "Day data confidence",
+                "type": "categorical",
+                "field": "confidence_day",
+                "palette": {"high": "#15803d", "medium": "#ca8a04", "low": "#b91c1c"},
+                "legend_note": (
+                    "Trust in Day Index inputs — not walk quality. "
+                    "High = fewer data gaps (width, speed, heat, canopy, crossings)."
+                ),
+            },
+            "confidence_night": {
+                "label": "Night data confidence",
+                "type": "categorical",
+                "field": "confidence_night",
+                "palette": {"high": "#15803d", "medium": "#ca8a04", "low": "#b91c1c"},
+                "legend_note": (
+                    "Trust in Night Index inputs — not walk quality. "
+                    "High = fewer data gaps (width, speed, lighting, crossings)."
+                ),
             },
         },
     ),
@@ -276,7 +439,7 @@ LAYER_SPECS = [
         color="#7c3aed",
         popup_fields=["crash_date", "light_category", "injury_severity", "road_name", "night_index_eligible"],
         export_fields=["crash_date", "light_category", "injury_severity", "road_name", "night_index_eligible", "qa_flag"],
-        default_on=True,
+        default_on=False,
         filter_by="spatial",
         point_radius=6,
         style_modes={
@@ -350,10 +513,71 @@ LAYER_SPECS = [
         geometry="point",
         color="#4f46e5",
         popup_fields=["school_name", "street_name", "suburb", "ward", "qa_flag"],
-        default_on=True,
+        default_on=False,
         point_radius=7,
     ),
 ]
+
+# Viewer-only context layers (raw GeoJSON from Casey Open Data — not ingested for scoring).
+REFERENCE_LAYER_SPECS = [
+    {
+        "id": "parks_reserves",
+        "dataset_id": "parks-reserves-ply-t1eam",
+        "name": "Parks & reserves (T1EAM)",
+        "stream": "Open space (QA context)",
+        "geometry": "polygon",
+        "color": "#22c55e",
+        "popup_fields": [
+            "parkresname",
+            "prtype",
+            "funcuse",
+            "osareatype",
+            "prarea_ha",
+            "suburb",
+            "ward",
+        ],
+        "export_fields": [
+            "parkresname",
+            "prtype",
+            "funcuse",
+            "osareatype",
+            "prarea_ha",
+            "suburb",
+            "ward",
+            "ownership",
+        ],
+        "default_on": False,
+        "simplify": 0.00006,
+        "fill_opacity": 0.22,
+        "weight": 1,
+        "filter_by": "spatial",
+        "style_modes": {
+            "prtype": {
+                "label": "Park reserve type",
+                "type": "categorical",
+                "field": "prtype",
+                "palette": PARK_RESERVE_TYPE_COLORS,
+            },
+        },
+    },
+    {
+        "id": "dog_friendly_spaces",
+        "dataset_id": "dog-friendly-spaces",
+        "name": "Dog-friendly spaces",
+        "stream": "Open space (QA context)",
+        "geometry": "polygon",
+        "color": "#a855f7",
+        "popup_fields": ["reserve", "status", "suburb", "postcode", "address"],
+        "export_fields": ["reserve", "status", "suburb", "postcode", "address", "descript"],
+        "default_on": False,
+        "simplify": 0.00002,
+        "fill_opacity": 0.45,
+        "weight": 2,
+        "filter_by": "spatial",
+    },
+]
+
+BOUNDARY_DATASET_ID = "caseylga_boundary"
 
 
 def parse_args() -> argparse.Namespace:
@@ -407,6 +631,88 @@ def build_style_modes(gdf: gpd.GeoDataFrame, spec: dict) -> dict:
 
     default_mode = next(iter(built))
     return {"default": default_mode, "modes": built}
+
+
+def export_reference_layer(spec: dict, *, force: bool) -> dict | None:
+    """Export a Casey Open Data reference layer to viewer GeoJSON (no Parquet ingest)."""
+    dataset_id = spec["dataset_id"]
+    raw_path = RAW_DIR / f"{dataset_id}.geojson"
+    output = VIEWER_DIR / f"{spec['id']}.geojson"
+
+    if output.exists() and not force and raw_path.exists():
+        print(f"  reuse {spec['id']} → {output.name}")
+        gdf = gpd.read_file(output)
+        manifest = {k: v for k, v in spec.items() if k not in ("dataset_id", "simplify", "export_fields", "style_modes")}
+        manifest["file"] = f"data/viewer/{output.name}"
+        manifest["feature_count"] = len(gdf)
+        manifest["style"] = build_style_modes(gdf, spec)
+        manifest["qa_only"] = True
+        return manifest
+
+    print(f"  download {dataset_id} …")
+    download_geojson_export(dataset_id, raw_path, force=force)
+
+    print(f"  build {spec['id']} …")
+    gdf = gpd.read_file(raw_path)
+    if gdf.crs is None:
+        gdf = gdf.set_crs(4326)
+    else:
+        gdf = gdf.to_crs(4326)
+
+    if "prarea_m2" in gdf.columns:
+        gdf["prarea_ha"] = (pd.to_numeric(gdf["prarea_m2"], errors="coerce") / 10_000).round(2)
+
+    simplify = spec.get("simplify")
+    if simplify:
+        gdf = gdf.copy()
+        gdf["geometry"] = gdf.geometry.simplify(simplify, preserve_topology=True)
+
+    keep_fields = list(dict.fromkeys(spec.get("export_fields") or spec["popup_fields"]))
+    keep = ["geometry"] + [f for f in keep_fields if f in gdf.columns]
+    gdf = gdf[keep]
+    gdf.to_file(output, driver="GeoJSON")
+    size_mb = output.stat().st_size / (1024 * 1024)
+    print(f"    → {output.name} ({len(gdf):,} features, {size_mb:.1f} MB)")
+
+    manifest = {k: v for k, v in spec.items() if k not in ("dataset_id", "simplify", "export_fields", "style_modes")}
+    manifest["file"] = f"data/viewer/{output.name}"
+    manifest["feature_count"] = len(gdf)
+    manifest["style"] = build_style_modes(gdf, spec)
+    manifest["qa_only"] = True
+    return manifest
+
+
+def export_lga_boundary(*, force: bool) -> dict | None:
+    """Casey LGA outline for fixed map context (viewer-only)."""
+    raw_path = RAW_DIR / f"{BOUNDARY_DATASET_ID}.geojson"
+    output = VIEWER_DIR / "casey_lga_boundary.geojson"
+
+    if output.exists() and not force and raw_path.exists():
+        print(f"  reuse LGA boundary → {output.name}")
+        return {
+            "file": f"data/viewer/{output.name}",
+            "name": "City of Casey LGA boundary",
+            "default_on": True,
+            "toggleable": True,
+            "interactive": False,
+        }
+
+    print(f"  download {BOUNDARY_DATASET_ID} …")
+    download_geojson_export(BOUNDARY_DATASET_ID, raw_path, force=force)
+    gdf = gpd.read_file(raw_path).to_crs(4326)
+    if len(gdf) != 1:
+        print(f"    warning: expected 1 LGA feature, got {len(gdf)}")
+    keep = ["geometry"] + [c for c in ("lga_name", "gisfid") if c in gdf.columns]
+    gdf = gdf[keep]
+    gdf.to_file(output, driver="GeoJSON")
+    print(f"    → {output.name}")
+    return {
+        "file": f"data/viewer/{output.name}",
+        "name": "City of Casey LGA boundary",
+        "default_on": True,
+        "toggleable": True,
+        "interactive": False,
+    }
 
 
 def export_layer(spec: dict, *, force: bool) -> dict | None:
@@ -478,6 +784,21 @@ def _count_intersecting(polygons: gpd.GeoDataFrame, area: gpd.GeoDataFrame) -> i
     return int(len(joined))
 
 
+def _score_stats(segments: gpd.GeoDataFrame) -> dict:
+    """Median index scores for eligible segments in a subset."""
+    if segments.empty or "day_index_score" not in segments.columns:
+        return {}
+    eligible = segments[segments["score_eligible"] == True]  # noqa: E712
+    if eligible.empty:
+        return {}
+    return {
+        "scored_segments": int(len(eligible)),
+        "median_day_index": round(float(eligible["day_index_score"].median()), 1),
+        "median_night_index": round(float(eligible["night_index_score"].median()), 1),
+        "median_accessibility": round(float(eligible["accessibility_score"].median()), 1),
+    }
+
+
 def _mean_in_area(
     polygons: gpd.GeoDataFrame,
     area: gpd.GeoDataFrame,
@@ -504,6 +825,11 @@ def build_filter_index(*, force: bool) -> dict:
 
     print("Building suburb/ward filter index …")
     footpaths = gpd.read_parquet(INTERMEDIATE_DIR / "footpaths_ply_t1eam.parquet").to_crs(4326)
+
+    scores_path = INTERMEDIATE_DIR / "segment_scores.parquet"
+    scores_gdf = (
+        gpd.read_parquet(scores_path).to_crs(4326) if scores_path.exists() else None
+    )
 
     layer_points: dict[str, gpd.GeoDataFrame] = {}
     for layer_id, parquet in [
@@ -546,11 +872,16 @@ def build_filter_index(*, force: bool) -> dict:
     def coverage_for(area_gdf: gpd.GeoDataFrame, area_type: str, area_name: str) -> dict:
         fp = footpaths[footpaths[area_type] == area_name]
         area_geom = area_gdf[area_gdf["area_name"] == area_name]
+        shared = fp[fp["walk_path_class"] == "shared_use"] if "walk_path_class" in fp.columns else fp.iloc[0:0]
         stats: dict = {
             "footpath_segments": int(len(fp)),
             "footpath_length_km": round(float(fp["length_m"].fillna(0).sum()) / 1000, 1)
             if "length_m" in fp.columns
             else None,
+            "shared_use_segments": int(len(shared)),
+            "shared_use_length_km": round(float(shared["length_m"].fillna(0).sum()) / 1000, 1)
+            if "length_m" in shared.columns and not shared.empty
+            else 0.0,
             "median_width_m": round(float(fp["width_m"].median()), 2)
             if "width_m" in fp.columns and not fp.empty
             else None,
@@ -564,6 +895,9 @@ def build_filter_index(*, force: bool) -> dict:
         stats["mean_uhi18_m"] = (
             round(v, 2) if (v := _mean_in_area(heat, area_geom, "uhi18_m")) is not None else None
         )
+        if scores_gdf is not None:
+            area_scores = scores_gdf[scores_gdf[area_type] == area_name]
+            stats.update(_score_stats(area_scores))
         return stats
 
     suburbs = sorted(footpaths["suburb"].dropna().unique())
@@ -583,9 +917,18 @@ def build_filter_index(*, force: bool) -> dict:
         ward_index[name] = coverage_for(ward_dissolved, "ward", name)
         ward_index[name]["suburb_count"] = int(footpaths.loc[footpaths["ward"] == name, "suburb"].nunique())
 
+    shared_lga = (
+        footpaths[footpaths["walk_path_class"] == "shared_use"]
+        if "walk_path_class" in footpaths.columns
+        else footpaths.iloc[0:0]
+    )
     lga_stats = {
         "footpath_segments": int(len(footpaths)),
         "footpath_length_km": round(float(footpaths["length_m"].fillna(0).sum()) / 1000, 1),
+        "shared_use_segments": int(len(shared_lga)),
+        "shared_use_length_km": round(float(shared_lga["length_m"].fillna(0).sum()) / 1000, 1)
+        if not shared_lga.empty
+        else 0.0,
         "median_width_m": round(float(footpaths["width_m"].median()), 2),
     }
     for layer_id, points in layer_points.items():
@@ -594,6 +937,8 @@ def build_filter_index(*, force: bool) -> dict:
     lga_stats["tree_density_polygons"] = int(len(trees))
     lga_stats["speed_zone_segments"] = int(len(speed))
     lga_stats["mean_uhi18_m"] = round(float(heat["uhi18_m"].mean()), 2)
+    if scores_gdf is not None:
+        lga_stats.update(_score_stats(scores_gdf))
 
     payload = {
         "suburbs": suburbs,
@@ -627,6 +972,14 @@ def main() -> int:
         if entry:
             layers.append(entry)
 
+    print("\nBuilding QA context layers (Open Data reference, not scored) …")
+    for spec in REFERENCE_LAYER_SPECS:
+        entry = export_reference_layer(spec, force=args.force)
+        if entry:
+            layers.append(entry)
+
+    boundary = export_lga_boundary(force=args.force)
+
     filter_index = build_filter_index(force=args.force)
 
     manifest = {
@@ -638,11 +991,14 @@ def main() -> int:
             (CASEY_BOUNDS["west"] + CASEY_BOUNDS["east"]) / 2,
         ],
         "layers": layers,
+        "boundary": boundary,
         "filters_file": "data/viewer/filters.json",
         "geographic_scope": filter_index["geographic_scope"],
         "notes": (
-            "Choropleth / graded symbology available on key layers. Street and park "
-            "lights render as individual points. Re-run build after re-ingesting."
+            "Walk network on by default; toggle Segment scores for Day/Night choropleth. "
+            "Choropleth / graded symbology on key layers. LGA boundary on by default. "
+            "Parks/reserves and dog-friendly are QA context only (not ingested). "
+            "Re-run build after re-ingesting or re-scoring."
         ),
     }
     MANIFEST_PATH.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
