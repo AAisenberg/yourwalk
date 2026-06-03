@@ -46,6 +46,8 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .site-header {
@@ -151,10 +153,16 @@ select {
 .legend-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 12px;
   font-size: 0.74rem;
   color: var(--text-mid);
   margin: 7px 0;
+}
+.legend-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .swatch {
   width: 18px;
@@ -163,12 +171,46 @@ select {
   border: 1px solid rgba(255,255,255,0.15);
   flex-shrink: 0;
 }
+.legend-meaning {
+  color: var(--text-dim);
+  font-size: 0.68rem;
+  text-align: right;
+}
 .note {
   font-size: 0.74rem;
   color: var(--text-dim);
   line-height: 1.5;
 }
 .note strong { color: var(--text-mid); }
+.source-list {
+  display: grid;
+  gap: 7px;
+  font-size: 0.72rem;
+  color: var(--text-mid);
+  line-height: 1.4;
+}
+.source-list strong { color: var(--text); }
+.selected-card {
+  background: #0B0C1A;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  padding: 11px;
+  font-size: 0.75rem;
+  color: var(--text-mid);
+  line-height: 1.5;
+}
+.selected-card h3 {
+  font-size: 0.82rem;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.selected-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px 12px;
+}
+.selected-grid span:nth-child(odd) { color: var(--text-dim); }
+.selected-grid span:nth-child(even) { color: var(--text); font-weight: 700; }
 
 .map-wrap { position: relative; min-width: 0; }
 #map { width: 100%; height: 100%; background: #0b1220; }
@@ -190,8 +232,21 @@ select {
   font-size: 0.82rem;
   line-height: 1.45;
   margin: 0.7rem 0.85rem;
+  min-width: 220px;
 }
 .leaflet-popup-content strong { color: #0f172a; }
+.popup-title {
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 6px;
+}
+.popup-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px 12px;
+}
+.popup-grid span:nth-child(odd) { color: #475569; }
+.popup-grid span:nth-child(even) { color: #0f172a; font-weight: 700; }
 
 @media (max-width: 900px) {
   body { overflow: auto; }
@@ -256,12 +311,29 @@ select {
     </section>
 
     <section class="panel">
+      <h2>Selected segment</h2>
+      <div class="selected-card" id="selected-segment">
+        Click a segment to show its score breakdown here.
+      </div>
+    </section>
+
+    <section class="panel">
       <h2>Methodology note</h2>
       <p class="note">
         <strong>Higher score = better walking conditions.</strong>
         Confidence is data trust, not walk quality. Missing general crossings, kerb ramps,
         and tactiles reduce confidence rather than being scored as absent.
       </p>
+    </section>
+
+    <section class="panel">
+      <h2>Sources behind this view</h2>
+      <div class="source-list">
+        <div><strong>Segment network:</strong> Casey Footpaths (T1EAM), including shared-use path class.</div>
+        <div><strong>Accessibility:</strong> width, surface, speed zones, graffiti proxy, school crossing bonus.</div>
+        <div><strong>Day:</strong> Urban Heat 2018, Vicmap tree density, fountains, benches.</div>
+        <div><strong>Night:</strong> street + park lights, night pedestrian crashes.</div>
+      </div>
     </section>
   </aside>
 
@@ -304,6 +376,7 @@ map.fitBounds([[CASEY_BOUNDS.south, CASEY_BOUNDS.west], [CASEY_BOUNDS.north, CAS
 
 let allFeatures = [];
 let layer = null;
+let selectedLayer = null;
 
 function setStatus(message) {
   document.getElementById('status').innerHTML = message;
@@ -337,24 +410,55 @@ function styleFeature(feature) {
   };
 }
 
+function highlightStyle() {
+  return {
+    color: '#ffffff',
+    fillOpacity: 0.82,
+    opacity: 1,
+    weight: 4,
+  };
+}
+
 function popupHtml(props) {
   const rows = [
-    ['Segment', props.segment_id],
-    ['Path class', props.walk_path_class],
     ['Day Index', props.day_index_score],
     ['Night Index', props.night_index_score],
     ['Accessibility', props.accessibility_score],
     ['Heat & Shade', props.heat_shade_score],
     ['Lighting / After Dark', props.lighting_after_dark_score],
-    ['Day data confidence', props.confidence_day],
-    ['Night data confidence', props.confidence_night],
-    ['Suburb', props.suburb],
-    ['Ward', props.ward],
+    ['Day confidence', props.confidence_day],
+    ['Night confidence', props.confidence_night],
   ];
-  return rows
+  const grid = rows
     .filter(([, value]) => value !== undefined && value !== null && value !== '')
-    .map(([label, value]) => `<div><strong>${label}:</strong> ${value}</div>`)
+    .map(([label, value]) => `<span>${label}</span><span>${value}</span>`)
     .join('');
+  return `
+    <div class="popup-title">${props.suburb || 'Casey'} · ${props.walk_path_class || 'path'}</div>
+    <div class="popup-grid">${grid}</div>
+    <div style="color:#64748b;font-size:0.72rem;margin-top:7px">segment ${props.segment_id}</div>
+  `;
+}
+
+function selectedHtml(props) {
+  const rows = [
+    ['Day Index', props.day_index_score],
+    ['Night Index', props.night_index_score],
+    ['Accessibility', props.accessibility_score],
+    ['Heat & Shade', props.heat_shade_score],
+    ['Lighting / After Dark', props.lighting_after_dark_score],
+    ['Day confidence', props.confidence_day],
+    ['Night confidence', props.confidence_night],
+  ];
+  const grid = rows
+    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .map(([label, value]) => `<span>${label}</span><span>${value}</span>`)
+    .join('');
+  return `
+    <h3>${props.suburb || 'Casey'} · ${props.walk_path_class || 'path'}</h3>
+    <div class="selected-grid">${grid}</div>
+    <div class="note" style="margin-top:8px">Segment ${props.segment_id} · Ward: ${props.ward || '—'}</div>
+  `;
 }
 
 function median(values) {
@@ -380,19 +484,19 @@ function updateLegend() {
   const el = document.getElementById('legend');
   if (meta.type === 'confidence') {
     el.innerHTML = `
-      <div class="legend-row"><span class="swatch" style="background:${CONFIDENCE_COLORS.high}"></span>High</div>
-      <div class="legend-row"><span class="swatch" style="background:${CONFIDENCE_COLORS.medium}"></span>Medium</div>
-      <div class="legend-row"><span class="swatch" style="background:${CONFIDENCE_COLORS.low}"></span>Low</div>
+      <div class="legend-row"><span class="legend-left"><span class="swatch" style="background:${CONFIDENCE_COLORS.high}"></span>High</span><span class="legend-meaning">few data gaps</span></div>
+      <div class="legend-row"><span class="legend-left"><span class="swatch" style="background:${CONFIDENCE_COLORS.medium}"></span>Medium</span><span class="legend-meaning">some gaps</span></div>
+      <div class="legend-row"><span class="legend-left"><span class="swatch" style="background:${CONFIDENCE_COLORS.low}"></span>Low</span><span class="legend-meaning">review carefully</span></div>
       <p class="note" style="margin-top:10px">${meta.note}</p>
     `;
     return;
   }
   el.innerHTML = `
-    <div class="legend-row"><span class="swatch" style="background:${SCORE_COLORS[0]}"></span>0–20</div>
-    <div class="legend-row"><span class="swatch" style="background:${SCORE_COLORS[1]}"></span>20–40</div>
-    <div class="legend-row"><span class="swatch" style="background:${SCORE_COLORS[2]}"></span>40–60</div>
-    <div class="legend-row"><span class="swatch" style="background:${SCORE_COLORS[3]}"></span>60–80</div>
-    <div class="legend-row"><span class="swatch" style="background:${SCORE_COLORS[4]}"></span>80–100</div>
+    <div class="legend-row"><span class="legend-left"><span class="swatch" style="background:${SCORE_COLORS[0]}"></span>0–20</span><span class="legend-meaning">weakest conditions</span></div>
+    <div class="legend-row"><span class="legend-left"><span class="swatch" style="background:${SCORE_COLORS[1]}"></span>20–40</span><span class="legend-meaning">low</span></div>
+    <div class="legend-row"><span class="legend-left"><span class="swatch" style="background:${SCORE_COLORS[2]}"></span>40–60</span><span class="legend-meaning">mixed</span></div>
+    <div class="legend-row"><span class="legend-left"><span class="swatch" style="background:${SCORE_COLORS[3]}"></span>60–80</span><span class="legend-meaning">better</span></div>
+    <div class="legend-row"><span class="legend-left"><span class="swatch" style="background:${SCORE_COLORS[4]}"></span>80–100</span><span class="legend-meaning">strongest conditions</span></div>
     <p class="note" style="margin-top:10px">${meta.note}</p>
   `;
 }
@@ -405,10 +509,21 @@ function visibleFeatures() {
 
 function renderLayer() {
   if (layer) map.removeLayer(layer);
+  selectedLayer = null;
+  document.getElementById('selected-segment').innerHTML = 'Click a segment to show its score breakdown here.';
   const features = visibleFeatures();
   layer = L.geoJSON({ type: 'FeatureCollection', features }, {
     style: styleFeature,
-    onEachFeature: (feature, l) => l.bindPopup(popupHtml(feature.properties || {})),
+    onEachFeature: (feature, l) => {
+      l.bindPopup(popupHtml(feature.properties || {}));
+      l.on('click', () => {
+        if (selectedLayer && selectedLayer.setStyle) selectedLayer.setStyle(styleFeature(selectedLayer.feature));
+        selectedLayer = l;
+        l.setStyle(highlightStyle());
+        l.bringToFront();
+        document.getElementById('selected-segment').innerHTML = selectedHtml(feature.properties || {});
+      });
+    },
   }).addTo(map);
   updateStats(features);
   updateLegend();
