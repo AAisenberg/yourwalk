@@ -112,6 +112,27 @@ This document tracks ingestion order, dependencies, and what is blocked on disco
 
 ---
 
+## Meeting readiness — June 2026 check-in
+
+**Current position:** Phase B scoring is ahead of the original June schedule. The pipeline can now produce:
+
+- `data/intermediate/segment_features.parquet` — harmonised segment inputs (27,458 segments; 27,446 score-eligible)
+- `data/intermediate/segment_scores.parquet` — Day/Night Index scores and sub-scores
+- `data/qa/segment_scoring.json` — score distribution and confidence summary
+- `docs/meeting-prep/casey-scoring-map.html` — clean presentation map for score review
+
+**Review questions for Nikki / Casey:**
+
+1. Confirm current v1.1 scoring rubrics, especially shared-use width bands and the brick paving surface bucket.
+2. Confirm that missing general crossings, kerb ramps, and tactile indicators should remain reduced-confidence gaps rather than zero-value penalties.
+3. Confirm whether the current v1 data-confidence heuristic is sufficient for pilot review, with ADR-005 to formalise later.
+4. Confirm whether traffic volume, traffic signals, signal configuration sheets, and road responsibility remain future context/enrichment layers rather than v1.1 scoring inputs.
+5. Decide whether to proceed to PostGIS/Supabase load after rubric spot-checks, or revise v1.1 first.
+
+**Known data gaps:** general pedestrian crossings, kerb ramps, tactile indicators, and gradient. These are not blockers for the current scoring run because missing data is handled as reduced confidence, not as assumed absence.
+
+---
+
 ## What not to build yet
 
 - Next.js app, Mapbox UI, routing engine (ADR-001)

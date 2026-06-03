@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YourWalk — Scored segment map | Casey check-in June 2026</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --blue: #27AAE1;
+  --teal: #00AAA6;
+  --lime: #8DC63F;
+  --amber: #FFCB1F;
+  --orange: #F6871F;
+  --pink: #EC008C;
+  --bg: #0B0C1A;
+  --surface: #111224;
+  --surface2: #181930;
+  --border: rgba(39,170,225,0.15);
+  --text: #EEF2FF;
+  --text-mid: #8B93C4;
+  --text-dim: #545B88;
+}
+
+html, body { height: 100%; }
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+}
+
+.page {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 360px 1fr;
+}
+
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 24px 24px 20px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.site-header {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.header-logo { height: 36px; width: auto; }
+.header-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.header-tabs a {
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--text-mid);
+  border: 1px solid var(--border);
+}
+.header-tabs a.active {
+  background: rgba(39,170,225,0.12);
+  color: var(--blue);
+  border-color: rgba(39,170,225,0.4);
+}
+
+.eyebrow {
+  font-size: 0.68rem;
+  color: var(--teal);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+h1 {
+  font-size: 1.35rem;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin-bottom: 10px;
+}
+.lede {
+  font-size: 0.84rem;
+  color: var(--text-mid);
+  line-height: 1.55;
+  margin-bottom: 18px;
+}
+
+.panel {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+.panel h2 {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
+}
+label {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--text-mid);
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+select {
+  width: 100%;
+  background: #0B0C1A;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 10px;
+  font: inherit;
+  font-size: 0.82rem;
+  margin-bottom: 12px;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.stat {
+  background: #0B0C1A;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px;
+  padding: 10px;
+}
+.stat .label {
+  font-size: 0.62rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.stat .value {
+  margin-top: 4px;
+  font-weight: 800;
+  font-size: 1.05rem;
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.74rem;
+  color: var(--text-mid);
+  margin: 7px 0;
+}
+.swatch {
+  width: 18px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid rgba(255,255,255,0.15);
+  flex-shrink: 0;
+}
+.note {
+  font-size: 0.74rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+.note strong { color: var(--text-mid); }
+
+.map-wrap { position: relative; min-width: 0; }
+#map { width: 100%; height: 100%; background: #0b1220; }
+.status {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  z-index: 500;
+  max-width: 520px;
+  background: rgba(11,12,26,0.9);
+  color: var(--text-mid);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+.leaflet-popup-content {
+  font-size: 0.82rem;
+  line-height: 1.45;
+  margin: 0.7rem 0.85rem;
+}
+.leaflet-popup-content strong { color: #0f172a; }
+
+@media (max-width: 900px) {
+  body { overflow: auto; }
+  .page { min-height: 100%; grid-template-columns: 1fr; grid-template-rows: auto 70vh; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <aside class="sidebar">
+    <header class="site-header">
+      <a href="casey-pipeline-status.html" aria-label="YourWalk home">
+        <img class="header-logo" src="logo.svg" alt="YourWalk" />
+      </a>
+      <nav class="header-tabs" aria-label="Slide navigation">
+        <a href="casey-pipeline-status.html">Process pipeline</a>
+        <a href="casey-data-sources-flow.html">Data sources flow</a>
+        <a href="casey-scoring-map.html" class="active">Scoring map</a>
+      </nav>
+    </header>
+
+    <div class="eyebrow">Casey check-in · June 2026</div>
+    <h1>Segment scores, ready for methodology review</h1>
+    <p class="lede">
+      This is a presentation view of the current v1.1 scoring run on the T1EAM walk network.
+      It is deliberately cleaner than the QA viewer.
+    </p>
+
+    <section class="panel">
+      <h2>Map style</h2>
+      <label for="style-select">Show</label>
+      <select id="style-select">
+        <option value="day_index_score">Day Index</option>
+        <option value="night_index_score">Night Index</option>
+        <option value="accessibility_score">Accessibility</option>
+        <option value="heat_shade_score">Heat &amp; Shade</option>
+        <option value="lighting_after_dark_score">Lighting / After Dark</option>
+        <option value="confidence_day">Day data confidence</option>
+        <option value="confidence_night">Night data confidence</option>
+      </select>
+      <label for="path-class-select">Path class</label>
+      <select id="path-class-select">
+        <option value="all">All paths</option>
+        <option value="footpath">Footpath only</option>
+        <option value="shared_use">Shared use only</option>
+      </select>
+    </section>
+
+    <section class="panel">
+      <h2>Current run</h2>
+      <div class="stats">
+        <div class="stat"><div class="label">Segments</div><div class="value" id="stat-segments">—</div></div>
+        <div class="stat"><div class="label">Eligible</div><div class="value" id="stat-eligible">—</div></div>
+        <div class="stat"><div class="label">Median day</div><div class="value" id="stat-day">—</div></div>
+        <div class="stat"><div class="label">Median night</div><div class="value" id="stat-night">—</div></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Legend</h2>
+      <div id="legend"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Methodology note</h2>
+      <p class="note">
+        <strong>Higher score = better walking conditions.</strong>
+        Confidence is data trust, not walk quality. Missing general crossings, kerb ramps,
+        and tactiles reduce confidence rather than being scored as absent.
+      </p>
+    </section>
+  </aside>
+
+  <main class="map-wrap">
+    <div id="map"></div>
+    <div class="status" id="status">
+      Loading scored segments from <code>pipeline/data/viewer/segment_scores.geojson</code>…
+    </div>
+  </main>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const DATA_URL = '../../pipeline/data/viewer/segment_scores.geojson';
+const CASEY_BOUNDS = {
+  west: 145.190,
+  south: -38.265,
+  east: 145.445,
+  north: -37.925,
+};
+
+const SCORE_COLORS = ['#b91c1c', '#f97316', '#facc15', '#84cc16', '#15803d'];
+const CONFIDENCE_COLORS = { high: '#15803d', medium: '#ca8a04', low: '#b91c1c' };
+const STYLE_META = {
+  day_index_score: { label: 'Day Index', type: 'score', note: 'Accessibility 60% + Heat & Shade 40%' },
+  night_index_score: { label: 'Night Index', type: 'score', note: 'Accessibility 60% + Lighting / After Dark 40%' },
+  accessibility_score: { label: 'Accessibility', type: 'score', note: 'Width, surface, speed, graffiti, school crossing bonus' },
+  heat_shade_score: { label: 'Heat & Shade', type: 'score', note: 'Urban heat, Vicmap canopy, fountains, benches' },
+  lighting_after_dark_score: { label: 'Lighting / After Dark', type: 'score', note: 'Merged street/park lights and night crash density' },
+  confidence_day: { label: 'Day data confidence', type: 'confidence', note: 'Trust in Day Index inputs, not walk quality' },
+  confidence_night: { label: 'Night data confidence', type: 'confidence', note: 'Trust in Night Index inputs, not walk quality' },
+};
+
+const map = L.map('map', { zoomControl: true });
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; OSM &copy; CARTO',
+  maxZoom: 20,
+}).addTo(map);
+map.fitBounds([[CASEY_BOUNDS.south, CASEY_BOUNDS.west], [CASEY_BOUNDS.north, CASEY_BOUNDS.east]]);
+
+let allFeatures = [];
+let layer = null;
+
+function setStatus(message) {
+  document.getElementById('status').innerHTML = message;
+}
+
+function scoreColor(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '#475569';
+  const clamped = Math.max(0, Math.min(100, num));
+  const idx = Math.min(SCORE_COLORS.length - 1, Math.floor(clamped / 20));
+  return SCORE_COLORS[idx];
+}
+
+function featureColor(props) {
+  const field = document.getElementById('style-select').value;
+  const meta = STYLE_META[field];
+  if (meta.type === 'confidence') {
+    return CONFIDENCE_COLORS[String(props[field] || '').toLowerCase()] || '#475569';
+  }
+  return scoreColor(props[field]);
+}
+
+function styleFeature(feature) {
+  const fill = featureColor(feature.properties || {});
+  return {
+    color: fill,
+    fillColor: fill,
+    fillOpacity: 0.72,
+    opacity: 0.9,
+    weight: 1,
+  };
+}
+
+function popupHtml(props) {
+  const rows = [
+    ['Segment', props.segment_id],
+    ['Path class', props.walk_path_class],
+    ['Day Index', props.day_index_score],
+    ['Night Index', props.night_index_score],
+    ['Accessibility', props.accessibility_score],
+    ['Heat & Shade', props.heat_shade_score],
+    ['Lighting / After Dark', props.lighting_after_dark_score],
+    ['Day data confidence', props.confidence_day],
+    ['Night data confidence', props.confidence_night],
+    ['Suburb', props.suburb],
+    ['Ward', props.ward],
+  ];
+  return rows
+    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .map(([label, value]) => `<div><strong>${label}:</strong> ${value}</div>`)
+    .join('');
+}
+
+function median(values) {
+  const nums = values.map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+  if (!nums.length) return null;
+  const mid = Math.floor(nums.length / 2);
+  return nums.length % 2 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
+}
+
+function updateStats(features) {
+  const eligible = features.filter((f) => f.properties?.score_eligible === true);
+  document.getElementById('stat-segments').textContent = features.length.toLocaleString();
+  document.getElementById('stat-eligible').textContent = eligible.length.toLocaleString();
+  const day = median(eligible.map((f) => f.properties?.day_index_score));
+  const night = median(eligible.map((f) => f.properties?.night_index_score));
+  document.getElementById('stat-day').textContent = day == null ? '—' : day.toFixed(1);
+  document.getElementById('stat-night').textContent = night == null ? '—' : night.toFixed(1);
+}
+
+function updateLegend() {
+  const field = document.getElementById('style-select').value;
+  const meta = STYLE_META[field];
+  const el = document.getElementById('legend');
+  if (meta.type === 'confidence') {
+    el.innerHTML = `
+      <div class="legend-row"><span class="swatch" style="background:${CONFIDENCE_COLORS.high}"></span>High</div>
+      <div class="legend-row"><span class="swatch" style="background:${CONFIDENCE_COLORS.medium}"></span>Medium</div>
+      <div class="legend-row"><span class="swatch" style="background:${CONFIDENCE_COLORS.low}"></span>Low</div>
+      <p class="note" style="margin-top:10px">${meta.note}</p>
+    `;
+    return;
+  }
+  el.innerHTML = `
+    <div class="legend-row"><span class="swatch" style="background:${SCORE_COLORS[0]}"></span>0–20</div>
+    <div class="legend-row"><span class="swatch" style="background:${SCORE_COLORS[1]}"></span>20–40</div>
+    <div class="legend-row"><span class="swatch" style="background:${SCORE_COLORS[2]}"></span>40–60</div>
+    <div class="legend-row"><span class="swatch" style="background:${SCORE_COLORS[3]}"></span>60–80</div>
+    <div class="legend-row"><span class="swatch" style="background:${SCORE_COLORS[4]}"></span>80–100</div>
+    <p class="note" style="margin-top:10px">${meta.note}</p>
+  `;
+}
+
+function visibleFeatures() {
+  const pathClass = document.getElementById('path-class-select').value;
+  if (pathClass === 'all') return allFeatures;
+  return allFeatures.filter((f) => f.properties?.walk_path_class === pathClass);
+}
+
+function renderLayer() {
+  if (layer) map.removeLayer(layer);
+  const features = visibleFeatures();
+  layer = L.geoJSON({ type: 'FeatureCollection', features }, {
+    style: styleFeature,
+    onEachFeature: (feature, l) => l.bindPopup(popupHtml(feature.properties || {})),
+  }).addTo(map);
+  updateStats(features);
+  updateLegend();
+  setStatus(`Showing ${features.length.toLocaleString()} scored segments. Use the dropdowns to switch score themes.`);
+}
+
+document.getElementById('style-select').addEventListener('change', renderLayer);
+document.getElementById('path-class-select').addEventListener('change', renderLayer);
+
+fetch(DATA_URL)
+  .then((response) => {
+    if (!response.ok) throw new Error(`Could not load ${DATA_URL}`);
+    return response.json();
+  })
+  .then((geojson) => {
+    allFeatures = geojson.features || [];
+    renderLayer();
+  })
+  .catch((error) => {
+    setStatus(`
+      <strong>Scored segment GeoJSON not found.</strong><br>
+      Run from the repo root:<br>
+      <code>cd pipeline && source .venv/bin/activate && python scripts/score_segments.py && python scripts/build_viewer_layers.py --force</code><br>
+      ${error.message}
+    `);
+    updateLegend();
+  });
+</script>
+</body>
+</html>
