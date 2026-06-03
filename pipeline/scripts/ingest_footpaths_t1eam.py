@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Ingest City of Casey Footpaths (T1EAM) — segment network source for ADR-008.
+"""Ingest City of Casey Footpaths (T1EAM) — walk network master for ADR-008.
+
+Includes standard footpaths and shared-use paths (`feature_type`); use
+`walk_path_class` for scoring filters. The separate sharedusepaths export is
+validation-only — see ingest_sharedusepaths_t1eam.py.
 
 Downloads from Casey Open Data, loads into DuckDB, runs width QA, exports GeoParquet.
 
@@ -21,6 +25,7 @@ from yourwalk_pipeline.download import download_geojson_export
 from yourwalk_pipeline.export import export_geoparquet
 from yourwalk_pipeline.paths import INTERMEDIATE_DIR, QA_DIR, RAW_DIR, ensure_data_dirs
 from yourwalk_pipeline.qa_width import WIDTH_QA_SQL
+from yourwalk_pipeline.walk_network import WALK_PATH_CLASS_SQL
 
 DATASET_ID = "footpaths_ply_t1eam"
 RAW_GEOJSON = RAW_DIR / f"{DATASET_ID}.geojson"
@@ -50,6 +55,7 @@ def build_intermediate(con: duckdb.DuckDBPyConnection) -> None:
             gisfid AS segment_id,
             t1key,
             feature_type,
+            {WALK_PATH_CLASS_SQL} AS walk_path_class,
             pathsfmat AS surface_material,
             width_m,
             length_m,
@@ -70,6 +76,17 @@ def build_intermediate(con: duckdb.DuckDBPyConnection) -> None:
 
 def width_qa_summary(con: duckdb.DuckDBPyConnection) -> dict:
     total = con.execute("SELECT COUNT(*) FROM footpaths").fetchone()[0]
+
+    class_counts = dict(
+        con.execute(
+            """
+            SELECT walk_path_class, COUNT(*) AS n
+            FROM footpaths
+            GROUP BY 1
+            ORDER BY 2 DESC
+            """
+        ).fetchall()
+    )
 
     flag_counts = dict(
         con.execute(
@@ -121,6 +138,7 @@ def width_qa_summary(con: duckdb.DuckDBPyConnection) -> dict:
         "source_url": f"https://data.casey.vic.gov.au/explore/dataset/{DATASET_ID}/",
         "ingested_at": datetime.now(UTC).isoformat(),
         "record_count": int(total),
+        "walk_path_class_counts": {k: int(v) for k, v in class_counts.items()},
         "width_qa_flags": {k: int(v) for k, v in flag_counts.items()},
         "width_qa_sample_outliers": outliers,
         "methodology_version": "1.1",

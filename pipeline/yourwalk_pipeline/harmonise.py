@@ -34,6 +34,7 @@ SPEC_VERSION = "0.3"
 
 PASS_THROUGH = [
     "segment_id",
+    "walk_path_class",
     "surface_material",
     "width_m",
     "width_qa_flag",
@@ -476,9 +477,18 @@ def _coverage_flags(row: pd.Series) -> dict[str, str]:
 
 
 def build_segment_features(*, include_council_trees: bool = True) -> tuple[gpd.GeoDataFrame, dict[str, Any]]:
-    """Harmonise all ingested layers onto footpath segments."""
+    """Harmonise all ingested layers onto the Casey walk network (footpaths master)."""
     segments = _load_parquet("footpaths_ply_t1eam.parquet")
     segments["segment_id"] = segments["segment_id"].astype(str)
+    if "walk_path_class" not in segments.columns:
+        if "feature_type" in segments.columns:
+            segments["walk_path_class"] = (
+                segments["feature_type"]
+                .map({"Shared Use Path": "shared_use", "Footpath": "footpath"})
+                .fillna("other")
+            )
+        else:
+            segments["walk_path_class"] = "other"
     segments["corridor"] = segments.geometry.buffer(CORRIDOR_M)
 
     base = segments[PASS_THROUGH + ["geometry"]].copy()
@@ -543,5 +553,11 @@ def build_segment_features(*, include_council_trees: bool = True) -> tuple[gpd.G
         },
         "score_eligible_count": int(out_gdf["score_eligible"].sum()),
         "exclude_suburbs": sorted(EXCLUDE_SUBURBS),
+        "walk_path_class_counts": {
+            str(k): int(v)
+            for k, v in out_gdf["walk_path_class"].value_counts().items()
+        }
+        if "walk_path_class" in out_gdf.columns
+        else {},
     }
     return out_gdf, qa

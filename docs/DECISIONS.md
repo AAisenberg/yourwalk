@@ -252,7 +252,7 @@ Each decision includes:
 
 **Rationale**: Street segments align with resident route choice, infrastructure conditions, and Council intervention points. Footpath width, lighting gaps, crossings, shade, gradient, and surface issues occur along walkable network segments rather than across broad administrative areas. SA2 remains useful for dashboard aggregation and comparison, but is too coarse for route scoring.
 
-The working source for the segment network is the current City of Casey footpath layer available through the Casey Open Data portal. OpenStreetMap may be used as a gap-fill source if data quality and licensing checks are acceptable.
+The working source for the segment network is **Footpaths (T1EAM)** on the Casey Open Data portal (`footpaths_ply_t1eam`), which includes both standard footpaths and **shared use paths** (~27,458 polygon segments). Class is stored as `walk_path_class` (`footpath` | `shared_use`). The separate [Shared Use Paths (T1EAM)](https://data.casey.vic.gov.au/explore/dataset/sharedusepaths_ply_t1eam/) export is ingested for validation only (portal: generated from footpaths); it is not row-unioned into the master. OpenStreetMap may be used as a gap-fill source if data quality and licensing checks are acceptable.
 
 **Consequences**:
 
