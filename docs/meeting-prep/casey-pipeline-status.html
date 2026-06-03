@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YourWalk — Phase B pipeline status | Casey check-in June 2026</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --blue:     #27AAE1;
+  --navy:     #292984;
+  --teal:     #00AAA6;
+  --lime:     #8DC63F;
+  --amber:    #FFCB1F;
+  --orange:   #F6871F;
+  --pink:     #EC008C;
+  --bg:       #0B0C1A;
+  --surface:  #111224;
+  --surface2: #181930;
+  --surface3: #1E2040;
+  --border:   rgba(39,170,225,0.15);
+  --text:     #EEF2FF;
+  --text-mid: #8B93C4;
+  --text-dim: #545B88;
+  --footpath: #27AAE1;
+  --heat:     #F6871F;
+  --lighting: #FFCB1F;
+}
+
+html, body { height: 100%; overflow: hidden; }
+
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(39,170,225,0.08), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(236,0,140,0.05), transparent);
+}
+
+.slide {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 36px 32px;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.site-header {
+  display: grid;
+  grid-template-columns: 200px 1fr 280px;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-shrink: 0;
+  min-height: 52px;
+}
+.header-brand { display: flex; align-items: center; text-decoration: none; flex-shrink: 0; }
+.header-logo { height: 36px; width: auto; display: block; }
+.header-tabs { display: flex; justify-content: center; gap: 8px; }
+.header-tabs a {
+  font-size: 0.78rem; font-weight: 600; padding: 8px 18px; border-radius: 8px;
+  text-decoration: none; color: var(--text-mid); border: 1px solid var(--border); transition: all 0.15s; white-space: nowrap;
+}
+.header-tabs a:hover { color: var(--text); border-color: rgba(39,170,225,0.35); }
+.header-tabs a.active { background: rgba(39,170,225,0.12); color: var(--blue); border-color: rgba(39,170,225,0.4); }
+.header-meta { text-align: right; flex-shrink: 0; }
+.header-meta-title { font-size: 0.82rem; font-weight: 600; color: var(--teal); line-height: 1.3; }
+.header-meta-sub { font-size: 0.72rem; color: var(--text-mid); margin-top: 2px; }
+
+.hero { text-align: center; margin-bottom: 22px; flex-shrink: 0; }
+.hero q {
+  display: block; font-size: 1.05rem; font-weight: 500; color: var(--text-mid); font-style: italic; quotes: none;
+}
+.hero q::before, .hero q::after { content: none; }
+.hero-tags { display: flex; justify-content: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+.tag {
+  font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+  padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border);
+}
+.tag.done { background: rgba(141,198,63,0.12); color: var(--lime); border-color: rgba(141,198,63,0.3); }
+.tag.review { background: rgba(255,203,31,0.1); color: var(--amber); border-color: rgba(255,203,31,0.3); }
+.tag.pending { background: rgba(246,135,31,0.08); color: var(--orange); border-color: rgba(246,135,31,0.35); }
+.tag.goal { background: rgba(0,170,166,0.12); color: var(--teal); border-color: rgba(0,170,166,0.35); }
+
+.pipeline-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.pipeline {
+  display: grid;
+  grid-template-columns: 1fr 32px 1fr 32px 1.1fr 32px 1fr 32px 1fr;
+  align-items: stretch; gap: 0; flex: 1; min-height: 0;
+}
+.col { display: flex; flex-direction: column; min-height: 0; }
+.col-header {
+  font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--text-dim); margin-bottom: 8px; padding-left: 2px;
+}
+.col-header .status { display: block; font-weight: 600; font-size: 0.6rem; margin-top: 2px; letter-spacing: 0.04em; }
+.col-header .status.complete { color: var(--lime); }
+.col-header .status.review { color: var(--amber); }
+.col-header .status.planned { color: var(--orange); }
+
+.box {
+  flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; overflow: hidden;
+}
+.box.planned {
+  border-style: dashed; border-color: rgba(246,135,31,0.35); background: rgba(246,135,31,0.04);
+}
+.box.review {
+  border-color: rgba(255,203,31,0.4); background: rgba(255,203,31,0.05);
+}
+.box.highlight { border-color: rgba(0,170,166,0.45); background: rgba(0,170,166,0.06); }
+
+.item {
+  font-size: 0.72rem; line-height: 1.35; color: var(--text-mid);
+  padding: 5px 8px 5px 26px; background: var(--surface2); border-radius: 6px;
+  border-left: 3px solid var(--text-dim); position: relative;
+}
+.item strong { color: var(--text); font-weight: 600; display: block; font-size: 0.74rem; }
+.item::before {
+  position: absolute; left: 7px; top: 7px; font-size: 0.85rem; line-height: 1; font-weight: 700;
+}
+.item.done::before { content: '✓'; color: var(--lime); }
+.item.review::before { content: '◐'; color: var(--amber); }
+.item.pending::before { content: '○'; color: var(--text-dim); }
+.item.done { border-left-color: var(--lime); }
+.item.review { border-left-color: var(--amber); }
+.item.pending { border-left-color: var(--text-dim); opacity: 0.85; }
+
+.item.casey { border-left-color: var(--blue); }
+.item.state { border-left-color: var(--teal); }
+.item.derived { border-left-color: var(--amber); }
+.item.day { border-left-color: var(--heat); }
+.item.night { border-left-color: var(--lighting); }
+.item.shared { border-left-color: var(--footpath); }
+.item.out { border-left-color: var(--lime); }
+
+.arrow { display: flex; align-items: center; justify-content: center; color: var(--text-dim); font-size: 1.2rem; padding-top: 18px; }
+
+.index-split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; flex-shrink: 0; }
+.index-card {
+  border-radius: 12px; padding: 14px 18px; border: 1px solid var(--border);
+  display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center;
+}
+.index-card.day { background: linear-gradient(135deg, rgba(246,135,31,0.08), rgba(39,170,225,0.06)); border-color: rgba(246,135,31,0.25); }
+.index-card.night { background: linear-gradient(135deg, rgba(255,203,31,0.08), rgba(39,170,225,0.06)); border-color: rgba(255,203,31,0.25); }
+.index-icon { width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+.index-card.day .index-icon { background: rgba(246,135,31,0.15); }
+.index-card.night .index-icon { background: rgba(255,203,31,0.15); }
+.index-icon .mdi { font-size: 2rem; line-height: 1; }
+.index-card.day .index-icon .mdi { color: var(--heat); }
+.index-card.night .index-icon .mdi { color: var(--lighting); }
+.index-card h3 { font-size: 0.85rem; font-weight: 700; margin-bottom: 4px; }
+.index-card .formula { font-size: 0.78rem; color: var(--text-mid); }
+.index-card .formula em { font-style: normal; font-weight: 600; color: var(--text); }
+.index-card.day .formula em.accent { color: var(--heat); }
+.index-card.night .formula em.accent { color: var(--lighting); }
+.index-card .formula em.shared { color: var(--footpath); }
+.index-card .inputs { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--border); }
+.chip { font-size: 0.62rem; padding: 3px 8px; border-radius: 4px; background: var(--surface2); color: var(--text-mid); font-weight: 500; }
+.chip.done { color: var(--lime); border: 1px solid rgba(141,198,63,0.25); }
+
+.footer { display: grid; grid-template-columns: 1fr 1.4fr; gap: 16px; margin-top: 16px; flex-shrink: 0; }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.panel h4 { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-dim); margin-bottom: 8px; }
+.context-items { display: flex; flex-wrap: wrap; gap: 6px; }
+.context-chip { font-size: 0.65rem; padding: 4px 9px; border-radius: 6px; border: 1px dashed rgba(139,147,196,0.35); color: var(--text-dim); display: inline-flex; align-items: center; }
+.decisions { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
+.decision { font-size: 0.65rem; color: var(--text-mid); display: flex; align-items: flex-start; gap: 6px; line-height: 1.3; }
+.decision .num { color: var(--teal); font-weight: 700; flex-shrink: 0; }
+.decision strong { color: var(--text); font-weight: 600; }
+.icon-badge { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 5px; margin-right: 5px; }
+.icon-badge .mdi { font-size: 14px; }
+.icon-badge.ib-council { background: rgba(236,0,140,0.1); color: var(--pink); border: 1px solid rgba(236,0,140,0.35); }
+.slide-footer { text-align: center; font-size: 0.62rem; color: var(--text-dim); margin-top: 12px; flex-shrink: 0; }
+</style>
+</head>
+<body>
+<div class="slide">
+
+  <header class="site-header">
+    <a class="header-brand" href="casey-pipeline-status.html" aria-label="YourWalk home">
+      <img class="header-logo" src="logo.svg" alt="YourWalk" />
+    </a>
+    <nav class="header-tabs" aria-label="Slide navigation">
+      <a href="casey-pipeline-status.html" class="active">Process pipeline</a>
+      <a href="casey-data-sources-flow.html">Data sources flow</a>
+    </nav>
+    <div class="header-meta">
+      <div class="header-meta-title">Casey check-in — June 2026</div>
+      <div class="header-meta-sub">Methodology v1.1 locked 29 May · Phase B</div>
+    </div>
+  </header>
+
+  <div class="hero">
+    <q>Which parts of Casey's walking network are failing the people who need it?</q>
+    <div class="hero-tags">
+      <span class="tag done">Waves 1–4 ingested</span>
+      <span class="tag done">Harmonised · 27,458 segments</span>
+      <span class="tag review">Scoring v1.1 · QA review</span>
+      <span class="tag pending">PostGIS load next</span>
+    </div>
+  </div>
+
+  <div class="pipeline-wrap">
+    <div class="pipeline">
+
+      <div class="col">
+        <div class="col-header">
+          1 · Data sources
+          <span class="status complete">✓ Inventory + ingest</span>
+        </div>
+        <div class="box">
+          <div class="item casey done"><strong>Casey Open Data</strong>Footpaths T1EAM · lights · fountains · benches · graffiti · school crossings</div>
+          <div class="item state done"><strong>DataVic / DEECA</strong>Vicmap tree density · urban heat 2018 · council trees (enriching)</div>
+          <div class="item state done"><strong>Transport Victoria</strong>Pedestrian crashes · speed zones (Feb 2026)</div>
+          <div class="item casey pending"><strong>Pending Council request</strong>General crossings · kerb ramps</div>
+        </div>
+      </div>
+
+      <div class="arrow">→</div>
+
+      <div class="col">
+        <div class="col-header">
+          2 · Ingestion &amp; harmonise
+          <span class="status complete">✓ Complete</span>
+        </div>
+        <div class="box highlight">
+          <div class="item done"><strong>Download / API fetch</strong>12 ingest scripts · DuckDB · GeoParquet</div>
+          <div class="item done"><strong>Validate + QA</strong>Width outliers · pilot boundary · per-dataset JSON</div>
+          <div class="item done"><strong>Walk network master</strong>27,458 segments · footpath + shared use · no row union</div>
+          <div class="item done"><strong>Harmonise</strong>segment_features.parquet · 25 m corridor joins</div>
+          <div class="item review"><strong>Local QA map</strong>Leaflet viewer · score choropleth · suburb filters</div>
+        </div>
+      </div>
+
+      <div class="arrow">→</div>
+
+      <div class="col">
+        <div class="col-header">
+          3 · Scoring
+          <span class="status review">◐ v1.1 implemented</span>
+        </div>
+        <div class="box review">
+          <div class="item shared done"><strong>Accessibility 60%</strong>Width · surface · speed · graffiti · school crossing bonus</div>
+          <div class="item day done"><strong>Day Index 40%</strong>Heat 2018 · Vicmap canopy · fountains · benches</div>
+          <div class="item night done"><strong>Night Index 40%</strong>Merged lights · night crash density</div>
+          <div class="item derived done"><strong>Outputs</strong>segment_scores.parquet · SCORING_SPEC v1.1</div>
+          <div class="item review"><strong>Rubric QA</strong>Spot-check · Nikki review · brick paving · confidence tiers</div>
+        </div>
+      </div>
+
+      <div class="arrow">→</div>
+
+      <div class="col">
+        <div class="col-header">
+          4 · Production
+          <span class="status planned">○ Next</span>
+        </div>
+        <div class="box planned">
+          <div class="item pending"><strong>PostGIS / Supabase</strong>Scored segment layer load</div>
+          <div class="item pending"><strong>SA2 aggregation</strong>Council dashboard hotspots</div>
+          <div class="item pending"><strong>Provenance</strong>Vintage · data confidence · methodology v1.1</div>
+        </div>
+      </div>
+
+      <div class="arrow">→</div>
+
+      <div class="col">
+        <div class="col-header">
+          5 · Products
+          <span class="status planned">○ Q3 2026</span>
+        </div>
+        <div class="box planned">
+          <div class="item out review"><strong>Community app</strong>Day / night route scores · layers</div>
+          <div class="item out review"><strong>Council dashboard</strong>Hotspots · corridors · exports</div>
+          <div class="item out done"><strong>Evidence base</strong>Q2 pipeline deliverable on track</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="index-split">
+      <div class="index-card day">
+        <div class="index-icon"><i class="mdi mdi-white-balance-sunny" aria-hidden="true"></i></div>
+        <div>
+          <h3>Day Index</h3>
+          <div class="formula"><em class="shared">Accessibility 60%</em> + <em class="accent">Heat &amp; Shade 40%</em></div>
+        </div>
+        <div class="inputs">
+          <span class="chip done">Median 64.6 (Casey)</span>
+          <span class="chip">Urban heat 2018</span>
+          <span class="chip">Vicmap canopy</span>
+          <span class="chip">Fountains · benches</span>
+        </div>
+      </div>
+      <div class="index-card night">
+        <div class="index-icon"><i class="mdi mdi-weather-night" aria-hidden="true"></i></div>
+        <div>
+          <h3>Night Index</h3>
+          <div class="formula"><em class="shared">Accessibility 60%</em> + <em class="accent">Lighting / After Dark 40%</em></div>
+        </div>
+        <div class="inputs">
+          <span class="chip done">Median 81.1 (Casey)</span>
+          <span class="chip">Street + park lights</span>
+          <span class="chip">Night crashes 5y</span>
+          <span class="chip">Shared accessibility</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="panel">
+      <h4>Legend · pipeline status</h4>
+      <div class="context-items">
+        <span class="context-chip">✓ done</span>
+        <span class="context-chip">◐ in review / next tuning</span>
+        <span class="context-chip">○ planned</span>
+      </div>
+      <h4 style="margin-top:12px">Not in the index</h4>
+      <div class="context-items">
+        <span class="context-chip"><span class="icon-badge ib-council"><i class="mdi mdi-account-voice"></i></span>Dog bags</span>
+        <span class="context-chip">SEIFA</span>
+        <span class="context-chip">YourGround</span>
+        <span class="context-chip">Public toilets</span>
+        <span class="context-chip">Parks (viewer QA only)</span>
+      </div>
+    </div>
+    <div class="panel">
+      <h4>Next check-in with Nikki / Casey</h4>
+      <div class="decisions">
+        <div class="decision"><span class="num">→</span><span><strong>Scoring spec</strong> — rubric spot-check via QA viewer</span></div>
+        <div class="decision"><span class="num">→</span><span><strong>Brick paving</strong> — moderate vs rough bucket</span></div>
+        <div class="decision"><span class="num">→</span><span><strong>Data confidence</strong> — crossing gap inflates low tier</span></div>
+        <div class="decision"><span class="num">→</span><span><strong>Council data</strong> — crossings + kerb ramps request</span></div>
+        <div class="decision"><span class="num">→</span><span><strong>PostGIS load</strong> — after rubric sign-off</span></div>
+        <div class="decision"><span class="num">→</span><span><strong>ADR-005</strong> — formal confidence model</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    Segment scoring (Footpaths T1EAM) → SA2 dashboard · docs/SCORING_SPEC_v1.1.md · pipeline/PROCEEDINGS.md · QA viewer: pipeline/scripts/serve_viewer.py
+  </div>
+
+</div>
+</body>
+</html>
