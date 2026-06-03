@@ -430,8 +430,9 @@ fetch(DATA_URL)
   .catch((error) => {
     setStatus(`
       <strong>Scored segment GeoJSON not found.</strong><br>
+      This page needs to be opened through the local server, not as a direct file.<br>
       Run from the repo root:<br>
-      <code>cd pipeline && source .venv/bin/activate && python scripts/score_segments.py && python scripts/build_viewer_layers.py --force</code><br>
+      <code>cd pipeline && source .venv/bin/activate && python scripts/serve_viewer.py --rebuild --open-scoring</code><br>
       ${error.message}
     `);
     updateLegend();

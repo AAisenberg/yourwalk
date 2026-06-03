@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Serve the local pipeline QA map viewer.
+"""Serve the local pipeline QA map viewer and meeting-prep map pages.
 
 Builds viewer GeoJSON from intermediate Parquet if missing, then starts a
-static file server rooted at the pipeline directory.
+static file server rooted at the repository directory.
 
 Usage:
     python scripts/serve_viewer.py
     python scripts/serve_viewer.py --rebuild
     python scripts/serve_viewer.py --port 8765 --open
+    python scripts/serve_viewer.py --rebuild --open-scoring
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 PIPELINE_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = PIPELINE_ROOT.parent
 BUILD_SCRIPT = PIPELINE_ROOT / "scripts" / "build_viewer_layers.py"
 MANIFEST = PIPELINE_ROOT / "data" / "viewer" / "layers.json"
 FILTERS = PIPELINE_ROOT / "data" / "viewer" / "filters.json"
@@ -36,7 +38,9 @@ class ViewerHandler(SimpleHTTPRequestHandler):
         super().end_headers()
 
     def log_message(self, format: str, *args) -> None:
-        if args and isinstance(args[0], str) and args[0].startswith(("GET /viewer", "GET /data/viewer")):
+        if args and isinstance(args[0], str) and args[0].startswith(
+            ("GET /pipeline/viewer", "GET /pipeline/data/viewer", "GET /docs/meeting-prep")
+        ):
             super().log_message(format, *args)
 
 
@@ -45,6 +49,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--rebuild", action="store_true", help="Rebuild viewer GeoJSON before serving")
     parser.add_argument("--open", action="store_true", help="Open browser to the viewer")
+    parser.add_argument(
+        "--open-scoring",
+        action="store_true",
+        help="Open the clean meeting-prep scoring map instead of the QA viewer",
+    )
     return parser.parse_args()
 
 
@@ -61,14 +70,17 @@ def main() -> int:
     args = parse_args()
     ensure_layers(rebuild=args.rebuild)
 
-    handler = partial(ViewerHandler, directory=str(PIPELINE_ROOT))
+    handler = partial(ViewerHandler, directory=str(REPO_ROOT))
     server = ThreadingHTTPServer(("127.0.0.1", args.port), handler)
-    url = f"http://127.0.0.1:{args.port}/viewer/index.html"
+    viewer_url = f"http://127.0.0.1:{args.port}/pipeline/viewer/index.html"
+    scoring_url = f"http://127.0.0.1:{args.port}/docs/meeting-prep/casey-scoring-map.html"
+    url = scoring_url if args.open_scoring else viewer_url
 
-    print(f"Serving pipeline QA viewer at {url}")
+    print(f"Serving pipeline QA viewer at {viewer_url}")
+    print(f"Serving clean scoring map at {scoring_url}")
     print("Press Ctrl+C to stop.")
 
-    if args.open:
+    if args.open or args.open_scoring:
         webbrowser.open(url)
 
     try:
