@@ -1,11 +1,19 @@
 ---
-description: YourWalk Casey pilot — methodology, pipeline, and doc conventions
+description: YourWalk Casey pilot — naming, methodology, pipeline, and doc conventions
 alwaysApply: true
 ---
 
 # YourWalk
 
 City of Casey pilot. Phase B = data pipeline only (DuckDB → GeoParquet → PostGIS). No Next.js app until pipeline base datasets are ingested.
+
+CrowdLab-wide conventions are injected every session from `~/.cursor/crowdlab/conventions.md`. This file is YourWalk-specific only.
+
+## Product name
+
+- **YourWalk** — one word, PascalCase in all prose, UI, docs, filenames, and commit messages.
+- **Not** "Your Walk", "your walk", or `your_walk` (except the repo directory name `yourwalk/`).
+- Package/module prefixes may use `yourwalk_` (e.g. `yourwalk_pipeline/`).
 
 ## Methodology gate
 
@@ -28,17 +36,26 @@ Pending Council data (crossings, kerb ramps): reduced confidence until received;
 - Raw and intermediate data under `pipeline/data/` (gitignored)
 - Document downloads in `pipeline/README.md`
 - One ingestion script per dataset; include QA step before GeoParquet export
+- Workshop stack (not production): DuckDB + GeoParquet → PostGIS per CrowdLab playbook analytical tooling
 
-## Docs and style
+## Documentation
 
 - Repo is source of truth; link Notion to repo paths, do not duplicate methodology
-- Australian English; no em dashes
-- PRD in `docs/PRD.md` is product source of truth
-- Update `docs/DECISIONS.md` for architecture changes
-- Given/When/Then acceptance criteria for requirements
+- `docs/PRD.md` is product source of truth — do not invent requirements; use Open Questions with options + decision criteria when unclear
+- Update `docs/DECISIONS.md` for architecture changes (ADR format)
+- Given/When/Then acceptance criteria for requirements; backlog items trace to PRD
+- Prefer vertical slices (end-to-end user value) over component-only work
+- CEO-readable PRD; push technical detail into companion docs
 
 ## Privacy and language
 
 - Anonymous by default (ADR-004 leaning)
 - Never imply safety guarantees or crime prediction
 - Graffiti is environmental order proxy, not crime data
+- Minimise sensitive data; transparency on provenance and confidence in UI (when UI exists)
+- WCAG 2.1 AA when building UI; performance budgets per `docs/PHASES.md`
+
+## Pilot context
+
+- Casey first; scalable to other LGAs without over-engineering multi-tenancy in MVP
+- Documentation should support grant reporting; see `docs/COMMS_AND_ENGAGEMENT.md`
