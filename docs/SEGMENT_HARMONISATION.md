@@ -4,11 +4,11 @@
 **Status:** Draft — pending CrowdLab / XYX Lab validation  
 **Last updated:** 30 May 2026  
 **Methodology gate:** [`VULNERABILITY_INDEX.md`](VULNERABILITY_INDEX.md) v1.1  
-**Pipeline status:** Ingestion complete (Waves 1–4 core datasets); harmonisation not started
+**Pipeline status:** Ingestion complete (Waves 1–4 core datasets); harmonisation implemented (walk network includes shared-use paths)
 
 This document defines **how ingested layers are joined to the T1EAM footpath segment network** to produce `segment_features.parquet` — one row per segment with derived attributes ready for scoring.
 
-It does **not** define score weights or rubrics (see future `SCORING_SPEC_v1.1.md` annex). It **does** define spatial join rules, output column names, null semantics, and QA checks.
+It does **not** define score weights or rubrics (see [`SCORING_SPEC_v1.1.md`](SCORING_SPEC_v1.1.md)). It **does** define spatial join rules, output column names, null semantics, and QA checks.
 
 ---
 
@@ -39,13 +39,14 @@ Outputs feed:
 
 ---
 
-## 2. Master segment network
+## 2. Master walk network
 
 | Item | Value |
 |------|--------|
-| **Source** | `data/intermediate/footpaths_ply_t1eam.parquet` |
+| **Source** | `data/intermediate/footpaths_ply_t1eam.parquet` (Footpaths T1EAM — **full** walk network) |
+| **Validation** | `data/intermediate/sharedusepaths_ply_t1eam.parquet` + `data/qa/sharedusepaths_ply_t1eam_crosswalk.json` |
 | **Primary key** | `segment_id` (portal `gisfid`) |
-| **Geometry** | Polygon (27,458 segments) — not centreline |
+| **Geometry** | Polygon (27,458 segments: ~24,219 footpath + ~3,239 shared use) — not centreline |
 | **CRS (storage)** | EPSG:4326 (WGS 84) |
 | **CRS (metric ops)** | EPSG:7855 (GDA2020 / MGA zone 55) for buffers, distances, overlap lengths |
 
@@ -56,6 +57,7 @@ Copied unchanged from footpaths ingest:
 | Column | Type | Notes |
 |--------|------|--------|
 | `segment_id` | string/int | Primary key |
+| `walk_path_class` | string | `footpath` \| `shared_use` \| `other` — from portal `feature_type`; see §2.3 |
 | `geometry` | polygon | WGS 84 |
 | `surface_material` | string | Portal `pathsfmat` |
 | `width_m` | float | QA flag separate |
@@ -75,13 +77,24 @@ Copied unchanged from footpaths ingest:
 | `centroid` | Point centroid of polygon in 7855 → 4326 | Point-in-polygon tests, map display |
 | `segment_area_m2` | Area in 7855 | Polygon overlap weighting |
 
-**v1 rule:** Use **footpath polygon** directly for polygon–polygon and polygon–line intersections. Do not require centreline extraction in v1.
+**v1 rule:** Use **walk network polygon** directly for polygon–polygon and polygon–line intersections. Do not require centreline extraction in v1.
+
+### 2.3 Shared use paths (Council export)
+
+Council publishes [Shared Use Paths (T1EAM)](https://data.casey.vic.gov.au/explore/dataset/sharedusepaths_ply_t1eam/) as a **view extracted from Footpaths** (~3,239 rows). It is **not** unioned into the master network (that would double-count segments).
+
+| Rule | v1 |
+|------|-----|
+| **Master** | All rows in `footpaths_ply_t1eam` (both `Footpath` and `Shared Use Path` `feature_type` values) |
+| **Class column** | `walk_path_class` derived at ingest from `feature_type` |
+| **Shared-use export** | Ingested for provenance; crosswalk QA on stable asset key `t1key` |
+| **Scoring** | Same harmonisation joins and scoring pass for all classes; filters/QA may subset by `walk_path_class` |
 
 ---
 
 ## 3. Harmonisation principles
 
-1. **One row per segment** — left join from footpaths; no duplicate `segment_id` rows.
+1. **One row per segment** — left join from walk network master; no duplicate `segment_id` rows.
 2. **Metric accuracy** — all distances, buffers, and overlap lengths in EPSG:7855; store distances in metres.
 3. **No false zeros** — missing join → `NULL`, not `0`, unless the metric is explicitly a count (then `0` is valid).
 4. **Conservative proxies** — document when a layer is proximity/count only (lights, amenities, graffiti).
@@ -490,7 +503,7 @@ Compare aggregate counts to QA viewer suburb/ward stats ([`build_viewer_layers.p
 | 3 | Run joins in dependency order: polygons (UHI, canopy) → lines (speed) → points (batch by layer) |
 | 4 | Write `segment_features.parquet` + QA report |
 | 5 | Extend QA viewer with optional segment layer (top-N worst/best by raw `uhi18_m` or null flags) |
-| 6 | Draft `SCORING_SPEC_v1.1.md` using column names from §6 |
+| 6 | [`SCORING_SPEC_v1.1.md`](SCORING_SPEC_v1.1.md) + `score_segments.py` |
 
 **Estimated runtime:** 5–15 minutes on laptop for full Casey (dominated by council trees + graffiti spatial joins).
 

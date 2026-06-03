@@ -22,7 +22,8 @@ This document tracks ingestion order, dependencies, and what is blocked on disco
 
 | # | Dataset | Script | Stream | Status |
 |---|---------|--------|--------|--------|
-| 1 | Footpaths (T1EAM) | `ingest_footpaths_t1eam.py` | Segment network (ADR-008) | ✅ |
+| 1 | Footpaths (T1EAM) — walk network master | `ingest_footpaths_t1eam.py` | Segment network (ADR-008) | ✅ |
+| 1b | Shared Use Paths (T1EAM) — validation | `ingest_sharedusepaths_t1eam.py` | Segment network QA | ✅ |
 | 2 | Speed Zones | `ingest_speed_zones.py` | Accessibility 60% | ✅ |
 | 3 | Graffiti Locations | `ingest_graffiti.py` | Accessibility 60% | ✅ |
 
@@ -102,10 +103,12 @@ This document tracks ingestion order, dependencies, and what is blocked on disco
 
 | Step | Description | Status |
 |------|-------------|--------|
-| Harmonise all layers to T1EAM segment network | Snap/join points and lines; derive segment attributes — see [`docs/SEGMENT_HARMONISATION.md`](../docs/SEGMENT_HARMONISATION.md) | ✅ `harmonise_segments.py` |
-| Scoring algorithm | `day_index_score`, `night_index_score` + sub-scores — see scoring spec (TBD) | Not started |
+| Harmonise all layers to T1EAM segment network | `harmonise_segments.py` → `segment_features.parquet` (27,458 segments) | ✅ |
+| Scoring algorithm | `score_segments.py` → `segment_scores.parquet` — see [`docs/SCORING_SPEC_v1.1.md`](../docs/SCORING_SPEC_v1.1.md) | ✅ v1.1 defaults (Nikki refinement pending) |
+| QA viewer — scored segment choropleth | `build_viewer_layers.py` + `viewer/index.html` | ✅ |
+| Rubric spot-check / tune | Berwick, Clyde North, lighting gaps, shared-use width | 🔄 In review (QA viewer) |
 | PostGIS / Supabase load | GeoParquet → production layer | Not started |
-| Confidence model (ADR-005) | Per-component high/medium/low | Not started |
+| Confidence model (ADR-005) | Full per-component model (v1 uses heuristics in scoring) | 🔍 Precursor in scoring; ADR TBD |
 
 ---
 
@@ -133,4 +136,5 @@ This document tracks ingestion order, dependencies, and what is blocked on disco
 - [`README.md`](README.md) — runbook and per-dataset detail
 - [`docs/DATA_SET_REGISTER.md`](../docs/DATA_SET_REGISTER.md) — full inventory
 - [`docs/SEGMENT_HARMONISATION.md`](../docs/SEGMENT_HARMONISATION.md) — Wave 5 join rules and `segment_features.parquet` schema
-- [`docs/meeting-prep/nikki-29-may-pipeline.html`](../docs/meeting-prep/nikki-29-may-pipeline.html) — pipeline visual
+- [`docs/SCORING_SPEC_v1.1.md`](../docs/SCORING_SPEC_v1.1.md) — scoring rubrics and `segment_scores.parquet` schema
+- [`docs/meeting-prep/casey-pipeline-status.html`](../docs/meeting-prep/casey-pipeline-status.html) — Phase B progress visual (June 2026 check-in)

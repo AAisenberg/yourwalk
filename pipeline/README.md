@@ -29,9 +29,9 @@ Requires Python 3.11+. DuckDB spatial extension is installed automatically on fi
 
 ## Ingestion scripts
 
-### Footpaths (T1EAM) — segment network ✅
+### Footpaths (T1EAM) — walk network master ✅
 
-Primary scoring unit (ADR-008). ~27,458 segments.
+Primary scoring unit (ADR-008). ~27,458 segments (footpath + shared use path classes).
 
 ```bash
 python scripts/ingest_footpaths_t1eam.py
@@ -45,8 +45,22 @@ python scripts/ingest_footpaths_t1eam.py --force-download
 | **Raw file** | `data/raw/footpaths_ply_t1eam.geojson` |
 | **Output** | `data/intermediate/footpaths_ply_t1eam.parquet` |
 | **QA report** | `data/qa/footpaths_ply_t1eam_width_qa.json` |
-| **Key fields** | `segment_id` (gisfid), `surface_material` (pathsfmat), `width_m`, `length_m`, `function_use`, `ownership`, geometry |
+| **Key fields** | `segment_id` (gisfid), `walk_path_class` (`footpath` \| `shared_use`), `surface_material`, `width_m`, `length_m`, `function_use`, geometry |
 | **QA** | Width outlier flags: `ok`, `missing`, `zero`, `too_narrow` (<0.5 m), `too_wide` (>6.0 m). Outliers retained with flag for reduced-confidence scoring. |
+
+### Shared Use Paths (T1EAM) — validation export ✅
+
+Council view of shared-use assets (subset of footpaths). **Not** unioned into the master.
+
+```bash
+python scripts/ingest_sharedusepaths_t1eam.py
+```
+
+| Item | Detail |
+|------|--------|
+| **Source** | [Shared Use Paths (T1EAM)](https://data.casey.vic.gov.au/explore/dataset/sharedusepaths_ply_t1eam/) |
+| **Output** | `data/intermediate/sharedusepaths_ply_t1eam.parquet` |
+| **Crosswalk QA** | `data/qa/sharedusepaths_ply_t1eam_crosswalk.json` (requires footpaths parquet) |
 
 ### AusNet / United Energy street lights ✅
 
@@ -279,7 +293,9 @@ Casey Open Data + DataVic + Transport Victoria
         ↓
    scripts/harmonise_segments.py  (segment_features.parquet)
         ↓
-   [future] Scoring algorithm → PostGIS / Supabase load
+   scripts/score_segments.py  (segment_scores.parquet)
+        ↓
+   [future] PostGIS / Supabase load
         ↓
    Resident app + Council dashboard (Q3 2026)
 ```
@@ -298,7 +314,7 @@ python scripts/build_viewer_layers.py
 # Serve at http://127.0.0.1:8765/viewer/index.html
 python scripts/serve_viewer.py --open
 
-# Rebuild GeoJSON then serve
+# Rebuild GeoJSON then serve (after harmonise or score_segments)
 python scripts/serve_viewer.py --rebuild --open
 ```
 
@@ -306,9 +322,12 @@ python scripts/serve_viewer.py --rebuild --open
 |------|--------|
 | **UI** | `viewer/index.html` |
 | **Export script** | `scripts/build_viewer_layers.py` → `data/viewer/*.geojson`, `filters.json` |
+| **LGA boundary** | [caseylga_boundary](https://data.casey.vic.gov.au/explore/dataset/caseylga_boundary/) — shown by default (toolbar **LGA** toggle) |
+| **QA context layers** | [Parks/reserves](https://data.casey.vic.gov.au/explore/dataset/parks-reserves-ply-t1eam/), [dog-friendly spaces](https://data.casey.vic.gov.au/explore/dataset/dog-friendly-spaces/) — viewer only, not ingested |
 | **Area filters** | Suburb / ward dropdowns with boundary overlay and per-area **coverage stats** |
 | **Council trees** | Random sample of 8,000 points for browser performance |
-| **Symbology** | Choropleth / graded colors on footpaths, speed zones, UHI, canopy; style dropdown per layer |
+| **Symbology** | Choropleth / graded colors on footpaths, speed zones, UHI, canopy, **segment scores**; style dropdown per layer |
+| **Default layers** | Walk network + LGA boundary only (school crossings and crashes off by default) |
 | **Lights** | Street & park lights as individual points (not clustered) |
 | **QA mode** | Toggle **QA issues** to highlight `qa_flag ≠ ok` |
 | **Speed zones** | Casey clip only (`speed_zones_casey_2026-02.parquet`) |
@@ -341,4 +360,20 @@ python scripts/harmonise_segments.py --skip-council-trees   # faster, omit tree 
 | **QA report** | `data/qa/segment_harmonisation.json` |
 | **Spec** | [`docs/SEGMENT_HARMONISATION.md`](../docs/SEGMENT_HARMONISATION.md) |
 
-See also: [`docs/meeting-prep/nikki-29-may-pipeline.html`](../docs/meeting-prep/nikki-29-may-pipeline.html)
+### Segment scoring
+
+Compute Day/Night Vulnerability Index scores from harmonised features.
+
+```bash
+python scripts/score_segments.py
+```
+
+| Item | Detail |
+|------|--------|
+| **Script** | `scripts/score_segments.py` |
+| **Input** | `data/intermediate/segment_features.parquet` |
+| **Output** | `data/intermediate/segment_scores.parquet` |
+| **QA report** | `data/qa/segment_scoring.json` |
+| **Spec** | [`docs/SCORING_SPEC_v1.1.md`](../docs/SCORING_SPEC_v1.1.md) |
+
+See also: [`docs/meeting-prep/casey-pipeline-status.html`](../docs/meeting-prep/casey-pipeline-status.html) · [`casey-data-sources-flow.html`](../docs/meeting-prep/casey-data-sources-flow.html)
