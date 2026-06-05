@@ -38,6 +38,16 @@ Pending Council data (crossings, kerb ramps): reduced confidence until received;
 - One ingestion script per dataset; include QA step before GeoParquet export
 - Workshop stack (not production): DuckDB + GeoParquet → PostGIS per CrowdLab playbook analytical tooling
 
+## Notion sync (same triggers as other CrowdLab repos)
+
+Full rules: `.cursor/rules/yourwalk-notion-sync.mdc`
+
+- **`pull spec`** — read repo docs (methodology → PRD → backlog); Notion optional for status only
+- **`reflect to Notion`** — update `docs/BACKLOG.md` first, then mirror one line to Notion Development
+- **`reflect prd progress`** — append below marker in **repo** `docs/PRD.md` only (not Notion)
+
+Hub: `30ed0c174dfa8192a902c23a5c5fe840` · Development: `30ed0c174dfa816dbaebed22dbb138f0`
+
 ## Documentation
 
 - Repo is source of truth; link Notion to repo paths, do not duplicate methodology

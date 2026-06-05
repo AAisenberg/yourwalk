@@ -10,6 +10,18 @@ City of Casey Connecting Grant pilot. CrowdLab delivery with Monash XYX Lab meth
 
 Documentation and methodology live in this repo. Notion tracks status summaries only — link to repo paths, do not duplicate full methodology into Notion.
 
+### Sync workflow (same triggers as CrowdSpot / FME / CrashDash)
+
+Rules: `.cursor/rules/yourwalk-notion-sync.mdc`
+
+| Trigger | Reads | Writes |
+|---------|-------|--------|
+| `pull spec` | Repo: methodology, PRD, backlog, delivery plan | `.cursor/notion-session.json` |
+| `reflect to Notion` | — | `docs/BACKLOG.md` + optional Notion Development footer |
+| `reflect prd progress` | — | Repo `docs/PRD.md` below `<!-- cursor-progress -->` only |
+
+Notion hub `30ed0c174dfa8192a902c23a5c5fe840` · Development `30ed0c174dfa816dbaebed22dbb138f0`
+
 | Doc | Purpose |
 |-----|---------|
 | `docs/VULNERABILITY_INDEX.md` | **Methodology gate v1.1** — read before any scoring or ingestion |

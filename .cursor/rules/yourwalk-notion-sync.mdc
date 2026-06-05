@@ -1,0 +1,111 @@
+---
+description: YourWalk sync — same triggers as other CrowdLab repos; repo-first specs, light Notion status writes.
+alwaysApply: true
+---
+
+# YourWalk — sync (light)
+
+Same **trigger words** as CrowdSpot / CrashDash / FME. Different **sources**: specs and methodology live in **this repo**; Notion is for grant/stakeholder status only.
+
+CrowdLab guardrails: `~/.cursor/crowdlab/conventions.md`
+
+## Why repo-first (not like Find My Electorate)
+
+| | Find My Electorate | YourWalk |
+|--|-------------------|----------|
+| Spec SoT | Notion Phase 2 PRD | **`docs/PRD.md`** + companion docs |
+| Methodology | In PRD / tech planning | **`docs/VULNERABILITY_INDEX.md` v1.1** (gate) |
+| Backlog | Shared Notion Dev backlog | **`docs/BACKLOG.md`** |
+| Notion role | Read spec, write progress | **Status mirror only** — link to repo paths |
+
+Monash methodology + grant delivery evolve in git; do not duplicate or overwrite that prose in Notion.
+
+## Notion IDs (status mirror only — fetch by ID)
+
+| Resource | ID |
+|----------|-----|
+| YourWalk hub | `30ed0c174dfa8192a902c23a5c5fe840` |
+| Development | `30ed0c174dfa816dbaebed22dbb138f0` |
+| Project Plan | `329d0c174dfa8187bfc7eee962d0c673` |
+| Strategy & roadmap | `30ed0c174dfa8181a603f00f3b60ff98` |
+
+Optional read-only context: `notion-fetch` hub or Development. **Do not** treat Notion as spec unless user explicitly says `pull spec notion`.
+
+## Repo pull-spec stack (canonical)
+
+| Trigger alias | Read (in order) |
+|---------------|-----------------|
+| **`pull spec`** (default) | `docs/VULNERABILITY_INDEX.md` → `docs/PRD.md` (scope + open questions) → `docs/BACKLOG.md` (Now) → `docs/DELIVERY_PLAN.md` (current sprint) |
+| **`pull spec methodology`** | `docs/VULNERABILITY_INDEX.md` only |
+| **`pull spec prd`** | `docs/PRD.md` + `docs/PHASES.md` |
+| **`pull spec backlog`** | `docs/BACKLOG.md` |
+| **`pull spec pipeline`** | `pipeline/README.md` + `docs/DATA_SET_REGISTER.md` |
+
+Before ingestion or scoring code: methodology gate is **mandatory** (v1.1, not v0.2).
+
+## Session state
+
+After **pull spec**, write `.cursor/notion-session.json`:
+
+```json
+{
+  "lastPullSpecAt": "ISO-8601",
+  "lastPullSpecLabel": "default|methodology|prd|backlog|pipeline",
+  "lastPullSpecSources": ["docs/VULNERABILITY_INDEX.md", "docs/PRD.md"]
+}
+```
+
+Gitignore this file. Do not commit.
+
+---
+
+## LEG 1 — pull-spec (Stage 2, read-only)
+
+**Triggers:** `pull spec`, `pull spec yourwalk`, aliases above
+
+**Steps:**
+
+1. Read repo files per alias table. Do not edit files.
+2. Optionally `notion-fetch` Development for **status context only** (deadlines, grant milestones) — never override repo spec.
+3. Summarise: current phase (Phase B pipeline), methodology locks, Now backlog, open ADRs in `docs/DECISIONS.md`, out of scope (Casey-only, no app until pipeline base complete).
+4. Write `.cursor/notion-session.json`.
+5. End with: **"Spec loaded (read-only). Say what to build or say reflect to Notion when done."**
+
+**Do not:** invent requirements; impute missing Council data as zero; start Next.js app work unless user explicitly opens Phase 4.
+
+---
+
+## LEG 2 — reflect-task (Stage 3)
+
+**Triggers:** `reflect to Notion`, `mark <backlog item> done`, `update backlog <name>`
+
+**Two-step (repo first, Notion second):**
+
+1. **Repo (primary):** Update `docs/BACKLOG.md` — move/mark the item; append completion note if needed. If user only asked Notion, still remind them repo backlog is SoT.
+2. **Notion (mirror, one target per invocation):**
+   - Default: append one line to **Development** page `30ed0c174dfa816dbaebed22dbb138f0` below `<!-- cursor-progress -->` if present, else ask user to add marker once.
+   - Format: `YYYY-MM-DD — {backlog item} — {one line} — repo: docs/BACKLOG.md#{section}`
+
+WARN if no pull-spec this session (missing `.cursor/notion-session.json`).
+
+**Do not:** write methodology or PRD prose into Notion; use shared Dev backlog `03db7b2d…` unless user explicitly asks (YourWalk normally uses `docs/BACKLOG.md`).
+
+---
+
+## LEG 3 — reflect-prd (Stage 3, repo-only)
+
+**Triggers:** `reflect prd progress`, `reflect prd progress yourwalk`
+
+**Target:** repo `docs/PRD.md` below `<!-- cursor-progress -->` (add marker in repo when first needed — **not** Notion PRD).
+
+Append-only dated subsection. Never edit spec content above the marker. Never sync ADRs to Notion.
+
+---
+
+## Mapbox / ADR-002
+
+When app work starts: **BLOCK** MapLibre unless `OVERRIDE: maplibre-adr002 — …`. Mapbox GL JS only.
+
+## Deploy (when Phase 4 exists)
+
+Predeploy ASK on `git push … main` / `vercel deploy --prod` per global guardrails.

@@ -10,6 +10,9 @@ node_modules/
 .DS_Store
 Thumbs.db
 
+# Notion sync session state (local only; see .cursor/rules/yourwalk-notion-sync.mdc)
+.cursor/notion-session.json
+
 # IDE / Editor
 .idea/
 .vscode/
