@@ -42,7 +42,42 @@ Before a backlog item is considered complete, it must meet all of the following:
 
 ---
 
-## Now (MVP Phase)
+## Now (MVP Phase — Phase C from 15 Jul 2026)
+
+### N0a: Load scored segments to PostGIS / Supabase
+**Links**: [`SCORING_SPEC_v1.1.md`](SCORING_SPEC_v1.1.md) §9, [`DELIVERY_PLAN.md`](DELIVERY_PLAN.md) (Sprint A load contract), ADR-003
+
+**Description**: Load `segment_scores.parquet` (scoring spec 1.1.2) into Supabase PostGIS so the app can query Day/Night/Accessibility scores for Casey.
+
+**Acceptance Criteria**:
+- Given a fresh score run at v1.1.2
+- When the load script runs
+- Then `segment_scores` in PostGIS contains score-eligible Casey segments with indexes, scores, confidence, and `scoring_spec_version`
+- And a bbox or LGA query returns results suitable for map display
+
+**Dependencies**: Scoring Accepted; Supabase project
+
+**Status**: ✅ Done (15 Jul 2026) — Supabase `muxatxlmpbkrsygmxcje`, 27,446 eligible rows, scoring spec 1.1.2
+
+---
+
+### N0b: App foundation — Mapbox map of scored network
+**Links**: [`PHASES.md`](PHASES.md), ADR-002, [`DELIVERY_PLAN.md`](DELIVERY_PLAN.md) Sprint A
+
+**Description**: Next.js app with Mapbox GL JS showing scored footpath segments (Day / Night / Accessibility) from PostGIS, with confidence and provenance.
+
+**Acceptance Criteria**:
+- Given the user opens the app
+- When the map loads over Casey
+- Then scored segments are visible and styleable by index
+- And `scoring_spec_version` / confidence are visible
+- And language does not imply safety guarantees
+
+**Dependencies**: N0a; Mapbox token; Vercel preview
+
+**Status**: ✅ Done (15 Jul 2026) — Sprint A + B polish: Storage GeoJSON map paint, loading UX, Casey-stretched colours, suburb + path-class filters, Casey LGA outline. Next: Sprint C routing (N1/N2).
+
+---
 
 ### N1: Plan route between two points
 **Links**: [`FLOWS/01_plan_route.md`](FLOWS/01_plan_route.md), [`REQS/routing.md`](REQS/routing.md)

@@ -90,7 +90,7 @@ This document tracks ingestion order, dependencies, and what is blocked on disco
 | # | Dataset | Script | Stream | Status |
 |---|---------|--------|--------|--------|
 | 12 | School Crossings (T1EAM) | `ingest_school_crossings.py` | Accessibility enrichment | ✅ |
-| 13 | Vicmap Elevation (gradient derivation) | TBD | Accessibility | 🔍 |
+| 13 | Vicmap Elevation (gradient derivation) | TBD | Accessibility | 🔍 Discovery complete — **defer v1.1** ([`docs/GRADIENT_DISCOVERY.md`](../docs/GRADIENT_DISCOVERY.md)) |
 | 14 | General pedestrian crossings | — | Accessibility | ⏸ Council request drafted |
 | 15 | Kerb ramps | — | Accessibility | ⏸ Council request drafted |
 | 16 | Public toilets, dog bags (T1EAM) | TBD | Dashboard overlays only | 📋 |
@@ -104,10 +104,11 @@ This document tracks ingestion order, dependencies, and what is blocked on disco
 | Step | Description | Status |
 |------|-------------|--------|
 | Harmonise all layers to T1EAM segment network | `harmonise_segments.py` → `segment_features.parquet` (27,458 segments) | ✅ |
-| Scoring algorithm | `score_segments.py` → `segment_scores.parquet` — see [`docs/SCORING_SPEC_v1.1.md`](../docs/SCORING_SPEC_v1.1.md) | ✅ v1.1 defaults (Nikki refinement pending) |
+| Scoring algorithm | `score_segments.py` → `segment_scores.parquet` — see [`docs/SCORING_SPEC_v1.1.md`](../docs/SCORING_SPEC_v1.1.md) | ✅ **Accepted** v1.1.2 (Nikki 3 Jul; locked 15 Jul 2026) |
 | QA viewer — scored segment choropleth | `build_viewer_layers.py` + `viewer/index.html` | ✅ |
-| Rubric spot-check / tune | Berwick, Clyde North, lighting gaps, shared-use width | 🔄 In review (QA viewer) |
-| PostGIS / Supabase load | GeoParquet → production layer | Not started |
+| Rubric spot-check / tune | Berwick, Clyde North, lighting gaps, shared-use width | ✅ Sign-off complete; further tweaks = v1.1.x only |
+| PostGIS / Supabase load | `load_segment_scores_postgis.py` → `public.segment_scores` | ✅ 15 Jul 2026 — 27,446 eligible @ 1.1.2 (`muxatxlmpbkrsygmxcje`) |
+| Next.js + Mapbox scaffold | `web/` | ✅ Sprint A pause — map + `/api/segments`; LGA zoom drop fixed (`tolerance: 0`) |
 | Confidence model (ADR-005) | Full per-component model (v1 uses heuristics in scoring) | 🔍 Precursor in scoring; ADR TBD |
 
 ---
@@ -121,25 +122,31 @@ This document tracks ingestion order, dependencies, and what is blocked on disco
 - `data/qa/segment_scoring.json` — score distribution and confidence summary
 - `docs/meeting-prep/casey-scoring-map.html` — clean presentation map for score review
 
-**Review questions for Nikki / Casey:**
+**Review questions for Nikki / Casey (Friday sign-off):**
 
-1. Confirm current v1.1 scoring rubrics, especially shared-use width bands and the brick paving surface bucket.
-2. Confirm that missing general crossings, kerb ramps, and tactile indicators should remain reduced-confidence gaps rather than zero-value penalties.
-3. Confirm whether the current v1 data-confidence heuristic is sufficient for pilot review, with ADR-005 to formalise later.
-4. Confirm whether traffic volume, traffic signals, signal configuration sheets, and road responsibility remain future context/enrichment layers rather than v1.1 scoring inputs.
-5. Decide whether to proceed to PostGIS/Supabase load after rubric spot-checks, or revise v1.1 first.
+1. ~~Confirm shared-use width bands~~ — accepted v1.1
+2. ~~Missing crossings / kerb / gradient~~ — gap + reduced confidence (accepted)
+3. ~~Moderate surface bucket~~ — **v1.1.2: moderate = 50** (brick paving, crushed rock, timber) per Nikki 3 Jul 2026 — see [`docs/meeting-prep/NIKKI_SIGNOFF_DECISIONS.md`](../docs/meeting-prep/NIKKI_SIGNOFF_DECISIONS.md)
+4. ~~Day ped crashes in Accessibility~~ — not included; night only in Night Index
+5. ~~Traffic signal OpSheets~~ — deferred v1.2+ — [`docs/TRAFFIC_SIGNAL_PHASING.md`](../docs/TRAFFIC_SIGNAL_PHASING.md)
+6. **Sign-off:** v1.1 methodology locked; v1.1.2 rubric patch for moderate surface score only
 
-**Known data gaps:** general pedestrian crossings, kerb ramps, tactile indicators, and gradient. These are not blockers for the current scoring run because missing data is handled as reduced confidence, not as assumed absence.
+**Phase C (from 15 Jul 2026):** Scoring Accepted. Active work = PostGIS load + Next.js/Mapbox foundation — [`docs/DELIVERY_PLAN.md`](../docs/DELIVERY_PLAN.md) Sprint A. ADRs 001 (lean), 002, 003 Accepted.
+
+**Known data gaps (v1.1):** general pedestrian crossings, kerb ramps, tactile indicators, gradient. These are not blockers — missing data is reduced confidence or explicit deferral, not assumed absence.
 
 ---
 
 ## What not to build yet
 
-- Next.js app, Mapbox UI, routing engine (ADR-001)
+- Weighted-cost routing (ADR-001 lean is post-hoc only until evidence says otherwise)
 - OSM footway gap-fill until ODbL licensing review
 - Combined day/night crash scoring in index (methodology: night crashes in Night Index only)
+- Submissions / moderation / Council dashboard depth (after Sprint A–C)
 
-**Local QA map** (`pipeline/viewer/`) is allowed — Leaflet layer toggles, suburb/ward filters, coverage stats; not production UI.
+**In progress (Phase C):** Next.js + Mapbox production UI; PostGIS load of `segment_scores`.
+
+**Local QA map** (`pipeline/viewer/`) remains Leaflet for pipeline QA only — not production UI.
 
 ### Geographic scope (locked for pilot)
 

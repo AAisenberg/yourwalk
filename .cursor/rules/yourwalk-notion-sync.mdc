@@ -67,11 +67,11 @@ Gitignore this file. Do not commit.
 
 1. Read repo files per alias table. Do not edit files.
 2. Optionally `notion-fetch` Development for **status context only** (deadlines, grant milestones) — never override repo spec.
-3. Summarise: current phase (Phase B pipeline), methodology locks, Now backlog, open ADRs in `docs/DECISIONS.md`, out of scope (Casey-only, no app until pipeline base complete).
+3. Summarise: current phase (Phase C — PostGIS + app from 15 Jul 2026), methodology Accepted, Sprint A / Now backlog, ADR status in `docs/DECISIONS.md`, Casey-only pilot.
 4. Write `.cursor/notion-session.json`.
 5. End with: **"Spec loaded (read-only). Say what to build or say reflect to Notion when done."**
 
-**Do not:** invent requirements; impute missing Council data as zero; start Next.js app work unless user explicitly opens Phase 4.
+**Do not:** invent requirements; impute missing Council data as zero; reopen Accepted methodology without explicit stakeholder ask.
 
 ---
 

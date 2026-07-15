@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>YourWalk — Phase B pipeline status | Casey check-in June 2026</title>
+<title>YourWalk — Phase C status | Casey check-in July 2026</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
 <style>
@@ -196,18 +196,18 @@ body {
       <a href="casey-scoring-map.html">Scoring map</a>
     </nav>
     <div class="header-meta">
-      <div class="header-meta-title">Casey check-in — June 2026</div>
-      <div class="header-meta-sub">Methodology v1.1 locked 29 May · Phase B</div>
+      <div class="header-meta-title">Casey check-in — July 2026</div>
+      <div class="header-meta-sub">Methodology Accepted · Phase C app build</div>
     </div>
   </header>
 
   <div class="hero">
     <q>Which parts of Casey's walking network are failing the people who need it?</q>
     <div class="hero-tags">
-      <span class="tag done">Waves 1–4 ingested</span>
-      <span class="tag done">Harmonised · 27,458 segments</span>
-      <span class="tag review">Scoring v1.1 · QA review</span>
-      <span class="tag pending">PostGIS load next</span>
+      <span class="tag done">Scoring Accepted v1.1.2</span>
+      <span class="tag done">PostGIS · 27,446 eligible</span>
+      <span class="tag done">Next.js + Mapbox map</span>
+      <span class="tag review">Routing next (Sprint C)</span>
     </div>
   </div>
 
@@ -239,7 +239,7 @@ body {
           <div class="item done"><strong>Validate + QA</strong>Width outliers · pilot boundary · per-dataset JSON</div>
           <div class="item done"><strong>Walk network master</strong>27,458 segments · footpath + shared use · no row union</div>
           <div class="item done"><strong>Harmonise</strong>segment_features.parquet · 25 m corridor joins</div>
-          <div class="item review"><strong>Local QA map</strong>Leaflet viewer · score choropleth · suburb filters</div>
+          <div class="item done"><strong>Local QA map</strong>Leaflet viewer · score choropleth · suburb filters</div>
         </div>
       </div>
 
@@ -248,14 +248,14 @@ body {
       <div class="col">
         <div class="col-header">
           3 · Scoring
-          <span class="status review">◐ v1.1 implemented</span>
+          <span class="status complete">✓ Accepted</span>
         </div>
-        <div class="box review">
+        <div class="box highlight">
           <div class="item shared done"><strong>Accessibility 60%</strong>Width · surface · speed · graffiti · school crossing bonus</div>
           <div class="item day done"><strong>Day Index 40%</strong>Heat 2018 · Vicmap canopy · fountains · benches</div>
           <div class="item night done"><strong>Night Index 40%</strong>Merged lights · night crash density</div>
-          <div class="item derived done"><strong>Outputs</strong>segment_scores.parquet · SCORING_SPEC v1.1</div>
-          <div class="item review"><strong>Rubric QA</strong>Spot-check · Nikki review · brick paving · confidence tiers</div>
+          <div class="item derived done"><strong>Outputs</strong>segment_scores · SCORING_SPEC v1.1.2</div>
+          <div class="item done"><strong>Nikki sign-off</strong>3 Jul · moderate surface = 50 · locked</div>
         </div>
       </div>
 
@@ -264,12 +264,12 @@ body {
       <div class="col">
         <div class="col-header">
           4 · Production
-          <span class="status planned">○ Next</span>
+          <span class="status complete">✓ Sprint A</span>
         </div>
-        <div class="box planned">
-          <div class="item pending"><strong>PostGIS / Supabase</strong>Scored segment layer load</div>
-          <div class="item pending"><strong>SA2 aggregation</strong>Council dashboard hotspots</div>
-          <div class="item pending"><strong>Provenance</strong>Vintage · data confidence · methodology v1.1</div>
+        <div class="box highlight">
+          <div class="item done"><strong>PostGIS / Supabase</strong>segment_scores loaded · RLS public read</div>
+          <div class="item done"><strong>Storage GeoJSON</strong>Map paint layer · CDN · LGA outline</div>
+          <div class="item done"><strong>Provenance</strong>scoring_spec_version · confidence · heat 2018 note</div>
         </div>
       </div>
 
@@ -278,12 +278,12 @@ body {
       <div class="col">
         <div class="col-header">
           5 · Products
-          <span class="status planned">○ Q3 2026</span>
+          <span class="status review">◐ Phase C</span>
         </div>
-        <div class="box planned">
-          <div class="item out review"><strong>Community app</strong>Day / night route scores · layers</div>
-          <div class="item out review"><strong>Council dashboard</strong>Hotspots · corridors · exports</div>
-          <div class="item out done"><strong>Evidence base</strong>Q2 pipeline deliverable on track</div>
+        <div class="box review">
+          <div class="item out done"><strong>Resident map (web/)</strong>Mapbox · Day/Night/Acc · suburb filter</div>
+          <div class="item out review"><strong>Routing</strong>Sprint C — post-hoc Mapbox Directions</div>
+          <div class="item out pending"><strong>Council dashboard</strong>Hotspots · corridors · exports</div>
         </div>
       </div>
 
@@ -337,20 +337,20 @@ body {
       </div>
     </div>
     <div class="panel">
-      <h4>Next check-in with Nikki / Casey</h4>
+      <h4>Where we are · July 2026</h4>
       <div class="decisions">
-        <div class="decision"><span class="num">→</span><span><strong>Scoring spec</strong> — rubric spot-check via QA viewer</span></div>
-        <div class="decision"><span class="num">→</span><span><strong>Brick paving</strong> — moderate vs rough bucket</span></div>
-        <div class="decision"><span class="num">→</span><span><strong>Data confidence</strong> — crossing gap inflates low tier</span></div>
-        <div class="decision"><span class="num">→</span><span><strong>Council data</strong> — crossings + kerb ramps request</span></div>
-        <div class="decision"><span class="num">→</span><span><strong>PostGIS load</strong> — after rubric sign-off</span></div>
-        <div class="decision"><span class="num">→</span><span><strong>ADR-005</strong> — formal confidence model</span></div>
+        <div class="decision"><span class="num">✓</span><span><strong>Methodology locked</strong> — v1.1 / scoring 1.1.2 · moderate surface = 50</span></div>
+        <div class="decision"><span class="num">✓</span><span><strong>PostGIS + Storage</strong> — scored network live for map paint</span></div>
+        <div class="decision"><span class="num">✓</span><span><strong>Next.js map</strong> — Day/Night/Accessibility · suburb + path filters · LGA outline</span></div>
+        <div class="decision"><span class="num">→</span><span><strong>Sprint C</strong> — origin/destination routing + route scores</span></div>
+        <div class="decision"><span class="num">→</span><span><strong>Council data</strong> — crossings + kerb ramps (still pending)</span></div>
+        <div class="decision"><span class="num">→</span><span><strong>Council dashboard</strong> — after resident routing slice</span></div>
       </div>
     </div>
   </div>
 
   <div class="slide-footer">
-    Segment scoring (Footpaths T1EAM) → SA2 dashboard · docs/SCORING_SPEC_v1.1.md · pipeline/PROCEEDINGS.md · QA viewer: pipeline/scripts/serve_viewer.py
+    Phase C pause 15 Jul 2026 · web/ Mapbox app · docs/DELIVERY_PLAN.md · docs/SCORING_SPEC_v1.1.md · pipeline/PROCEEDINGS.md
   </div>
 
 </div>

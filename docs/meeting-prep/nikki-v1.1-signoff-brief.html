@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YourWalk — v1.1 methodology sign-off brief</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  @page { size: A4; margin: 14mm; }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --blue: #27AAE1;
+    --navy: #292984;
+    --teal: #00AAA6;
+    --lime: #8DC63F;
+    --amber: #FFCB1F;
+    --text: #1a1a2e;
+    --muted: #5a5a7a;
+    --border: #d8dce8;
+    --bg-soft: #f4f6fb;
+  }
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 9.5pt;
+    line-height: 1.38;
+    color: var(--text);
+    max-width: 210mm;
+    margin: 0 auto;
+    padding: 12mm 14mm;
+    background: #fff;
+  }
+  @media screen {
+    body { padding: 24px; box-shadow: 0 0 24px rgba(0,0,0,0.08); margin-top: 16px; margin-bottom: 16px; }
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 3px solid var(--navy);
+    padding-bottom: 8px;
+    margin-bottom: 10px;
+  }
+  header h1 { font-size: 15pt; font-weight: 700; color: var(--navy); }
+  header .meta { text-align: right; font-size: 8.5pt; color: var(--muted); }
+  header .meta strong { color: var(--text); display: block; font-size: 9pt; }
+  .purpose {
+    background: var(--bg-soft);
+    border-left: 4px solid var(--teal);
+    padding: 8px 10px;
+    margin-bottom: 10px;
+    font-size: 9pt;
+  }
+  h2 {
+    font-size: 9.5pt;
+    font-weight: 700;
+    color: var(--navy);
+    margin: 9px 0 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .card {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 9px;
+    background: #fff;
+  }
+  .card h3 { font-size: 8.5pt; font-weight: 700; margin-bottom: 3px; }
+  .card p, .card li { font-size: 8.5pt; color: var(--muted); }
+  .card ul { padding-left: 14px; margin: 0; }
+  .card li { margin-bottom: 1px; }
+  .formula {
+    font-weight: 600;
+    color: var(--navy);
+    font-size: 9pt;
+    margin: 2px 0 6px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8pt;
+    margin-bottom: 6px;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 3px 5px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--bg-soft); font-weight: 600; color: var(--navy); }
+  td code { font-size: 7.5pt; background: #eef; padding: 0 2px; border-radius: 2px; }
+  .decisions { margin-top: 8px; }
+  .decisions li { font-size: 8.5pt; margin-bottom: 3px; list-style: none; padding-left: 18px; position: relative; }
+  .decisions li::before { content: "☐"; position: absolute; left: 0; color: var(--navy); }
+  .signoff {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 2px solid var(--border);
+    font-size: 8.5pt;
+  }
+  .signoff .line { border-bottom: 1px solid var(--text); display: inline-block; min-width: 180px; margin: 0 6px; }
+  .tag { display: inline-block; font-size: 7pt; font-weight: 600; padding: 1px 5px; border-radius: 3px; margin-left: 4px; }
+  .tag-ok { background: #e8f5e9; color: #2e7d32; }
+  .tag-gap { background: #fff3e0; color: #e65100; }
+  .tag-defer { background: #fce4ec; color: #c62828; }
+  .explain {
+    background: #fffbeb;
+    border: 1px solid #f0d878;
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    font-size: 8.5pt;
+  }
+  .explain h3 { font-size: 8.5pt; font-weight: 700; color: var(--navy); margin-bottom: 4px; }
+  .explain p, .explain li { margin-bottom: 3px; color: var(--text); }
+  .explain ul { padding-left: 16px; margin: 4px 0; }
+  .example {
+    font-size: 8pt;
+    background: var(--bg-soft);
+    border-radius: 4px;
+    padding: 5px 8px;
+    margin-top: 4px;
+    color: var(--muted);
+  }
+  .example strong { color: var(--text); }
+
+  /* Pipeline + scoring flow visual */
+  .flow-visual {
+    margin: 8px 0 6px;
+    padding: 8px;
+    background: #fff;
+    border: 1px solid #e8dcc0;
+    border-radius: 6px;
+  }
+  .flow-visual .flow-label {
+    font-size: 7pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin-bottom: 5px;
+  }
+  .pipe-row {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    margin-bottom: 8px;
+  }
+  .pipe-step {
+    flex: 1;
+    min-width: 0;
+    border-radius: 5px;
+    padding: 5px 6px;
+    text-align: center;
+    border: 1.5px solid var(--border);
+    background: var(--bg-soft);
+  }
+  .pipe-step strong {
+    display: block;
+    font-size: 7.5pt;
+    color: var(--navy);
+    line-height: 1.2;
+    margin-bottom: 2px;
+  }
+  .pipe-step span {
+    display: block;
+    font-size: 6.5pt;
+    color: var(--muted);
+    line-height: 1.25;
+  }
+  .pipe-step.src { border-color: var(--teal); background: #e8f7f6; }
+  .pipe-step.ingest { border-color: var(--blue); background: #e8f4fc; }
+  .pipe-step.harm { border-color: var(--navy); background: #ececf8; }
+  .pipe-step.score { border-color: #c9a227; background: #fff8e6; }
+  .pipe-step.out { border-color: var(--lime); background: #f0f8e8; }
+  .pipe-step.future { border-color: var(--muted); background: #f8f8fa; border-style: dashed; }
+  .pipe-arrow {
+    flex: 0 0 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11pt;
+    font-weight: 700;
+    color: var(--blue);
+    line-height: 1;
+  }
+  .score-fork { margin-top: 6px; }
+  .score-fork-acc { margin-bottom: 6px; }
+  .fork-connector {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 6px;
+    font-size: 7pt;
+    color: var(--muted);
+  }
+  .fork-branches {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    position: relative;
+  }
+  .fork-branches::before {
+    content: "";
+    position: absolute;
+    top: -8px;
+    left: 25%;
+    right: 25%;
+    height: 8px;
+    border-top: 2px solid var(--blue);
+    border-left: 2px solid var(--blue);
+    border-right: 2px solid var(--blue);
+  }
+  .fork-branches::after {
+    content: "same Accessibility score × 60% feeds both";
+    position: absolute;
+    top: -18px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 6.5pt;
+    font-weight: 600;
+    color: var(--blue);
+  }
+  .score-col {
+    border-radius: 5px;
+    padding: 6px 7px;
+    border: 1.5px solid var(--border);
+    font-size: 7pt;
+    line-height: 1.3;
+  }
+  .score-col h4 {
+    font-size: 7pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+    padding-bottom: 3px;
+    border-bottom: 1px solid var(--border);
+  }
+  .score-col.acc { border-color: var(--navy); background: #f0f0fa; }
+  .score-col.acc h4 { color: var(--navy); }
+  .score-col.day { border-color: #e65100; background: #fff5f0; }
+  .score-col.day h4 { color: #e65100; }
+  .score-col.night { border-color: #5c4d9a; background: #f3f0fa; }
+  .score-col.night h4 { color: #5c4d9a; }
+  .score-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 4px;
+    margin-bottom: 2px;
+    color: var(--text);
+  }
+  .score-item em { font-style: normal; color: var(--muted); font-size: 6.5pt; }
+  .score-item b { font-weight: 700; color: var(--navy); white-space: nowrap; }
+  .score-result {
+    margin-top: 5px;
+    padding-top: 4px;
+    border-top: 1px dashed var(--border);
+    font-weight: 700;
+    font-size: 7pt;
+    color: var(--navy);
+    text-align: center;
+    line-height: 1.25;
+  }
+  .score-hub {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    background: var(--bg-soft);
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    font-size: 7pt;
+    margin-bottom: 2px;
+  }
+  .score-hub .hub-icon {
+    flex: 0 0 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--navy);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8pt;
+    font-weight: 700;
+  }
+  .score-hub p { margin: 0; color: var(--text); line-height: 1.3; }
+  .score-hub code { font-size: 6.5pt; background: #eef; padding: 0 3px; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>YourWalk — v1.1 methodology sign-off</h1>
+    <p style="font-size:8.5pt;color:var(--muted);margin-top:2px;">City of Casey pilot · Monash XYX Lab review</p>
+  </div>
+  <div class="meta">
+    <strong>Meeting with Nicole Kalms</strong>
+    Friday 3 July 2026<br>
+    Repo: <a href="https://github.com/AAisenberg/yourwalk">github.com/AAisenberg/yourwalk</a>
+  </div>
+</header>
+
+<div class="purpose">
+  <strong>Purpose:</strong> Sign off the <strong>scoring methodology v1.1</strong> (how datasets join to footpath segments and become Day/Night Index scores). This unlocks PostGIS load and Q3 app build. <strong>Not in scope today:</strong> routing UI, community submissions, or Council dashboard build.
+</div>
+
+<h2>Index model (locked)</h2>
+<p class="formula">Day Index = Footpath Accessibility 60% + Heat &amp; Shade 40% &nbsp;|&nbsp; Night Index = Footpath Accessibility 60% + Lighting / After Dark 40%</p>
+<p style="font-size:8.5pt;color:var(--muted);margin-bottom:6px;">Higher score = better walking conditions. ~27,458 T1EAM footpath segments (incl. shared use). Scoring unit: street segment (ADR-008).</p>
+
+<div class="explain">
+  <h3>How the maths works (plain language)</h3>
+  <p><strong>There are two layers of “percent” — don’t mix them up.</strong></p>
+  <ul>
+    <li><strong>Layer 1 — the final index:</strong> Accessibility counts for <strong>60%</strong> of Day Index and Night Index. Heat/shade (day) or lighting (night) counts for the other <strong>40%</strong>.</li>
+    <li><strong>Layer 2 — inside Accessibility:</strong> We first build one <strong>Accessibility score from 0 to 100</strong> for each footpath segment. Width, surface, speed, and graffiti each get their own 0–100 sub-score, then blend into that single number.</li>
+  </ul>
+  <p><strong>Why width + surface + speed + graffiti = 30 + 25 + 25 + 15 = 95%?</strong> Those weights are relative importance. The code <strong>renormalises</strong> them so they always sum to 100% of the base Accessibility score (divide by 0.95). If speed data is missing (~18% of segments), the other three re-scale automatically.</p>
+  <p><strong>School crossing “+5” = five points on the 0–100 Accessibility scale — not 5%, not a weight.</strong> Added only when a school crossing is within 20 m. No crossing → no penalty. On the final Day or Night Index, +5 Accessibility points ≈ <strong>+3 index points</strong> (because Accessibility is 60% of the index).</p>
+
+  <div class="flow-visual">
+    <div class="flow-label">A — Data pipeline (one row per footpath segment)</div>
+    <div class="pipe-row">
+      <div class="pipe-step src">
+        <strong>Sources</strong>
+        <span>Casey Open Data, DataVic, Transport Vic</span>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step ingest">
+        <strong>Ingest &amp; QA</strong>
+        <span>14 datasets → GeoParquet</span>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step harm">
+        <strong>Harmonise</strong>
+        <span>Join all layers to ~27k T1EAM segments (buffers, corridors, overlap)</span>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step score">
+        <strong>Score</strong>
+        <span>Apply v1.1 rubrics → Day &amp; Night Index per segment</span>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step out">
+        <strong>Output</strong>
+        <span><code>segment_scores.parquet</code></span>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step future">
+        <strong>Next</strong>
+        <span>PostGIS → resident app &amp; Council dashboard</span>
+      </div>
+    </div>
+
+    <div class="flow-label">B — How one segment becomes two index scores</div>
+    <div class="score-hub">
+      <div class="hub-icon">1</div>
+      <p><strong>Harmonise</strong> attaches attributes to each footpath polygon → <code>segment_features.parquet</code> (width, surface, speed in 25 m corridor, lights within 30 m, heat overlap, etc.)</p>
+    </div>
+    <div class="score-hub" style="margin-top:4px">
+      <div class="hub-icon">2</div>
+      <p><strong>Score</strong> applies rubrics to those attributes → sub-scores blended into Accessibility, Heat &amp; Shade, and Lighting / After Dark streams</p>
+    </div>
+    <div class="score-fork">
+      <div class="score-col acc score-fork-acc">
+        <h4>Accessibility stream <span style="font-weight:400;text-transform:none">→ score 0–100</span></h4>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 8px">
+          <div class="score-item"><span>Width</span><b>30%</b></div>
+          <div class="score-item"><span>Surface</span><b>25%</b></div>
+          <div class="score-item"><span>Speed exposure</span><b>25%</b></div>
+          <div class="score-item"><span>Graffiti proxy</span><b>15%</b></div>
+        </div>
+        <div class="score-item" style="margin-top:4px;padding-top:3px;border-top:1px dotted #ccc"><span>School crossing nearby</span><b>+5 pts</b></div>
+        <p style="font-size:6.5pt;color:var(--muted);margin-top:4px;text-align:center">Weights renormalise to 100% of base score</p>
+      </div>
+      <div class="fork-branches">
+        <div class="score-col day">
+          <h4>Day Index</h4>
+          <div class="score-item"><span>Heat 2018</span><b>45%</b></div>
+          <div class="score-item"><span>Canopy</span><b>40%</b></div>
+          <div class="score-item"><span>Comfort</span><b>15%</b></div>
+          <p style="font-size:6.5pt;color:var(--muted);margin:4px 0 2px">→ Heat &amp; Shade 0–100</p>
+          <div class="score-result"><strong>0.6 × Acc + 0.4 × Heat&amp;Shade</strong></div>
+        </div>
+        <div class="score-col night">
+          <h4>Night Index</h4>
+          <div class="score-item"><span>Lights (30 m)</span><b>70%</b></div>
+          <div class="score-item"><span>Night crashes</span><b>30%</b></div>
+          <p style="font-size:6.5pt;color:var(--muted);margin:4px 0 2px">→ After Dark 0–100</p>
+          <div class="score-result"><strong>0.6 × Acc + 0.4 × After Dark</strong></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="example">
+    <strong>Example segment:</strong> width 70, surface 90, speed 85, graffiti 100 → base Accessibility ≈ <strong>83</strong>.
+    School crossing nearby → <strong>88</strong> (+5 pts). No school crossing → stays <strong>83</strong>.
+    If Heat &amp; Shade = 75, Day Index ≈ 0.60 × 88 + 0.40 × 75 = <strong>83</strong> (displayed as 8.3/10 in the app).
+  </div>
+</div>
+
+<h2>Harmonisation → scoring (by stream)</h2>
+<table>
+  <thead>
+    <tr>
+      <th style="width:14%">Dataset</th>
+      <th style="width:26%">How it joins to each footpath segment</th>
+      <th style="width:16%">Scoring use</th>
+      <th style="width:10%">Weight</th>
+      <th style="width:34%">Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Footpaths</strong></td>
+      <td>Master network — one row per segment</td>
+      <td>Width + surface (each scored 0–100)</td>
+      <td>30%<br>25%</td>
+      <td>Of <strong>Accessibility base</strong> (renormalised to 100%). Width: AS 1428-style bands. Surface: 3 buckets + unknown (below). Missing width → neutral 50, not zero.</td>
+    </tr>
+    <tr>
+      <td><strong>Speed zones</strong></td>
+      <td><strong>25 m corridor</strong> around footpath; max speed of any road in corridor (parallel arterials, not just crossings)</td>
+      <td>Speed exposure (0–100)</td>
+      <td>25%</td>
+      <td>Slower road beside path = higher score. Missing speed → dropped; other weights re-scale.</td>
+    </tr>
+    <tr>
+      <td><strong>Graffiti</strong></td>
+      <td>Count within <strong>25 m</strong>; recency + recent tags</td>
+      <td>Maintenance proxy (0–100)</td>
+      <td>15%</td>
+      <td>Same Accessibility score feeds <strong>both</strong> Day and Night Index. Not crime data.</td>
+    </tr>
+    <tr>
+      <td><strong>School crossings</strong></td>
+      <td>Nearest crossing ≤ <strong>20 m</strong> from footpath</td>
+      <td><strong>+5 points</strong> (not %)</td>
+      <td>after blend</td>
+      <td>142 school crossings only. +5 pts on 0–100 Accessibility if nearby; +0 if not. <strong>No school-hours logic</strong>. Does not replace general crossing data.</td>
+    </tr>
+    <tr>
+      <td><strong>Urban heat 2018</strong></td>
+      <td>Area-weighted mesh-block overlap → <code>uhi18_m</code></td>
+      <td>Heat sub-score</td>
+      <td>45% of Heat&amp;Shade</td>
+      <td>Heat&amp;Shade is <strong>40% of Day Index only</strong>. Lower UHI = better. 2018 vintage documented.</td>
+    </tr>
+    <tr>
+      <td><strong>Tree density</strong></td>
+      <td>Area-weighted dense / medium / sparse polygons</td>
+      <td>Canopy sub-score (0–100)</td>
+      <td>40% of Heat&amp;Shade</td>
+      <td>2019/2020 Vicmap. Council tree points <strong>not</strong> used for canopy.</td>
+    </tr>
+    <tr>
+      <td><strong>Fountains + benches</strong></td>
+      <td>Nearest fountain; bench count in <strong>50 m</strong></td>
+      <td>Comfort sub-score (0–100)</td>
+      <td>15% of Heat&amp;Shade</td>
+      <td>Presence only (bench quantity fields unreliable).</td>
+    </tr>
+    <tr>
+      <td><strong>Street + park lights</strong></td>
+      <td>Nearest distance; count within <strong>30 m</strong> (street) / 50 m (park); merged</td>
+      <td>Lighting sub-score (0–100)</td>
+      <td>70% of Night stream</td>
+      <td>Night stream = <strong>40% of Night Index</strong>. Good if nearest ≤25 m and ≥1 light in 30 m. <strong>No lux</strong> — proximity only.</td>
+    </tr>
+    <tr>
+      <td><strong>Night crashes</strong></td>
+      <td>Pedestrian crashes in <strong>25 m</strong> corridor; night-eligible; <strong>5-year</strong> window; density per km</td>
+      <td>Crash sub-score (0–100)</td>
+      <td>30% of Night stream</td>
+      <td>Night Index only (not combined day/night crash scoring).</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="grid-2">
+  <div class="card">
+    <h3>Surface buckets (Accessibility)</h3>
+    <ul>
+      <li><strong>Smooth / firm → 90</strong> — concrete, asphalt, spray seal</li>
+      <li><strong>Moderate → 50</strong> — brick paving, crushed rock, timber (Nikki 3 Jul 2026)</li>
+      <li><strong>Rough / loose → 35</strong> — gravel, rubber</li>
+      <li><strong>Unknown → 50</strong> — TBD, NULL</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>Explicit gaps — v1.1 <span class="tag tag-defer">deferred</span></h3>
+    <ul>
+      <li><strong>General crossings + kerb ramps</strong> — not on open data; reduced confidence, not zero penalty</li>
+      <li><strong>Gradient</strong> — deferred v1.2 — <code>docs/GRADIENT_DISCOVERY.md</code></li>
+      <li><strong>Traffic signal phasing</strong> — deferred v1.2+ — <code>docs/TRAFFIC_SIGNAL_PHASING.md</code></li>
+      <li><strong>YourGround, toilets, dog bags</strong> — dashboard overlays only, not in index</li>
+    </ul>
+  </div>
+</div>
+
+<h2>Demo &amp; repo references</h2>
+<p style="font-size:8.5pt;color:var(--muted);">
+  Scoring map: <code>docs/meeting-prep/casey-scoring-map.html</code> ·
+  Specs: <code>docs/VULNERABILITY_INDEX.md</code>, <code>docs/SEGMENT_HARMONISATION.md</code>, <code>docs/SCORING_SPEC_v1.1.md</code> ·
+  Gradient discovery: <code>docs/GRADIENT_DISCOVERY.md</code> ·
+  Signal phasing: <code>docs/TRAFFIC_SIGNAL_PHASING.md</code> ·
+  Sign-off log: <code>docs/meeting-prep/NIKKI_SIGNOFF_DECISIONS.md</code>
+</p>
+
+<h2>Decisions for sign-off today</h2>
+<ul class="decisions">
+  <li>Accept Day/Night 60/40 index model and segment-level scoring as implemented</li>
+  <li>Confirm speed corridor (25 m), lighting (30 m count / 25 m nearest), crash (25 m / 5 yr) join rules</li>
+  <li>Confirm missing crossings / kerb ramps / gradient handled as <strong>gap + reduced confidence</strong>, not imputed zeros or optimistic baselines</li>
+  <li>Confirm school crossings: <strong>+5 points</strong> on Accessibility (not 5%); static bonus only — no school-hours weighting in v1.1</li>
+  <li>Moderate surface bucket → <strong>50</strong> (brick paving, crushed rock, timber) — Nikki 3 Jul 2026 (v1.1.2 patch)</li>
+  <li>Accept 2018 heat vintage with documented limitation for pilot</li>
+  <li>Minor rubric tweaks after today → v1.1.x patch, not a methodology reopen</li>
+</ul>
+
+<div class="signoff">
+  <strong>Sign-off</strong> — v1.1 scoring methodology accepted for City of Casey pilot:<br><br>
+  Name: <span class="line">&nbsp;</span> &nbsp; Role: <span class="line">&nbsp;</span> &nbsp; Date: <span class="line">&nbsp;</span><br><br>
+  Notes / rubric adjustments:
+  <div style="border-bottom:1px solid var(--border);min-height:28px;margin-top:4px;"></div>
+</div>
+
+<footer>
+  YourWalk · CrowdLab / Monash XYX Lab · Methodology source of truth in repo (Notion mirrors status only).
+  After sign-off: PostGIS load → resolve app ADRs → Q3 MVP build.
+</footer>
+
+</body>
+</html>

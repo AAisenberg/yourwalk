@@ -16,7 +16,7 @@ import pandas as pd
 from yourwalk_pipeline.paths import INTERMEDIATE_DIR
 
 METHODOLOGY_VERSION = "1.1"
-SCORING_SPEC_VERSION = "1.1"
+SCORING_SPEC_VERSION = "1.1.2"
 
 DATA_VINTAGE = {
     "heat": "2018",
@@ -34,6 +34,7 @@ SURFACE_SMOOTH = {
     "Asphalt - DGA",
     "Spray Seal",
 }
+# Moderate bucket → 50 (Nicole Kalms, 3 Jul 2026): brick paving, crushed rock, timber.
 SURFACE_MODERATE = {
     "Brick Paving",
     "Class 2 Fine Crushed Rock",
@@ -117,7 +118,7 @@ def score_surface(material: pd.Series) -> pd.Series:
     mat = material.fillna("").astype(str)
     out = pd.Series(50.0, index=material.index)
     out = out.where(~mat.isin(SURFACE_SMOOTH), 90.0)
-    out = out.where(~mat.isin(SURFACE_MODERATE), 65.0)
+    out = out.where(~mat.isin(SURFACE_MODERATE), 50.0)
     out = out.where(~mat.isin(SURFACE_ROUGH), 35.0)
     unknown = mat.eq("") | mat.eq("To be determined")
     out = out.where(~unknown, 50.0)

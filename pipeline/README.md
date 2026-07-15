@@ -295,10 +295,48 @@ Casey Open Data + DataVic + Transport Victoria
         ↓
    scripts/score_segments.py  (segment_scores.parquet)
         ↓
-   [future] PostGIS / Supabase load
+   scripts/load_segment_scores_postgis.py  (Supabase PostGIS)
         ↓
-   Resident app + Council dashboard (Q3 2026)
+   web/ — Next.js + Mapbox resident app (Phase C)
 ```
+
+## PostGIS / Supabase load (Sprint A)
+
+Project: `https://muxatxlmpbkrsygmxcje.supabase.co`  
+Migration: `supabase/migrations/20260715000000_segment_scores.sql`
+
+```bash
+cd pipeline
+source .venv/bin/activate
+pip install -e .
+
+# Re-score if needed (current lock: scoring spec 1.1.2)
+python scripts/score_segments.py
+
+# Copy connection string from Supabase → Settings → Database → URI
+cp .env.example .env   # edit DATABASE_URL with DB password
+
+python scripts/load_segment_scores_postgis.py --dry-run
+python scripts/load_segment_scores_postgis.py
+```
+
+Requires `DATABASE_URL` (or `SUPABASE_DB_URL`). Truncate-and-load; applies schema + RLS (anon/authenticated SELECT).
+
+### Static map GeoJSON (faster than PostGIS REST)
+
+The resident map loads a **single gzipped GeoJSON** from Supabase Storage (~3 MB), not paginated REST.
+
+```bash
+# Needs SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY in pipeline/.env
+python scripts/upload_segment_scores_geojson.py
+
+# Then set in web/.env.local (script prints the URL):
+# NEXT_PUBLIC_SEGMENTS_GEOJSON_URL=https://…/storage/v1/object/public/map-data/segment_scores.geojson
+```
+
+Use the plain `.geojson` URL (not `.gz`) — Supabase/Cloudflare already compresses on the wire; pre-gzipped objects can return HTTP 400 in browsers.
+
+PostGIS remains the source of truth for routing / SQL; Storage is the map paint layer.
 
 ## Local QA map viewer
 

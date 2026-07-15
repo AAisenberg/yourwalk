@@ -48,6 +48,15 @@ body {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-color: var(--blue) var(--surface2);
+  scrollbar-width: thin;
+}
+.sidebar::-webkit-scrollbar { width: 10px; }
+.sidebar::-webkit-scrollbar-track { background: var(--surface2); }
+.sidebar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--blue), var(--teal));
+  border: 2px solid var(--surface2);
+  border-radius: 999px;
 }
 
 .site-header {
@@ -492,11 +501,11 @@ function updateLegend() {
     return;
   }
   el.innerHTML = `
-    <div class="legend-row"><span class="legend-left"><span class="swatch" style="background:${SCORE_COLORS[0]}"></span>0–20</span><span class="legend-meaning">weakest conditions</span></div>
-    <div class="legend-row"><span class="legend-left"><span class="swatch" style="background:${SCORE_COLORS[1]}"></span>20–40</span><span class="legend-meaning">low</span></div>
-    <div class="legend-row"><span class="legend-left"><span class="swatch" style="background:${SCORE_COLORS[2]}"></span>40–60</span><span class="legend-meaning">mixed</span></div>
-    <div class="legend-row"><span class="legend-left"><span class="swatch" style="background:${SCORE_COLORS[3]}"></span>60–80</span><span class="legend-meaning">better</span></div>
     <div class="legend-row"><span class="legend-left"><span class="swatch" style="background:${SCORE_COLORS[4]}"></span>80–100</span><span class="legend-meaning">strongest conditions</span></div>
+    <div class="legend-row"><span class="legend-left"><span class="swatch" style="background:${SCORE_COLORS[3]}"></span>60–80</span><span class="legend-meaning">better</span></div>
+    <div class="legend-row"><span class="legend-left"><span class="swatch" style="background:${SCORE_COLORS[2]}"></span>40–60</span><span class="legend-meaning">mixed</span></div>
+    <div class="legend-row"><span class="legend-left"><span class="swatch" style="background:${SCORE_COLORS[1]}"></span>20–40</span><span class="legend-meaning">low</span></div>
+    <div class="legend-row"><span class="legend-left"><span class="swatch" style="background:${SCORE_COLORS[0]}"></span>0–20</span><span class="legend-meaning">weakest conditions</span></div>
     <p class="note" style="margin-top:10px">${meta.note}</p>
   `;
 }

@@ -1,10 +1,16 @@
 # Dependencies
 node_modules/
 
+# Next.js
+web/.next/
+web/out/
+
 # Environment
 .env
 .env.local
 .env.*.local
+pipeline/.env
+web/.env.local
 
 # OS
 .DS_Store

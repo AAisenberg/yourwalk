@@ -17,95 +17,88 @@ Each decision includes:
 
 ### ADR-001: Routing Engine Approach
 
-**Status**: Proposed
+**Status**: Accepted (lean) — revisit after first route vertical slice
 
 **Decision Question**: How should we calculate and rank routes? Should we use post-hoc ranking (calculate standard routes then score/rank them) or weighted cost routing (build custom costs into routing algorithm)?
 
 **Options Considered**:
 
-1. **Post-hoc ranking**: Use standard routing engine (e.g., OSRM, GraphHopper) to calculate 3-5 route options based on distance/time, then score and rank them based on lighting/accessibility/climate data
-2. **Weighted cost routing**: Build lighting/accessibility/climate factors into routing cost function, calculate routes with custom weights
+1. **Post-hoc ranking**: Use standard routing engine to calculate 2–3 walk route options based on distance/time, then score and rank them using segment Day/Night Index scores
+2. **Weighted cost routing**: Build Day/Night factors into routing cost function
 3. **Hybrid**: Calculate initial routes with standard engine, then re-route with adjusted costs for top candidates
 
-**Decision**: TBD
+**Decision**: **Post-hoc ranking** for MVP. Prefer **Mapbox Directions API** (walking profile) for origin/destination → 2–3 alternatives, then aggregate `day_index_score` / `night_index_score` along the route from PostGIS segments. Revisit weighted-cost only if post-hoc routes systematically miss better-scored corridors.
 
-**Rationale**: TBD (to be filled when decision made)
+**Rationale**: Phase B already produces segment scores. Post-hoc ranking ships fastest, matches Mapbox (ADR-002), and keeps methodology transparent (score after geometry). Weighted cost can wait until we have evidence post-hoc is insufficient.
 
-**Consequences**: 
+**Consequences**:
 
-- Post-hoc ranking: Simpler implementation, faster to build, but routes may not optimise for our factors
-- Weighted cost: More accurate route optimisation, but complex to tune weights, may produce unexpected routes
-- Hybrid: Balance of accuracy and simplicity, but more complex to implement
+- Sprint A does **not** require routing; Sprint C (route vertical slice) implements this lean
+- Route scores are aggregations of segment scores, not a third scoring model
+- Alternatives that leave the walk network may need snapping / reduced confidence
 
-**Open Questions**:
+**Open Questions** (non-blocking for Sprint A):
 
-- What routing engines support custom cost functions?
-- How do we validate that weighted routes are actually better?
-- What's the performance impact of each approach?
+- Exact segment↔route matching (buffer / nearest segment along polyline)
+- Aggregation rule (length-weighted mean vs median vs worst segment)
+- Material after-dark overlap for Night Index trigger (civil twilight)
 
 ---
 
 ### ADR-002: Map Technology Choice
 
-**Status**: Proposed
+**Status**: Accepted
 
 **Decision Question**: What mapping library should we use for the web interface?
 
 **Options Considered**:
 
 1. **MapLibre GL JS**: Open source, vector tiles, good performance, active development
-2. **Leaflet**: Mature, widely used, plugin ecosystem, raster and vector support
-3. **Google Maps API**: Feature-rich, well-documented, but licensing costs and vendor lock-in
-4. **Mapbox GL JS**: Similar to MapLibre (forked from it), but requires Mapbox account/service
+2. **Leaflet**: Mature, widely used; used for local Phase B QA viewer only
+3. **Google Maps API**: Feature-rich, licensing costs and vendor lock-in
+4. **Mapbox GL JS**: Vector maps, Directions API alignment, CrowdLab standard
 
-**Decision**: TBD
+**Decision**: **Mapbox GL JS** for the production resident app and Council UI.
 
-**Rationale**: TBD (to be filled when decision made)
+**Rationale**: CrowdLab stack standard; aligns with Mapbox Directions (ADR-001 lean); Mapbox account already expected for production. Leaflet remains allowed for **local pipeline QA** (`pipeline/viewer/`) only — not production.
 
 **Consequences**:
 
-- MapLibre: Open source, no licensing fees, good performance, but may need more customisation
-- Leaflet: Mature and stable, but may have performance limitations with large datasets
-- Google Maps: Feature-rich but costs money, vendor dependency
-- Mapbox: Good features but requires account, some costs
+- Production UI must not use MapLibre unless explicitly overridden
+- Requires Mapbox access token in app env
+- 2D map is sufficient for MVP; no 3D requirement
 
-**Open Questions**:
-
-- What are the licensing costs for commercial mapping services?
-- What's the performance requirement for our pilot area size?
-- Do we need 3D or is 2D sufficient?
+**Open Questions**: None blocking Sprint A.
 
 ---
 
 ### ADR-003: Data Storage and Versioning Strategy
 
-**Status**: Proposed
+**Status**: Accepted (pilot lean)
 
 **Decision Question**: How should we store data (observations, routes, insights) and handle versioning for datasets?
 
 **Options Considered**:
 
-1. **PostgreSQL with versioning tables**: Store current data in main tables, version history in separate tables, tag releases
-2. **Time-series database**: Use specialised time-series DB (e.g., TimescaleDB, InfluxDB) for observations, standard DB for other data
-3. **Data versioning with Git LFS**: Store datasets as versioned files, reference in database
-4. **Snapshot-based versioning**: Create periodic snapshots of datasets, reference snapshot version in UI
+1. **Supabase / PostGIS**: Production geo + app tables; reload scored segments from GeoParquet
+2. **Time-series database**: Overkill for pilot volumes
+3. **Git LFS only**: Not queryable for app/map
+4. **Snapshot versioning**: Tag each load with `scoring_spec_version` + `scored_at`; keep prior load optional
 
-**Decision**: TBD
+**Decision**: **Supabase with PostGIS** for production. Scored segments load from `segment_scores.parquet` into a PostGIS table. Pilot versioning = **snapshot reload** keyed by `scoring_spec_version` and `scored_at` (replace or truncate-and-load). Community observations (later) use ordinary Supabase tables; no time-series DB for MVP.
 
-**Rationale**: TBD (to be filled when decision made)
+**Rationale**: Matches Phase B pipeline output and CrowdLab production stack. ~27k segments is well within PostGIS. Full historical versioning can wait until datasets refresh on a regular cadence.
 
 **Consequences**:
 
-- PostgreSQL versioning: Flexible, SQL queries, but manual versioning logic
-- Time-series DB: Optimised for temporal data, but adds complexity, may be overkill
-- Git LFS: Good for large datasets, version control, but not queryable directly
-- Snapshot-based: Simple, clear versions, but storage overhead, may lose granular history
+- Sprint A delivers first PostGIS load + queryable layer for Mapbox
+- App reads live PostGIS / API; GeoParquet remains the pipeline intermediate SoT
+- Re-score → re-load; UI shows `scoring_spec_version` for provenance
 
-**Open Questions**:
+**Open Questions** (non-blocking):
 
-- How often do datasets update?
-- Do we need to query historical versions?
-- What's the expected data volume?
+- Exact table naming (`segment_scores` vs schema-qualified)
+- Whether to keep previous snapshot for rollback (nice-to-have)
 
 ---
 
@@ -272,7 +265,7 @@ The working source for the segment network is **Footpaths (T1EAM)** on the Casey
 
 ### ADR-009: Day / Night Vulnerability Index Model
 
-**Status**: Accepted for review
+**Status**: Accepted
 
 **Decision Question**: Should YourWalk use one composite Vulnerability Index for all routes, or compute separate scores for day and night walking conditions?
 
@@ -301,13 +294,13 @@ For v1 dusk / mixed routes, use the Night Index if any material part of the walk
 - Graffiti and cellular datasets require evidence/methodology review before being used as weighted scoring inputs.
 - User route preferences remain a product layer on top of the default methodology, not a replacement for the methodology weights.
 
-**Open Questions**:
+**Open Questions** (implementation detail; model locked):
 
 - What exact civil twilight library/API or astronomical calculation should be used in implementation?
 - How much route overlap after dark counts as "material" for triggering the Night Index?
 - Should dusk blending be added after v1, and if so should it be time-weighted or segment-weighted?
-- What evidence threshold is required before graffiti becomes a Night Index proxy rather than a dashboard/context layer?
-- Does cellular coverage belong in scoring, confidence display, or route context only?
+
+**Resolved at v1.1 sign-off (3 Jul 2026):** Graffiti stays in shared Accessibility (not Night-only). Day pedestrian crashes not in Accessibility. Cellular not in index.
 
 ---
 

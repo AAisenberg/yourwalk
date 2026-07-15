@@ -1,12 +1,15 @@
 # YourWalk Scoring Specification
 
-**Version:** 1.1  
-**Status:** Draft — CrowdLab implementation default; Nikki Hedge / XYX Lab refinement welcome  
-**Last updated:** 3 June 2026  
+**Version:** 1.1.2  
+**Status:** Accepted — locked for City of Casey pilot (Nikki Kalms / XYX Lab sign-off 3 Jul 2026)  
+**Last updated:** 15 July 2026  
 **Methodology gate:** [`VULNERABILITY_INDEX.md`](VULNERABILITY_INDEX.md) v1.1  
+**Sign-off log:** [`meeting-prep/NIKKI_SIGNOFF_DECISIONS.md`](meeting-prep/NIKKI_SIGNOFF_DECISIONS.md)  
 **Harmonisation input:** [`SEGMENT_HARMONISATION.md`](SEGMENT_HARMONISATION.md) v0.3 → `segment_features.parquet`
 
 This document defines **how harmonised segment attributes become index scores**. It does not redefine spatial joins (see harmonisation spec) or product UI (see PRD / REQS).
+
+**Change control:** Rubric tweaks only as **v1.1.x** patches. Methodology reopen requires explicit stakeholder agreement. Deferred items (gradient, general crossings, kerb ramps, signal phasing) stay out of the index until v1.2+.
 
 ---
 
@@ -19,7 +22,9 @@ Scoring answers:
 **Inputs:** one row per segment from `data/intermediate/segment_features.parquet`  
 **Outputs:** `data/intermediate/segment_scores.parquet` + `data/qa/segment_scoring.json`
 
-**Out of scope (v1):** route aggregation, PostGIS load, Next.js display, parks polygon ingest, council tree points in canopy, Vicmap gradient, general crossings / kerb ramps (until Council data received).
+**Out of scope (v1 index):** route aggregation, parks polygon ingest, council tree points in canopy, Vicmap gradient, general crossings / kerb ramps (until Council data received), traffic signal phasing.
+
+**Unlocked (Phase C):** PostGIS / Supabase load and Next.js display of these scores.
 
 ---
 
@@ -59,10 +64,12 @@ Combines footpath physical attributes and environmental-order proxy. Weights bel
 | Component | Weight | Harmonised columns | Notes |
 |-----------|--------|-------------------|-------|
 | **Width** | 30% | `width_m`, `width_qa_flag`, `walk_path_class` | AS 1428–style graduated bands; separate rubrics for `footpath` vs `shared_use` |
-| **Surface** | 25% | `surface_material` | Three buckets; brick paving provisional (§4.3) |
+| **Surface** | 25% | `surface_material` | Three scored buckets + unknown (§4.4) |
 | **Speed exposure** | 25% | `speed_corridor_max_kmh` | Renormalise weights when NULL (~18% of segments) |
 | **Graffiti proxy** | 15% | `graffiti_count_25m`, `graffiti_count_25m_365d`, `graffiti_days_since_last` | Log density + recency; not crime data |
 | **School crossing bonus** | +5 pts max | `school_crossing_within_20m` | Additive bonus, not a penalty when absent |
+
+**Plain language:** The 60% Accessibility figure is **Layer 1** (share of Day/Night Index). The 30/25/25/15 figures are **Layer 2** (relative weights inside the 0–100 Accessibility sub-score). They sum to 95% nominally; the implementation divides by the sum of present weights so the four components always fill 100% of the base score. The school crossing adjustment is **+5 points** on that 0–100 scale (not 5%, not a weight), applied after the blend. On the final index, +5 Accessibility pts ≈ +3 Day/Night index pts (× 0.60).
 
 When `speed_corridor_max_kmh` is NULL, drop speed from the denominator and renormalise width / surface / graffiti to sum to 100% of the non-bonus components.
 
@@ -102,11 +109,11 @@ Nominal range ~2.5–4.0 m (Casey median ~2.8 m). Wider paths scored on a higher
 | Bucket | Score | Materials (Casey portal values) |
 |--------|-------|-----------------------------------|
 | **Smooth / firm** | 90 | Concrete, Reinforced Concrete, Condensed Silica Fume Treated Concrete, Condensed Silica Fume Treated Reinforced Concrete, Asphalt - DGA, Spray Seal |
-| **Moderate** | 65 | Brick Paving, Class 2 Fine Crushed Rock, Class 2 Crushed Rock, Class 3 Fine Crushed Rock, Timber |
+| **Moderate** | 50 | **Brick Paving** (Nikki sign-off 3 Jul 2026), Class 2 Fine Crushed Rock, Class 2 Crushed Rock, Class 3 Fine Crushed Rock, Timber |
 | **Rough / loose** | 35 | Gravel, Rubber, Not Applicable |
-| **Unknown** | 50 | To be determined, NULL, unmapped |
+| **Unknown / unmapped** | 50 | To be determined, NULL, unmapped |
 
-**Open (Nikki):** Brick Paving — pleasant heritage surface vs rough trip hazard? v1 default: **moderate (65)**. Revisit after co-design spot checks.
+**Decision (Nikki, 3 Jul 2026):** Moderate bucket scores **50** (was 65 in draft rubric). Brick paving, crushed rock, and timber share this score — co-design flagged brick as ambiguous (heritage character vs trip hazard); without segment-level condition data, moderate is the conservative midpoint, not a penalty.
 
 ### 4.5 Speed exposure
 
@@ -363,7 +370,7 @@ python scripts/score_segments.py
 | 2018 heat vintage | Document in `data_vintage`; canopy partially mitigates |
 | No lux / wattage weighting | Proximity + count only |
 | General crossings / kerb ramps missing | School crossing bonus only; `coverage_flags.crossing = gap` |
-| Brick paving ambiguity | Moderate bucket pending Nikki review |
+| Brick paving / moderate surfaces | Moderate bucket = 50 per Nikki sign-off 3 Jul 2026 |
 | Parks overlap ≠ walkable | Parks layer viewer-only; no `in_park_reserve` in v1 |
 | Royal Botanic Gardens Cranbourne paths | OSM/state gap; not a v1 scoring blocker |
 | Shared-use width outliers | Cap at 6 m for rubric; retain QA flag |
@@ -383,4 +390,6 @@ python scripts/score_segments.py
 
 | Version | Date | Changes |
 |---------|------|---------|
+| **1.1.2 Accepted** | **15 Jul 2026** | Status → Accepted; Phase C (PostGIS + app) unlocked |
+| **1.1.2** | **3 Jul 2026** | Nikki sign-off: Moderate bucket → 50 (brick paving, crushed rock, timber); supersedes draft 65 |
 | **1.1** | **3 Jun 2026** | Initial scoring spec — width class split, speed renormalisation, merged lighting rule, graffiti log+recency, council trees excluded from canopy |

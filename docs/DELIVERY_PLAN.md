@@ -9,11 +9,102 @@ This document provides a practical, sprint-by-sprint delivery plan that Council 
 - **Sprint review**: Last day of sprint, demo completed work
 - **Sprint retrospective**: After review, identify improvements
 
-**Note**: Exact dates are not included as they depend on project start date. Use "Sprint 1", "Sprint 2" format.
+---
 
-## Phase: MVP (Sprints 1-6)
+## Current track — Phase C (from 15 July 2026)
 
-### Sprint 1: Foundation and Setup
+**Context:** Phase B (DuckDB → GeoParquet → harmonise → score) is complete. Methodology v1.1 and scoring v1.1.2 are **Accepted**. Q3 technical build starts here.
+
+| Gate | Status |
+|------|--------|
+| Methodology + scoring locked | ✅ Accepted — [`VULNERABILITY_INDEX.md`](VULNERABILITY_INDEX.md), [`SCORING_SPEC_v1.1.md`](SCORING_SPEC_v1.1.md), [`meeting-prep/NIKKI_SIGNOFF_DECISIONS.md`](meeting-prep/NIKKI_SIGNOFF_DECISIONS.md) |
+| ADR-002 Mapbox | ✅ Accepted |
+| ADR-003 Supabase / PostGIS | ✅ Accepted (pilot lean) |
+| ADR-001 Routing | ✅ Accepted lean (post-hoc + Mapbox Directions) — implement in Sprint C |
+| PostGIS load | ✅ Sprint A (15 Jul 2026) — 27,446 eligible rows @ 1.1.2 |
+| Next.js app | ✅ Sprint A scaffold paused — `web/` Mapbox map from PostGIS |
+
+**Geography:** Load **full City of Casey** scored segments. First demo viewport may crop for UX; not a data blocker.
+
+**Defer:** submissions/moderation, Council dashboard depth, crossings/kerb/gradient in index, weighted-cost routing.
+
+### Sprint A — Foundation + PostGIS load (15–29 Jul 2026)
+
+**One-line goal:** Scored Casey segments queryable from Supabase/PostGIS and visible on a Mapbox map in a Next.js app.
+
+**Activities:**
+
+1. Re-run `score_segments.py` at scoring spec **1.1.2** (moderate surface = 50)
+2. Load `segment_scores.parquet` → PostGIS (see load contract below)
+3. Scaffold Next.js App Router + TypeScript + Tailwind + shadcn
+4. Mapbox GL JS map centred on Casey; draw scored segments (Day / Night / Accessibility choropleth)
+5. Show `scoring_spec_version`, confidence, and basic provenance in UI
+6. Vercel preview deploy + env for Mapbox + Supabase
+
+**Acceptance criteria:**
+
+- Given Supabase/PostGIS is loaded  
+  When the app requests Casey segment scores  
+  Then ~27k score-eligible segments are returned with `day_index_score`, `night_index_score`, `accessibility_score`, confidence, and `scoring_spec_version`
+
+- Given a user opens the resident map  
+  When the map loads  
+  Then they see scored footpath segments styled by a selectable index (Day / Night / Accessibility)  
+  And data provenance / confidence is visible  
+  And no safety guarantees are implied
+
+**Out of scope for Sprint A:** origin/destination routing, submissions, Council insights dashboard.
+
+**Completed 15 Jul 2026 (pause point):**
+- Scoring Accepted (v1.1 / 1.1.2); ADRs 001 lean, 002, 003 Accepted
+- Supabase project `muxatxlmpbkrsygmxcje` — `public.segment_scores` loaded
+- `web/` Next.js + Mapbox choropleth (Day / Night / Accessibility) via `/api/segments`
+- Not the Council dashboard yet — shared data foundation for **resident map first**, then routing (Sprint C), then Council insights (N5)
+
+**Rendering note (Mapbox vs pipeline HTML):**
+- QA HTML (`docs/meeting-prep/casey-scoring-map.html`, `pipeline/viewer/`) uses **Leaflet** + full GeoJSON — every feature painted; nothing dropped when zooming out
+- Production `web/` uses **Mapbox GL** — GeoJSON is tiled (geojson-vt). High simplification was hiding tiny path polygons at LGA zoom; Sprint A sets `tolerance: 0`. True centrelines / vector tiles remain Sprint B+
+- **Map paint source:** static gzipped GeoJSON on Supabase Storage (`map-data` bucket, ~3 MB) via `upload_segment_scores_geojson.py` — not paginated PostGIS REST. PostGIS remains SoT for routing/SQL.
+
+#### PostGIS load contract (Sprint A)
+
+| Item | Spec |
+|------|------|
+| Source | `pipeline/data/intermediate/segment_scores.parquet` |
+| Target | Supabase PostGIS table `segment_scores` (name may be schema-qualified) |
+| SRID | 4326 (WGS84) for app/Mapbox; transform from pipeline CRS on load if needed |
+| Geometry | Polygon or MultiPolygon from GeoParquet; spatial index `GIST(geometry)` |
+| Primary key | `segment_id` |
+| Required columns | `segment_id`, `geometry`, `walk_path_class`, `score_eligible`, `suburb`, `ward`, `length_m`, `accessibility_score`, `heat_shade_score`, `lighting_after_dark_score`, `day_index_score`, `night_index_score`, `day_index_display`, `night_index_display`, `confidence_day`, `confidence_night`, `data_vintage`, `scored_at`, `methodology_version`, `scoring_spec_version` |
+| Optional (nice) | Component sub-scores (`score_width`, `score_surface`, …) for popup detail |
+| Load mode | Truncate-and-load (or replace) per snapshot; record `scored_at` + `scoring_spec_version` |
+| Filter | App may hide `score_eligible = false`; retain rows in DB for QA |
+| Provenance | UI must surface `scoring_spec_version` and heat vintage limitation (2018) |
+
+Full column list: [`SCORING_SPEC_v1.1.md`](SCORING_SPEC_v1.1.md) §9.
+
+### Sprint B — Scored network polish (follows A)
+
+**Goal:** Production-quality choropleth UX (legends, path-class filter, suburb focus) — backlog **N3-lite**. Still no routing required.
+
+**Sprint B pause (15 Jul 2026):**
+- ✅ Static GeoJSON from Supabase Storage (plain `.geojson`, CDN-compressed)
+- ✅ Loading overlay + Casey-stretched colour ramps
+- ✅ Suburb filter (fit bounds) + path class filter + visible count
+- ✅ Casey LGA boundary outline (Storage `casey_lga_boundary.geojson`)
+- Deferred: confidence style mode, Vercel preview deploy, routing (Sprint C)
+
+### Sprint C — Routing vertical slice (follows B)
+
+**Goal:** Origin/destination → 2–3 walk routes → length-weighted Day/Night scores from PostGIS segments — backlog **N1 + N2**. Implements ADR-001 lean.
+
+---
+
+## Phase: MVP (original Sprints 1–6 — historical)
+
+> **Note (15 Jul 2026):** Original Sprint 1–3 data/scoring work is largely complete via Phase B. Use **Current track — Phase C** above for active planning. Sections below remain for backlog mapping and Council coordination context.
+
+### Sprint 1: Foundation and Setup — ☑ largely complete (Phase B + ADR lock 15 Jul 2026)
 
 **Objective**: Establish development environment, make core architecture decisions, set up project infrastructure.
 
@@ -25,9 +116,9 @@ This document provides a practical, sprint-by-sprint delivery plan that Council 
 - **Engagement**: Begin engagement material planning
 
 **Decisions Required**:
-- Routing engine approach (ADR-001)
-- Map technology choice (ADR-002)
-- Data storage strategy (ADR-003)
+- Routing engine approach (ADR-001) — ✅ Accepted lean 15 Jul 2026
+- Map technology choice (ADR-002) — ✅ Accepted 15 Jul 2026
+- Data storage strategy (ADR-003) — ✅ Accepted 15 Jul 2026
 
 **Council Dependencies**:
 - Confirm pilot area boundaries

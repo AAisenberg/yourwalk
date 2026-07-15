@@ -4,7 +4,7 @@ City of Casey Connecting Grant pilot. CrowdLab delivery with Monash XYX Lab meth
 
 **Repo:** https://github.com/AAisenberg/yourwalk  
 **Pilot LGA:** City of Casey only  
-**Current phase:** Phase B — data pipeline (June 2026). No Next.js app yet.
+**Current phase:** Phase C — Q3 technical build (from 15 July 2026). Methodology + scoring **Accepted**. Sprint A: PostGIS load + Next.js/Mapbox foundation.
 
 ## Source of truth
 
@@ -91,6 +91,12 @@ python scripts/ingest_footpaths_t1eam.py
 - Scoring algorithm (after base datasets ingested and QA'd)
 - OSM gap-fill until licensing review complete
 
-## Open ADRs (block Q3 app build)
+## ADRs (app build)
 
-ADR-001 routing, ADR-003 versioning, ADR-004 privacy, ADR-005 confidence, ADR-006 moderation, ADR-007 transparency
+| ADR | Status |
+|-----|--------|
+| ADR-001 routing | Accepted lean — post-hoc + Mapbox Directions (Sprint C) |
+| ADR-002 Mapbox | Accepted |
+| ADR-003 Supabase/PostGIS | Accepted (pilot lean) |
+| ADR-004 privacy, ADR-005 confidence, ADR-006 moderation, ADR-007 transparency | Still open — not Sprint A blockers |
+| ADR-008 segments, ADR-009 day/night | Accepted |

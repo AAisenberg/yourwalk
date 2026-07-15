@@ -225,6 +225,11 @@
 
     const VIEWER_DATA = '../data/viewer';
 
+    function viewerAssetUrl(file) {
+      const name = String(file).replace(/^data\/viewer\//, '');
+      return `${VIEWER_DATA}/${name}`;
+    }
+
     function setStatus(msg) { document.getElementById('status').textContent = msg; }
 
     function currentAreaStats() {
@@ -654,7 +659,7 @@
       setStatus(`Loading ${spec.name}…`);
       let geojson = geojsonCache.get(spec.id);
       if (!geojson) {
-        const res = await fetch(`/${spec.file}`);
+        const res = await fetch(viewerAssetUrl(spec.file));
         if (!res.ok) throw new Error(`Failed to load ${spec.file}`);
         geojson = await res.json();
         geojsonCache.set(spec.id, geojson);
@@ -855,7 +860,7 @@
         map.removeLayer(lgaBoundaryLayer);
         lgaBoundaryLayer = null;
       }
-      const res = await fetch(`/${manifest.boundary.file}`);
+      const res = await fetch(viewerAssetUrl(manifest.boundary.file));
       if (!res.ok) {
         console.warn('LGA boundary missing — run build_viewer_layers.py --force');
         return;

@@ -5,7 +5,7 @@ alwaysApply: true
 
 # YourWalk
 
-City of Casey pilot. Phase B = data pipeline only (DuckDB → GeoParquet → PostGIS). No Next.js app until pipeline base datasets are ingested.
+City of Casey pilot. Phase B pipeline + scoring complete (Accepted v1.1 / v1.1.2). Phase C (from 15 Jul 2026) = PostGIS load + Next.js/Mapbox app build.
 
 CrowdLab-wide conventions are injected every session from `~/.cursor/crowdlab/conventions.md`. This file is YourWalk-specific only.
 
