@@ -49,3 +49,6 @@ pipeline/data/viewer/*
 pipeline/.venv/
 pipeline/**/*.egg-info/
 pipeline/**/__pycache__/
+
+# Vercel CLI (link from repo root)
+.vercel/

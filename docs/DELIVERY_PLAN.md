@@ -177,7 +177,7 @@ Full column list: [`SCORING_SPEC_v1.1.md`](SCORING_SPEC_v1.1.md) §9.
 3. ✅ Geocode / place search (Mapbox, Casey bbox) + map pick + reverse label
 4. ✅ Routing vision locked: Mapbox post-hoc for pilot ship; **score-aware routing** = north star + bake-off (ADR-001, backlog L2c)
 5. ✅ Empty states / confidence copy on resident route cards
-6. ⏳ Preview deploy
+6. ✅ Preview deploy (Vercel project `yourwalk`, root `web/`)
 
 **Out of scope:** Council dashboard, submissions, weighted-cost routing, outing/loop mode
 
