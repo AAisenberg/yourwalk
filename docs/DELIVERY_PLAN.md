@@ -94,11 +94,99 @@ Full column list: [`SCORING_SPEC_v1.1.md`](SCORING_SPEC_v1.1.md) §9.
 - ✅ Casey LGA boundary outline (Storage `casey_lga_boundary.geojson`)
 - Deferred: confidence style mode, Vercel preview deploy, routing (Sprint C)
 
-### Sprint C — Routing vertical slice (follows B)
+### Sprint C — Routing vertical slice (16–30 Jul 2026)
 
-**Goal:** Origin/destination → 2–3 walk routes → length-weighted Day/Night scores from PostGIS segments — backlog **N1 + N2**. Implements ADR-001 lean.
+**Started:** 16 July 2026  
+**One-line goal:** User picks origin and destination in Casey → sees 2–3 walk routes → each ranked with Day/Night (and Accessibility) scores from PostGIS segments.
+
+**Backlog:** N1 (plan route) + N2 (route scoring) · **ADR-001 lean** (post-hoc Mapbox Directions + segment aggregation)
+
+**Locked lean decisions (start of sprint):**
+
+| Topic | Decision |
+|-------|----------|
+| Router | Mapbox Directions API, `walking` profile, up to 3 alternatives |
+| Ranking | Post-hoc: score geometries after routing (not weighted-cost inside router) |
+| Aggregation | **Length-weighted mean** of segment scores along matched corridor |
+| Matching | Segments intersecting route corridor buffered **20 m** (metric CRS) |
+| Endpoints | Both origin and destination must be inside Casey LGA (bbox + LGA check) |
+| Display | Index scores as 0–10 (`/10`); absolute 0–100 kept in detail |
+| Night vs Day | UI toggle — which index sorts/highlights routes (default Day) |
+| Language | No safety guarantees |
+
+**Build slices:**
+
+1. Place picking — map click (and optional geocode later) for origin/destination  
+2. Directions — Mapbox walking alternatives → polylines + distance/duration  
+3. Score API — PostGIS `score_route_corridor` RPC over `segment_scores`  
+4. UI — draw routes, list cards, select + breakdown + confidence  
+5. Day/Night toggle for ranking  
+
+**Acceptance criteria:**
+
+- Given two points inside Casey LGA  
+  When the user plans a route  
+  Then 2–3 walk alternatives appear on the map with distance and walking time  
+
+- Given each alternative  
+  When scores are computed  
+  Then Day Index, Night Index, and Accessibility are shown (0–10) from length-weighted segment means  
+  And reduced confidence is shown when matched coverage is thin  
+
+- Given the Day/Night toggle  
+  When the user switches mode  
+  Then route list ordering can follow that index  
+
+**Out of scope:** weighted-cost routing, submissions, Council dashboard, Vercel prod (preview optional)
+
+**Depends on:** PostGIS `segment_scores` loaded (Sprint A) · Mapbox token · Casey LGA boundary
+
+**Sprint C progress (16 Jul 2026):**
+- ✅ Sprint block + N1/N2 acceptance criteria in this plan / backlog
+- ✅ Map click origin/destination + Mapbox Directions walking
+- ✅ Multi-route generation: alternatives + `walkway_bias` + via-points + dedupe (ADR-001 addendum)
+- ✅ Length-weighted Day/Night/Accessibility on routes (client GeoJSON corridor, 20 m)
+- ✅ Preference-weighted ranking (mockup themes) — ranks candidates, does not generate paths
+- ✅ Lab scored network = T1EAM **polygons** with Leaflet-style fill; resident `/` has **no** scoring choropleth
+- ✅ Split surfaces: **`/` resident app** · **`/lab` scored-network workbench**
+- ⏳ PostGIS `score_route_corridor` RPC — migration written; apply with `DATABASE_URL`
+- ⏳ Geocode address search
+- ⏳ Point-in-LGA polygon (currently Casey bbox)
+
+### Sprint D — Resident app (mockup-led) (from 16 Jul 2026)
+
+**One-line goal:** Mobile-first community routing UI per `mobile-mockup/` — From/To, Day/Night, preference sliders, 2–3 scored route cards.
+
+**Audience:** Casey residents (not Council staff).
+
+**Locked:**
+| Topic | Decision |
+|-------|----------|
+| Surfaces | `/` = resident · `/lab` = internal workbench · Council dashboard **after** resident slice |
+| Network paint | **Lines only** (link network); no polygon fill |
+| Multi-route | Trip mode: Mapbox alternatives + mild bias; **no vias**; max 1.3× shortest |
+| Ranking | Preference blend **+** time/distance efficiency (post-hoc ADR-001) |
+| Prefs | After dark → Night · Accessible → Accessibility · Shade/heat → Day Index |
+| Outing mode | Backlog later (~25 min from start / loops) — not MVP |
+| Score-aware routing | **North star** (Casey scores drive pathfinding) — Mapbox post-hoc for pilot ship; bake-off backlog L2c |
+| Dashboard | Deferred to Sprint E |
+
+**Build slices:**
+1. ✅ Resident shell from mockup (`/` + prefs + route cards)
+2. ✅ Trip-mode generation + ranking (prefs + time/distance; vias removed)
+3. ✅ Geocode / place search (Mapbox, Casey bbox) + map pick + reverse label
+4. ✅ Routing vision locked: Mapbox post-hoc for pilot ship; **score-aware routing** = north star + bake-off (ADR-001, backlog L2c)
+5. ✅ Empty states / confidence copy on resident route cards
+6. ⏳ Preview deploy
+
+**Out of scope:** Council dashboard, submissions, weighted-cost routing, outing/loop mode
+
+### Sprint E — Council insights (after D)
+
+**One-line goal:** Staff insights surface per `council-dashboard-mockup/` — hotspots, suburb focus, choropleth evidence. Routing optional, not required.
 
 ---
+
 
 ## Phase: MVP (original Sprints 1–6 — historical)
 

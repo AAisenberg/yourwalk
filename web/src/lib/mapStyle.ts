@@ -30,41 +30,33 @@ export function scoreColorExpression(
 }
 
 /**
- * City / suburb zoom: draw polygon exteriors as score-coloured strokes.
- * Thin T1EAM footpath polygons read as a network; fill shards are avoided.
+ * Lab scored network — T1EAM polygons filled like Leaflet QA
+ * (`fillOpacity` ~0.72, hairline outline). Do not use line-only on polygons
+ * (that strokes rings → shards).
  */
-export function segmentsLinePaint(
-  scoreField: ScoreField,
-): LineLayerSpecification["paint"] {
-  return {
-    "line-color": scoreColorExpression(scoreField),
-    "line-width": [
-      "interpolate",
-      ["linear"],
-      ["zoom"],
-      9,
-      1.2,
-      11,
-      1.5,
-      13,
-      2.0,
-      15,
-      2.6,
-      17,
-      3.4,
-    ],
-    "line-opacity": 0.9,
-  };
-}
-
-/** Street-level zoom only: true polygon footprint. */
 export function segmentsFillPaint(
   scoreField: ScoreField,
 ): FillLayerSpecification["paint"] {
   return {
     "fill-color": scoreColorExpression(scoreField),
-    "fill-opacity": 0.55,
+    "fill-opacity": 0.72,
   };
 }
 
-export const SEGMENTS_FILL_MIN_ZOOM = 15;
+/** Hairline outline matching fill colour (Leaflet weight: 1). */
+export function segmentsOutlinePaint(
+  scoreField: ScoreField,
+): LineLayerSpecification["paint"] {
+  return {
+    "line-color": scoreColorExpression(scoreField),
+    "line-width": 1,
+    "line-opacity": 0.9,
+  };
+}
+
+/** @deprecated Use segmentsOutlinePaint — kept for call-site migration. */
+export function segmentsLinePaint(
+  scoreField: ScoreField,
+): LineLayerSpecification["paint"] {
+  return segmentsOutlinePaint(scoreField);
+}

@@ -1,4 +1,8 @@
-"""Build a lean map GeoJSON from segment_scores.parquet for CDN / Storage hosting."""
+"""Build a lean map GeoJSON from segment_scores.parquet for CDN / Storage hosting.
+
+Default: T1EAM **polygons** (source geometry). Lab paints them with Mapbox fill
+like the Leaflet QA map — not derived centerlines.
+"""
 
 from __future__ import annotations
 
@@ -19,6 +23,7 @@ MAP_COLUMNS = [
     "confidence_day",
     "confidence_night",
     "scoring_spec_version",
+    "length_m",
     "geometry",
 ]
 
@@ -32,16 +37,29 @@ def build_map_geojson(
     eligible_only: bool = True,
     simplify_deg: float = SIMPLIFY_DEG,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Return (FeatureCollection dict, meta dict)."""
+    """Return (FeatureCollection dict, meta dict) with polygon geometries."""
     gdf = gpd.read_parquet(parquet_path)
     if eligible_only and "score_eligible" in gdf.columns:
         gdf = gdf[gdf["score_eligible"].fillna(False)].copy()
 
-    missing = [c for c in MAP_COLUMNS if c not in gdf.columns]
+    required = [
+        "segment_id",
+        "walk_path_class",
+        "suburb",
+        "day_index_score",
+        "night_index_score",
+        "accessibility_score",
+        "confidence_day",
+        "confidence_night",
+        "scoring_spec_version",
+        "geometry",
+    ]
+    missing = [c for c in required if c not in gdf.columns]
     if missing:
         raise ValueError(f"Parquet missing columns: {missing}")
 
-    gdf = gdf[MAP_COLUMNS].copy()
+    keep = [c for c in MAP_COLUMNS if c in gdf.columns]
+    gdf = gdf[keep].copy()
     if gdf.crs is None:
         gdf = gdf.set_crs(4326)
     elif gdf.crs.to_epsg() != 4326:
@@ -50,16 +68,13 @@ def build_map_geojson(
     if simplify_deg and simplify_deg > 0:
         gdf["geometry"] = gdf.geometry.simplify(simplify_deg, preserve_topology=True)
 
-    # Drop null geometries
     gdf = gdf[~gdf.geometry.is_empty & gdf.geometry.notna()].copy()
 
     spec = None
     if len(gdf) and gdf["scoring_spec_version"].notna().any():
         spec = str(gdf["scoring_spec_version"].dropna().iloc[0])
 
-    # Faster than to_file round-trip for in-memory upload
     geo = json.loads(gdf.to_json())
-    # to_json may omit crs; ensure FeatureCollection
     if geo.get("type") != "FeatureCollection":
         raise ValueError("Expected FeatureCollection from GeoDataFrame.to_json()")
 
@@ -69,6 +84,7 @@ def build_map_geojson(
         "methodology_version": "1.1",
         "eligible_only": eligible_only,
         "simplify_deg": simplify_deg,
+        "geometry_kind": "Polygon",
         "built_at": datetime.now(UTC).isoformat(),
         "source": str(parquet_path.name),
     }
@@ -81,7 +97,7 @@ def write_map_geojson_files(
     out_gzip: Path | None = None,
     out_meta: Path | None = None,
 ) -> dict[str, Any]:
-    """Write lean GeoJSON (+ optional gzip and meta.json). Returns meta."""
+    """Write lean polygon GeoJSON (+ optional gzip and meta.json). Returns meta."""
     import gzip
 
     collection, meta = build_map_geojson(parquet_path)

@@ -75,12 +75,12 @@ Before a backlog item is considered complete, it must meet all of the following:
 
 **Dependencies**: N0a; Mapbox token; Vercel preview
 
-**Status**: ✅ Done (15 Jul 2026) — Sprint A + B polish: Storage GeoJSON map paint, loading UX, Casey-stretched colours, suburb + path-class filters, Casey LGA outline. Next: Sprint C routing (N1/N2).
+**Status**: ✅ Done (15 Jul 2026) — Sprint A + B polish: Storage GeoJSON map paint, loading UX, Casey-stretched colours, suburb + path-class filters, Casey LGA outline.
 
 ---
 
 ### N1: Plan route between two points
-**Links**: [`FLOWS/01_plan_route.md`](FLOWS/01_plan_route.md), [`REQS/routing.md`](REQS/routing.md)
+**Links**: [`FLOWS/01_plan_route.md`](FLOWS/01_plan_route.md), [`REQS/routing.md`](REQS/routing.md), [`DELIVERY_PLAN.md`](DELIVERY_PLAN.md) (Sprint C)
 
 **Description**: User can enter origin and destination, see route options on map with basic scores.
 
@@ -93,21 +93,25 @@ Before a backlog item is considered complete, it must meet all of the following:
 
 **Dependencies**: Routing engine decision, base map data, pilot area boundaries
 
+**Status**: 🔄 In progress (Sprint D) — Trip mode: Mapbox alternatives + mild bias (no vias), rank by prefs + time/distance; resident `/`; workbench at `/lab`. Outing/loop mode deferred.
+
 ---
 
 ### N2: Display basic route scoring
-**Links**: [`REQS/scoring_and_rankings.md`](REQS/scoring_and_rankings.md)
+**Links**: [`REQS/scoring_and_rankings.md`](REQS/scoring_and_rankings.md), [`DELIVERY_PLAN.md`](DELIVERY_PLAN.md) (Sprint C)
 
-**Description**: Routes display scores for lighting, accessibility, and climate, with overall score.
+**Description**: Routes display Day/Night and Accessibility scores (0–10) with confidence, from length-weighted segment aggregation.
 
 **Acceptance Criteria**:
 - Given a route is displayed
 - When the user views the route details
-- Then they see scores for lighting (0-10), accessibility (0-10), climate (0-10)
-- And they see an overall score (0-10)
-- And they see basic confidence indicators for each score component
+- Then they see Day Index, Night Index, and Accessibility (0–10)
+- And they see basic confidence indicators
+- And scores use length-weighted means of matched footpath segments (not imputed zeros)
 
-**Dependencies**: Scoring algorithm, data sources for each stream
+**Dependencies**: Scoring algorithm, PostGIS `segment_scores` (or client GeoJSON fallback)
+
+**Status**: 🔄 In progress (Sprint C started 16 Jul 2026).
 
 ---
 
@@ -308,6 +312,41 @@ Before a backlog item is considered complete, it must meet all of the following:
 - And preferences are saved for future sessions (if logged in)
 
 **Dependencies**: Preference system, scoring algorithm updates
+
+---
+
+### L2b: Outing mode (timed / local walk)
+**Links**: [`DECISIONS.md`](DECISIONS.md) ADR-001, [`DELIVERY_PLAN.md`](DELIVERY_PLAN.md) Sprint D
+
+**Description**: User sets a start (and optional duration, e.g. ~25 min) for a local walk / loop — not a fixed A→B trip. Score and rank outing geometries with the same index.
+
+**Acceptance Criteria**:
+- Given a user chooses outing mode and a start point
+- When they request a walk of about N minutes
+- Then 1–3 outing options are offered near that duration
+- And each shows Day/Night/Accessibility (or preference blend) with confidence
+- And trip mode (A→B) remains available
+
+**Dependencies**: Trip mode stable; ADR-001 post-hoc
+
+**Status**: Backlog — after trip mode polish
+
+---
+
+### L2c: Score-aware routing bake-off (pilot)
+**Links**: [`DECISIONS.md`](DECISIONS.md) ADR-001 north star
+
+**Description**: Prototype pathfinding that uses Casey segment scores (and prefs) as edge costs. Compare against current Mapbox post-hoc trip mode on a fixed OD sample. This is the product vision for directing people onto better local walking conditions — Mapbox remains the lean ship path until evidence says otherwise.
+
+**Acceptance Criteria**:
+- Given a defined set of Casey origin/destination pairs
+- When Mapbox post-hoc and a score-aware router both produce trip options
+- Then we can compare: index scores, distance/time detour, whether better corridors were missed, and qualitative UX
+- And findings feed an ADR-001 revisit (stay post-hoc / hybrid / switch)
+
+**Dependencies**: Stable segment scores in PostGIS; trip mode baseline; engine choice (GraphHopper / Valhalla / custom)
+
+**Status**: Backlog — pilot experiment (not blocking current Mapbox trip UI)
 
 ---
 

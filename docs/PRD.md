@@ -150,8 +150,8 @@ The interface emphasises transparency: users always know where data comes from, 
 
 ### System Architecture (High Level)
 
-- **Frontend**: Web-based map interface (technology choice pending, see [`DECISIONS.md`](DECISIONS.md))
-- **Routing engine**: Calculates route options, then applies scoring/ranking (approach pending, see [`DECISIONS.md`](DECISIONS.md))
+- **Frontend**: Web-based map interface (Mapbox GL JS — ADR-002; see [`DECISIONS.md`](DECISIONS.md))
+- **Routing engine**: MVP trip mode uses Mapbox Directions then post-hoc Day/Night scoring and preference ranking (ADR-001 lean). North star is score-aware pathfinding on Casey segment scores (bake-off backlog L2c); see [`DECISIONS.md`](DECISIONS.md)
 - **Data ingestion**: Processes community contributions, Council data, and environmental data sources
 - **Scoring system**: Combines multiple data streams into route scores and layer visualisations
 - **Insights engine**: Aggregates data for Council dashboard (hotspots, corridors, prioritisation)
@@ -299,8 +299,8 @@ See [`RISKS_AND_MITIGATIONS.md`](RISKS_AND_MITIGATIONS.md) for comprehensive ris
 
 Open questions are documented in relevant requirements documents and [`DECISIONS.md`](DECISIONS.md). Key open questions include:
 
-- Routing engine approach (post-hoc ranking vs weighted cost routing)
-- Map technology choice (MapLibre, Leaflet, etc.)
+- Routing engine approach — lean accepted (Mapbox post-hoc trip; score-aware north star / L2c bake-off); formal revisit after comparison evidence ([`DECISIONS.md`](DECISIONS.md) ADR-001)
+- Map technology choice — accepted: Mapbox GL JS (ADR-002)
 - Data storage and versioning strategy
 - Privacy stance (anonymous by default vs accounts)
 - Confidence scoring model for integrated layers

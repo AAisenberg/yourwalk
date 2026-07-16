@@ -1,9 +1,5 @@
-import { ScoringMap } from "@/components/map/ScoringMap";
+import { ResidentApp } from "@/components/resident/ResidentApp";
 
 export default function Home() {
-  return (
-    <main className="h-dvh w-full">
-      <ScoringMap />
-    </main>
-  );
+  return <ResidentApp />;
 }

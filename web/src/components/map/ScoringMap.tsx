@@ -2,7 +2,7 @@
 
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   defaultLgaBoundaryUrl,
@@ -17,11 +17,10 @@ import {
   listSuburbs,
   segmentsLayerFilter,
 } from "@/lib/mapFilters";
-import {
-  SEGMENTS_FILL_MIN_ZOOM,
-  segmentsFillPaint,
-  segmentsLinePaint,
-} from "@/lib/mapStyle";
+import { segmentsFillPaint, segmentsOutlinePaint } from "@/lib/mapStyle";
+import { formatDistance, formatDuration } from "@/lib/routing/geo";
+import { planScoredRoutes, sortRoutes } from "@/lib/routing/planRoute";
+import type { LngLat, RankMode, ScoredRoute } from "@/lib/routing/types";
 import {
   CASEY_BOUNDS,
   CASEY_SCORE_RAMPS,
@@ -31,6 +30,9 @@ import {
 } from "@/lib/scores";
 
 type LoadPhase = "map" | "segments" | "ready" | "error";
+type PickMode = "idle" | "origin" | "destination";
+
+const ROUTE_COLORS = ["#38bdf8", "#c084fc", "#fbbf24"] as const;
 
 function popupHtml(p: GeoJSON.GeoJsonProperties): string {
   if (!p) return "";
@@ -59,10 +61,17 @@ function resolveLgaUrl(): string | null {
   return null;
 }
 
+function displayOrDash(v: number | null): string {
+  return v == null ? "—" : v.toFixed(1);
+}
+
 export function ScoringMap() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const featuresRef = useRef<GeoJSON.Feature[]>([]);
+  const pickModeRef = useRef<PickMode>("idle");
+  const originMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const destMarkerRef = useRef<mapboxgl.Marker | null>(null);
 
   const [scoreField, setScoreField] = useState<ScoreField>("day_index_score");
   const [suburb, setSuburb] = useState<string>("all");
@@ -79,7 +88,82 @@ export function ScoringMap() {
   const [error, setError] = useState<string | null>(null);
   const [lgaLoaded, setLgaLoaded] = useState(false);
 
+  const [pickMode, setPickMode] = useState<PickMode>("idle");
+  const [origin, setOrigin] = useState<LngLat | null>(null);
+  const [destination, setDestination] = useState<LngLat | null>(null);
+  const [routes, setRoutes] = useState<ScoredRoute[]>([]);
+  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
+  const [rankMode, setRankMode] = useState<RankMode>("day");
+  const [planning, setPlanning] = useState(false);
+  const [routeError, setRouteError] = useState<string | null>(null);
+
   const loading = loadPhase === "map" || loadPhase === "segments";
+
+  useEffect(() => {
+    pickModeRef.current = pickMode;
+  }, [pickMode]);
+
+  const ensureRouteLayers = useCallback((map: mapboxgl.Map) => {
+    if (!map.getSource("routes")) {
+      map.addSource("routes", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+      map.addLayer({
+        id: "routes-line",
+        type: "line",
+        source: "routes",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": ["get", "color"],
+          "line-width": [
+            "case",
+            ["boolean", ["get", "selected"], false],
+            7.5,
+            4.5,
+          ],
+          "line-opacity": 0.92,
+        },
+      });
+      map.on("click", "routes-line", (e) => {
+        const id = e.features?.[0]?.properties?.id;
+        if (typeof id === "string") setSelectedRouteId(id);
+      });
+      map.on("mouseenter", "routes-line", () => {
+        map.getCanvas().style.cursor = "pointer";
+      });
+      map.on("mouseleave", "routes-line", () => {
+        if (pickModeRef.current === "idle") {
+          map.getCanvas().style.cursor = "";
+        }
+      });
+    }
+  }, []);
+
+  const paintRoutes = useCallback(
+    (list: ScoredRoute[], selectedId: string | null) => {
+      const map = mapRef.current;
+      if (!map?.getSource("routes")) return;
+      const features: GeoJSON.Feature[] = list.map((r, i) => ({
+        type: "Feature",
+        properties: {
+          id: r.id,
+          color: ROUTE_COLORS[i % ROUTE_COLORS.length],
+          selected: r.id === selectedId,
+        },
+        geometry: r.geometry,
+      }));
+      (map.getSource("routes") as mapboxgl.GeoJSONSource).setData({
+        type: "FeatureCollection",
+        features,
+      });
+    },
+    [],
+  );
+
+  useEffect(() => {
+    paintRoutes(routes, selectedRouteId);
+  }, [routes, selectedRouteId, paintRoutes]);
 
   useEffect(() => {
     const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
@@ -125,7 +209,6 @@ export function ScoringMap() {
         setVisibleCount(features.length);
         setStatus(`Drawing ${features.length.toLocaleString()} segments…`);
 
-        // LGA outline under segments (context — not a score layer)
         const lgaUrl = resolveLgaUrl();
         if (lgaUrl) {
           try {
@@ -170,26 +253,28 @@ export function ScoringMap() {
           buffer: 128,
         });
 
+        // Leaflet QA style: filled polygons + hairline outline (not line-on-ring)
         map.addLayer({
-          id: "segments-line",
+          id: "segments-fill",
+          type: "fill",
+          source: "segments",
+          paint: segmentsFillPaint(scoreField),
+        });
+        map.addLayer({
+          id: "segments-outline",
           type: "line",
           source: "segments",
           layout: {
             "line-cap": "round",
             "line-join": "round",
           },
-          paint: segmentsLinePaint(scoreField),
+          paint: segmentsOutlinePaint(scoreField),
         });
 
-        map.addLayer({
-          id: "segments-fill",
-          type: "fill",
-          source: "segments",
-          minzoom: SEGMENTS_FILL_MIN_ZOOM,
-          paint: segmentsFillPaint(scoreField),
-        });
+        ensureRouteLayers(map);
 
-        const onClick = (e: mapboxgl.MapLayerMouseEvent) => {
+        const onSegmentClick = (e: mapboxgl.MapLayerMouseEvent) => {
+          if (pickModeRef.current !== "idle") return;
           const f = e.features?.[0];
           if (!f?.properties) return;
           new mapboxgl.Popup()
@@ -198,17 +283,32 @@ export function ScoringMap() {
             .addTo(map);
         };
 
-        map.on("click", "segments-line", onClick);
-        map.on("click", "segments-fill", onClick);
-
-        for (const layerId of ["segments-line", "segments-fill"] as const) {
+        for (const layerId of ["segments-fill", "segments-outline"] as const) {
+          map.on("click", layerId, onSegmentClick);
           map.on("mouseenter", layerId, () => {
-            map.getCanvas().style.cursor = "pointer";
+            if (pickModeRef.current === "idle") {
+              map.getCanvas().style.cursor = "pointer";
+            }
           });
           map.on("mouseleave", layerId, () => {
-            map.getCanvas().style.cursor = "";
+            if (pickModeRef.current === "idle") {
+              map.getCanvas().style.cursor = "";
+            }
           });
         }
+
+        map.on("click", (e) => {
+          const mode = pickModeRef.current;
+          if (mode === "idle") return;
+          const point: LngLat = { lng: e.lngLat.lng, lat: e.lngLat.lat };
+          if (mode === "origin") {
+            setOrigin(point);
+            setPickMode("idle");
+          } else {
+            setDestination(point);
+            setPickMode("idle");
+          }
+        });
 
         setStatus(
           `${body.meta?.feature_count?.toLocaleString() ?? features.length.toLocaleString()} segments · spec ${body.meta?.scoring_spec_version ?? "—"}`,
@@ -225,37 +325,86 @@ export function ScoringMap() {
     });
 
     return () => {
+      originMarkerRef.current?.remove();
+      destMarkerRef.current?.remove();
       map.remove();
       mapRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Origin / destination markers
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (origin) {
+      if (!originMarkerRef.current) {
+        originMarkerRef.current = new mapboxgl.Marker({ color: "#22c55e" })
+          .setLngLat([origin.lng, origin.lat])
+          .addTo(map);
+      } else {
+        originMarkerRef.current.setLngLat([origin.lng, origin.lat]);
+      }
+    } else {
+      originMarkerRef.current?.remove();
+      originMarkerRef.current = null;
+    }
+
+    if (destination) {
+      if (!destMarkerRef.current) {
+        destMarkerRef.current = new mapboxgl.Marker({ color: "#ef4444" })
+          .setLngLat([destination.lng, destination.lat])
+          .addTo(map);
+      } else {
+        destMarkerRef.current.setLngLat([destination.lng, destination.lat]);
+      }
+    } else {
+      destMarkerRef.current?.remove();
+      destMarkerRef.current = null;
+    }
+  }, [origin, destination]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    map.getCanvas().style.cursor =
+      pickMode === "idle" ? "" : "crosshair";
+  }, [pickMode]);
+
   // Choropleth field
   useEffect(() => {
     const map = mapRef.current;
-    if (!map?.getLayer("segments-line")) return;
+    if (!map?.getLayer("segments-fill")) return;
 
-    const linePaint = segmentsLinePaint(scoreField);
-    map.setPaintProperty("segments-line", "line-color", linePaint!["line-color"]);
-    map.setPaintProperty("segments-line", "line-width", linePaint!["line-width"]);
+    const fillPaint = segmentsFillPaint(scoreField);
     map.setPaintProperty(
-      "segments-line",
-      "line-opacity",
-      linePaint!["line-opacity"],
+      "segments-fill",
+      "fill-color",
+      fillPaint!["fill-color"],
+    );
+    map.setPaintProperty(
+      "segments-fill",
+      "fill-opacity",
+      fillPaint!["fill-opacity"],
     );
 
-    if (map.getLayer("segments-fill")) {
-      const fillPaint = segmentsFillPaint(scoreField);
+    if (map.getLayer("segments-outline")) {
+      const outline = segmentsOutlinePaint(scoreField);
       map.setPaintProperty(
-        "segments-fill",
-        "fill-color",
-        fillPaint!["fill-color"],
+        "segments-outline",
+        "line-color",
+        outline!["line-color"],
       );
       map.setPaintProperty(
-        "segments-fill",
-        "fill-opacity",
-        fillPaint!["fill-opacity"],
+        "segments-outline",
+        "line-width",
+        outline!["line-width"],
+      );
+      map.setPaintProperty(
+        "segments-outline",
+        "line-opacity",
+        outline!["line-opacity"],
       );
     }
   }, [scoreField]);
@@ -263,12 +412,12 @@ export function ScoringMap() {
   // Suburb / path-class filters
   useEffect(() => {
     const map = mapRef.current;
-    if (!map?.getLayer("segments-line") || loadPhase !== "ready") return;
+    if (!map?.getLayer("segments-fill") || loadPhase !== "ready") return;
 
     const filter = segmentsLayerFilter(suburb, pathClass);
-    map.setFilter("segments-line", filter);
-    if (map.getLayer("segments-fill")) {
-      map.setFilter("segments-fill", filter);
+    map.setFilter("segments-fill", filter);
+    if (map.getLayer("segments-outline")) {
+      map.setFilter("segments-outline", filter);
     }
 
     const n = countMatching(featuresRef.current, suburb, pathClass);
@@ -277,7 +426,7 @@ export function ScoringMap() {
     const bounds = boundsForFilter(featuresRef.current, suburb, pathClass);
     if (suburb !== "all" && bounds) {
       map.fitBounds(bounds, { padding: 48, maxZoom: 14, duration: 800 });
-    } else if (suburb === "all") {
+    } else if (suburb === "all" && routes.length === 0) {
       map.fitBounds(
         [
           [CASEY_BOUNDS.west, CASEY_BOUNDS.south],
@@ -286,9 +435,64 @@ export function ScoringMap() {
         { padding: 40, duration: 800 },
       );
     }
-  }, [suburb, pathClass, loadPhase]);
+  }, [suburb, pathClass, loadPhase, routes.length]);
+
+  const onPlanRoute = async () => {
+    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+    if (!token || !origin || !destination) return;
+
+    setPlanning(true);
+    setRouteError(null);
+    try {
+      const scored = await planScoredRoutes(
+        origin,
+        destination,
+        featuresRef.current,
+        token,
+      );
+      const ordered = sortRoutes(scored, rankMode);
+      setRoutes(ordered);
+      setSelectedRouteId(ordered[0]?.id ?? null);
+
+      const map = mapRef.current;
+      if (map && ordered.length) {
+        const bounds = new mapboxgl.LngLatBounds();
+        for (const r of ordered) {
+          for (const c of r.geometry.coordinates) {
+            bounds.extend(c as [number, number]);
+          }
+        }
+        bounds.extend([origin.lng, origin.lat]);
+        bounds.extend([destination.lng, destination.lat]);
+        map.fitBounds(bounds, { padding: 64, maxZoom: 15, duration: 700 });
+      }
+    } catch (err) {
+      setRoutes([]);
+      setSelectedRouteId(null);
+      setRouteError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPlanning(false);
+    }
+  };
+
+  // Re-sort when rank mode changes
+  useEffect(() => {
+    if (!routes.length) return;
+    setRoutes((prev) => sortRoutes(prev, rankMode));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rankMode]);
+
+  const clearRoute = () => {
+    setRoutes([]);
+    setSelectedRouteId(null);
+    setRouteError(null);
+    setOrigin(null);
+    setDestination(null);
+    setPickMode("idle");
+  };
 
   const stops = legendStops(scoreField);
+  const selected = routes.find((r) => r.id === selectedRouteId) ?? null;
 
   return (
     <div className="relative h-full w-full">
@@ -320,13 +524,189 @@ export function ScoringMap() {
       ) : null}
 
       <div className="absolute left-4 top-4 z-10 max-h-[calc(100dvh-2rem)] max-w-sm overflow-y-auto rounded-lg border border-slate-700 bg-slate-950/90 p-3 text-sm text-slate-100 shadow-lg backdrop-blur">
-        <div className="mb-2 text-base font-semibold tracking-tight">
-          YourWalk
+        <div className="mb-1 flex items-baseline justify-between gap-2">
+          <div className="text-base font-semibold tracking-tight">
+            YourWalk lab
+          </div>
+          <a
+            href="/"
+            className="text-[11px] text-sky-400 underline-offset-2 hover:underline"
+          >
+            Resident app
+          </a>
         </div>
         <p className="mb-3 text-xs text-slate-400">
-          Casey scored footpaths · higher = better conditions · not a safety
-          guarantee
+          Internal scored-network workbench · T1EAM polygons (Leaflet-style fill)
+          · not the community UI
         </p>
+
+        <div className="mb-3 rounded border border-slate-700 bg-slate-900/60 p-2">
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-sky-300">
+            Plan a walk
+          </div>
+          <p className="mb-2 text-[11px] text-slate-400">
+            Click Set origin / Set destination, then click the map (Casey bbox).
+          </p>
+          <div className="mb-2 flex gap-2">
+            <button
+              type="button"
+              className={`flex-1 rounded border px-2 py-1.5 text-xs ${
+                pickMode === "origin"
+                  ? "border-green-400 bg-green-900/40 text-green-100"
+                  : "border-slate-600 bg-slate-900 text-slate-200"
+              }`}
+              onClick={() =>
+                setPickMode((m) => (m === "origin" ? "idle" : "origin"))
+              }
+              disabled={loading}
+            >
+              {origin ? "Origin set" : "Set origin"}
+            </button>
+            <button
+              type="button"
+              className={`flex-1 rounded border px-2 py-1.5 text-xs ${
+                pickMode === "destination"
+                  ? "border-red-400 bg-red-900/40 text-red-100"
+                  : "border-slate-600 bg-slate-900 text-slate-200"
+              }`}
+              onClick={() =>
+                setPickMode((m) =>
+                  m === "destination" ? "idle" : "destination",
+                )
+              }
+              disabled={loading}
+            >
+              {destination ? "Destination set" : "Set destination"}
+            </button>
+          </div>
+          <div className="mb-2 flex gap-1">
+            {(
+              [
+                ["day", "Day"],
+                ["night", "Night"],
+                ["accessibility", "Acc"],
+              ] as const
+            ).map(([mode, label]) => (
+              <button
+                key={mode}
+                type="button"
+                className={`flex-1 rounded border px-1 py-1 text-[11px] ${
+                  rankMode === mode
+                    ? "border-sky-400 bg-sky-950 text-sky-100"
+                    : "border-slate-600 bg-slate-900 text-slate-300"
+                }`}
+                onClick={() => {
+                  setRankMode(mode);
+                  if (mode === "day") setScoreField("day_index_score");
+                  if (mode === "night") setScoreField("night_index_score");
+                  if (mode === "accessibility")
+                    setScoreField("accessibility_score");
+                }}
+              >
+                Rank {label}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="flex-1 rounded bg-sky-600 px-2 py-1.5 text-xs font-medium text-white disabled:opacity-40"
+              onClick={onPlanRoute}
+              disabled={loading || planning || !origin || !destination}
+            >
+              {planning ? "Planning…" : "Plan route"}
+            </button>
+            <button
+              type="button"
+              className="rounded border border-slate-600 px-2 py-1.5 text-xs text-slate-300"
+              onClick={clearRoute}
+              disabled={planning}
+            >
+              Clear
+            </button>
+          </div>
+          {routeError ? (
+            <p className="mt-2 text-[11px] text-amber-400">{routeError}</p>
+          ) : null}
+
+          {routes.length > 0 ? (
+            <ul className="mt-3 space-y-2">
+              {routes.map((r, i) => {
+                const active = r.id === selectedRouteId;
+                const score =
+                  rankMode === "day"
+                    ? r.score.day_display
+                    : rankMode === "night"
+                      ? r.score.night_display
+                      : r.score.accessibility_display;
+                return (
+                  <li key={r.id}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedRouteId(r.id)}
+                      className={`w-full rounded border px-2 py-1.5 text-left text-xs ${
+                        active
+                          ? "border-sky-400 bg-slate-800"
+                          : "border-slate-700 bg-slate-950/50"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium">
+                          <span
+                            className="mr-1.5 inline-block h-2 w-2 rounded-full"
+                            style={{
+                              background: ROUTE_COLORS[i % ROUTE_COLORS.length],
+                            }}
+                          />
+                          Route {i + 1}
+                        </span>
+                        <span className="text-sky-200">
+                          {displayOrDash(score)} / 10
+                        </span>
+                      </div>
+                      <div className="mt-0.5 text-[11px] text-slate-400">
+                        {formatDistance(r.distance_m)} ·{" "}
+                        {formatDuration(r.duration_s)}
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
+
+          {selected ? (
+            <div className="mt-2 rounded border border-slate-700 bg-slate-950/70 p-2 text-[11px] text-slate-300">
+              <div className="font-medium text-slate-100">Selected breakdown</div>
+              <div className="mt-1 grid grid-cols-3 gap-1 text-center">
+                <div>
+                  <div className="text-slate-500">Day</div>
+                  <div>{displayOrDash(selected.score.day_display)}</div>
+                </div>
+                <div>
+                  <div className="text-slate-500">Night</div>
+                  <div>{displayOrDash(selected.score.night_display)}</div>
+                </div>
+                <div>
+                  <div className="text-slate-500">Acc</div>
+                  <div>
+                    {displayOrDash(selected.score.accessibility_display)}
+                  </div>
+                </div>
+              </div>
+              <p className="mt-1.5 text-slate-500">
+                Confidence day {selected.score.confidence_day} · night{" "}
+                {selected.score.confidence_night} · {selected.score.segment_count}{" "}
+                segments · coverage{" "}
+                {(selected.score.coverage_ratio * 100).toFixed(0)}%
+              </p>
+              <p className="mt-1 text-[10px] text-slate-600">
+                Length-weighted mean · {selected.score.source} · not a safety
+                guarantee
+              </p>
+            </div>
+          ) : null}
+        </div>
 
         <label className="mb-1 block text-xs font-medium text-slate-300">
           Style by
@@ -353,7 +733,9 @@ export function ScoringMap() {
           onChange={(e) => setSuburb(e.target.value)}
           disabled={loading || suburbs.length === 0}
         >
-          <option value="all">All Casey ({meta?.feature_count?.toLocaleString() ?? "—"})</option>
+          <option value="all">
+            All Casey ({meta?.feature_count?.toLocaleString() ?? "—"})
+          </option>
           {suburbs.map((s) => (
             <option key={s} value={s}>
               {s}

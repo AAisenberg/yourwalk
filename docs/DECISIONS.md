@@ -31,17 +31,33 @@ Each decision includes:
 
 **Rationale**: Phase B already produces segment scores. Post-hoc ranking ships fastest, matches Mapbox (ADR-002), and keeps methodology transparent (score after geometry). Weighted cost can wait until we have evidence post-hoc is insufficient.
 
+**Trip mode (16 Jul 2026 — revised after resident QA):**  
+MVP resident flow is **trip**: fixed origin → destination. Generate sensible Mapbox walking candidates → length-weighted Day/Night/Accessibility scores → **rank by preference blend + time/distance** (soft efficiency weight).  
+
+Generation: (1) Mapbox `alternatives`, (2) mild `walkway_bias` variants, (3) dedupe, (4) reject candidates longer than **1.3× shortest**. **No perpendicular vias** (they caused backtracking / perimeter loops). Cap at 3; if only one distinct path exists, show one honestly.  
+
+Preferences and index scores **rank and label** candidates; they do not invent geometries (post-hoc, not weighted-cost).
+
+**Product north star (not MVP):**  
+**Score-aware routing** — pathfinding that uses Casey segment Day/Night/Accessibility (and user prefs) as edge costs so people are directed onto better local walking conditions, not only onto Mapbox’s shortest/default walk. Mapbox Directions is the right **pilot/lean** engine to ship and learn; it is **not** the long-term routing vision. Pilot work must include a **comparison track**: same OD pairs → Mapbox post-hoc vs score-aware router (e.g. GraphHopper / Valhalla / custom graph on T1EAM or OSM+Casey scores) → measure whether better-scored corridors are missed, detour cost, and resident UX. Revisit ADR-001 formally when comparison evidence is in.
+
+**Outing mode** (e.g. ~25 min walk from a start / optional loop): backlog later — not MVP trip.
+
 **Consequences**:
 
 - Sprint A does **not** require routing; Sprint C (route vertical slice) implements this lean
 - Route scores are aggregations of segment scores, not a third scoring model
 - Alternatives that leave the walk network may need snapping / reduced confidence
+- Community app at `/`; scored-network workbench at `/lab`
+- Score-aware routing is a planned pilot experiment, not a silent assumption of current `/`
 
 **Open Questions** (non-blocking for Sprint A):
 
 - Exact segment↔route matching (buffer / nearest segment along polyline)
 - Aggregation rule (length-weighted mean vs median vs worst segment)
 - Material after-dark overlap for Night Index trigger (civil twilight)
+- Score-aware graph base: T1EAM centerlines vs OSM footways enriched with Casey scores
+- Comparison metrics and OD sample for Mapbox vs score-aware bake-off
 
 ---
 
