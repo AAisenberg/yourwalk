@@ -29,8 +29,22 @@ import {
   legendStops,
 } from "@/lib/scores";
 
+import {
+  BakeoffPanel,
+  type BakeoffSelection,
+} from "@/components/map/BakeoffPanel";
+
 type LoadPhase = "map" | "segments" | "ready" | "error";
 type PickMode = "idle" | "origin" | "destination";
+
+type OdSamplePair = {
+  id: string;
+  label: string;
+  verified?: boolean;
+  why?: string;
+  origin: { name: string; center: [number, number] };
+  destination: { name: string; center: [number, number] };
+};
 
 const ROUTE_COLORS = ["#38bdf8", "#c084fc", "#fbbf24"] as const;
 
@@ -96,14 +110,40 @@ export function ScoringMap() {
   const [rankMode, setRankMode] = useState<RankMode>("day");
   const [planning, setPlanning] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
+  const [bakeoffOpen, setBakeoffOpen] = useState(true);
+  const pendingBakeoffRef = useRef<BakeoffSelection | null>(null);
+  const [odSample, setOdSample] = useState<OdSamplePair[]>([]);
+  const [odSampleId, setOdSampleId] = useState<string>("");
 
   const loading = loadPhase === "map" || loadPhase === "segments";
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/bakeoff/od_sample.json")
+      .then((r) => {
+        if (!r.ok) throw new Error(`od_sample.json ${r.status}`);
+        return r.json();
+      })
+      .then((j: { pairs?: OdSamplePair[] }) => {
+        if (cancelled) return;
+        setOdSample(j.pairs ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setOdSample([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     pickModeRef.current = pickMode;
   }, [pickMode]);
 
-  const ensureRouteLayers = useCallback((map: mapboxgl.Map) => {
+  /** Returns false if style is not ready yet (do not add sources/layers). */
+  const ensureRouteLayers = useCallback((map: mapboxgl.Map): boolean => {
+    if (!map.isStyleLoaded()) return false;
+
     if (!map.getSource("routes")) {
       map.addSource("routes", {
         type: "geojson",
@@ -138,7 +178,93 @@ export function ScoringMap() {
         }
       });
     }
+    if (!map.getSource("bakeoff-routes")) {
+      map.addSource("bakeoff-routes", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+      map.addLayer({
+        id: "bakeoff-routes-line",
+        type: "line",
+        source: "bakeoff-routes",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": ["get", "color"],
+          "line-width": [
+            "case",
+            ["==", ["get", "engine"], "challenger"],
+            6.5,
+            4.5,
+          ],
+          "line-opacity": 0.9,
+        },
+      });
+    }
+    return true;
   }, []);
+
+  const applyBakeoffSelection = useCallback(
+    (sel: BakeoffSelection | null) => {
+      const map = mapRef.current;
+      if (!map) return;
+      if (!ensureRouteLayers(map)) {
+        pendingBakeoffRef.current = sel;
+        return;
+      }
+      pendingBakeoffRef.current = null;
+      const src = map.getSource(
+        "bakeoff-routes",
+      ) as mapboxgl.GeoJSONSource | undefined;
+      if (!src) return;
+      if (!sel || !sel.features.length) {
+        src.setData({ type: "FeatureCollection", features: [] });
+        return;
+      }
+      src.setData({ type: "FeatureCollection", features: sel.features });
+      const bounds = new mapboxgl.LngLatBounds();
+      for (const f of sel.features) {
+        const g = f.geometry;
+        if (g?.type === "LineString") {
+          for (const c of g.coordinates) bounds.extend(c as [number, number]);
+        }
+      }
+      if (sel.origin) bounds.extend(sel.origin);
+      if (sel.destination) bounds.extend(sel.destination);
+      if (!bounds.isEmpty()) {
+        map.fitBounds(bounds, { padding: 72, maxZoom: 15, duration: 700 });
+      }
+      if (sel.mode === "day") setScoreField("day_index_score");
+      if (sel.mode === "night") setScoreField("night_index_score");
+    },
+    [ensureRouteLayers],
+  );
+
+  const onBakeoffSelection = useCallback(
+    (sel: BakeoffSelection | null) => {
+      applyBakeoffSelection(sel);
+    },
+    [applyBakeoffSelection],
+  );
+
+  // Apply bake-off overlay once map + segments are ready (style loaded)
+  useEffect(() => {
+    if (loadPhase !== "ready") return;
+    const map = mapRef.current;
+    if (!map) return;
+    const flush = () => {
+      if (pendingBakeoffRef.current) {
+        applyBakeoffSelection(pendingBakeoffRef.current);
+      } else {
+        ensureRouteLayers(map);
+      }
+    };
+    if (map.isStyleLoaded()) {
+      flush();
+    } else {
+      map.once("load", flush);
+      map.once("idle", flush);
+    }
+  }, [loadPhase, applyBakeoffSelection, ensureRouteLayers]);
 
   const paintRoutes = useCallback(
     (list: ScoredRoute[], selectedId: string | null) => {
@@ -449,6 +575,8 @@ export function ScoringMap() {
         destination,
         featuresRef.current,
         token,
+        3,
+        rankMode === "night" ? "night" : "day",
       );
       const ordered = sortRoutes(scored, rankMode);
       setRoutes(ordered);
@@ -540,13 +668,89 @@ export function ScoringMap() {
           · not the community UI
         </p>
 
+        <div className="mb-3 rounded border border-violet-800/40 bg-violet-950/20 p-2">
+          <button
+            type="button"
+            className="mb-2 flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wide text-violet-300"
+            onClick={() => setBakeoffOpen((v) => !v)}
+          >
+            Score-aware bake-off
+            <span className="font-normal normal-case text-slate-500">
+              {bakeoffOpen ? "Hide" : "Show"}
+            </span>
+          </button>
+          {bakeoffOpen ? <BakeoffPanel onSelection={onBakeoffSelection} /> : null}
+        </div>
+
         <div className="mb-3 rounded border border-slate-700 bg-slate-900/60 p-2">
           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-sky-300">
             Plan a walk
           </div>
           <p className="mb-2 text-[11px] text-slate-400">
-            Click Set origin / Set destination, then click the map (Casey bbox).
+            Load an OD sample, or click Set origin / Set destination on the map
+            (Casey bbox).
           </p>
+          {odSample.length > 0 ? (
+            <div className="mb-2 space-y-1">
+              <label className="block text-[11px] text-slate-400">
+                OD sample
+                <select
+                  className="mt-0.5 w-full rounded border border-slate-600 bg-slate-950 px-2 py-1.5 text-xs text-slate-100"
+                  value={odSampleId}
+                  disabled={loading}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setOdSampleId(id);
+                    const pair = odSample.find((p) => p.id === id);
+                    if (!pair) return;
+                    const o: LngLat = {
+                      lng: pair.origin.center[0],
+                      lat: pair.origin.center[1],
+                    };
+                    const d: LngLat = {
+                      lng: pair.destination.center[0],
+                      lat: pair.destination.center[1],
+                    };
+                    setOrigin(o);
+                    setDestination(d);
+                    setPickMode("idle");
+                    setRoutes([]);
+                    setSelectedRouteId(null);
+                    setRouteError(null);
+                    const map = mapRef.current;
+                    if (map) {
+                      const bounds = new mapboxgl.LngLatBounds();
+                      bounds.extend([o.lng, o.lat]);
+                      bounds.extend([d.lng, d.lat]);
+                      map.fitBounds(bounds, {
+                        padding: 80,
+                        maxZoom: 16,
+                        duration: 700,
+                      });
+                    }
+                  }}
+                >
+                  <option value="">Choose OD-01 … OD-12</option>
+                  {odSample.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.id}
+                      {p.verified ? " ✓" : ""} — {p.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {odSampleId
+                ? (() => {
+                    const pair = odSample.find((p) => p.id === odSampleId);
+                    return pair?.why ? (
+                      <p className="text-[10px] leading-snug text-slate-500">
+                        {pair.why}
+                      </p>
+                    ) : null;
+                  })()
+                : null}
+            </div>
+          ) : null}
           <div className="mb-2 flex gap-2">
             <button
               type="button"

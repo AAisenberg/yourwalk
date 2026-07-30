@@ -27,4 +27,32 @@ python scripts/upload_segment_scores_geojson.py
 
 Set `NEXT_PUBLIC_SEGMENTS_GEOJSON_URL` in `.env.local` to the gzip public URL the script prints (or rely on the default `…/map-data/segment_scores.geojson.gz` path).
 
+### Local fallback (no Supabase Storage)
+
+If Storage is unavailable, symlink viewer GeoJSON into `web/public/map-data/` and point env at localhost:
+
+```bash
+mkdir -p public/map-data
+ln -sf ../../pipeline/data/viewer/segment_scores_map.geojson public/map-data/segment_scores.geojson
+ln -sf ../../pipeline/data/viewer/casey_lga_boundary.geojson public/map-data/casey_lga_boundary.geojson
+```
+
+```env
+NEXT_PUBLIC_SEGMENTS_GEOJSON_URL=http://localhost:3000/map-data/segment_scores.geojson
+NEXT_PUBLIC_LGA_BOUNDARY_URL=http://localhost:3000/map-data/casey_lga_boundary.geojson
+```
+
+Restart `npm run dev` after changing `.env.local`.
+
+### Hybrid routing (score-aware challenger)
+
+Trip planning merges Mapbox walking candidates with an OSM+Casey score-aware path (ADR-001 hybrid). Start the local graph service:
+
+```bash
+cd ../pipeline && source .venv/bin/activate
+python bakeoff/serve_challenger.py --port 8790
+```
+
+Optional in `.env.local`: `CHALLENGER_URL=http://127.0.0.1:8790`.
+
 See [`pipeline/README.md`](../pipeline/README.md).

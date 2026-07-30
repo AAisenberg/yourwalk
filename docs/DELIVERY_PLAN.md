@@ -167,9 +167,9 @@ Full column list: [`SCORING_SPEC_v1.1.md`](SCORING_SPEC_v1.1.md) §9.
 | Multi-route | Trip mode: Mapbox alternatives + mild bias; **no vias**; max 1.3× shortest |
 | Ranking | Preference blend **+** time/distance efficiency (post-hoc ADR-001) |
 | Prefs | After dark → Night · Accessible → Accessibility · Shade/heat → Day Index |
-| Outing mode | Backlog later (~25 min from start / loops) — not MVP |
-| Score-aware routing | **North star** (Casey scores drive pathfinding) — Mapbox post-hoc for pilot ship; bake-off backlog L2c |
-| Dashboard | Deferred to Sprint E |
+| Outing mode | **Next UX slice** — “walk for ~N minutes from here” (see Sprint D+ below) |
+| Score-aware routing | **Hybrid shipped** (30 Jul) — Mapbox candidates + OSM+Casey challenger; ADR-001 hybrid lean |
+| Dashboard | Deferred after resident UX flow |
 
 **Build slices:**
 1. ✅ Resident shell from mockup (`/` + prefs + route cards)
@@ -178,10 +178,34 @@ Full column list: [`SCORING_SPEC_v1.1.md`](SCORING_SPEC_v1.1.md) §9.
 4. ✅ Routing vision locked: Mapbox post-hoc for pilot ship; **score-aware routing** = north star + bake-off (ADR-001, backlog L2c)
 5. ✅ Empty states / confidence copy on resident route cards
 6. ✅ Preview deploy (Vercel project `yourwalk`, root `web/`)
+7. ✅ L2c bake-off v1 complete (17 Jul) — full Casey graph; 10 ODs day+night; hybrid lean — [`BAKEOFF_RESULTS_2026-07-17.md`](BAKEOFF_RESULTS_2026-07-17.md) · [`pipeline/bakeoff/`](../pipeline/bakeoff/)
+8. ✅ L2c v2: percentile costs (fixes Night flatten), `/lab` bake-off compare UI, day≠night explained — [`BAKEOFF_RESULTS_2026-07-17.md`](BAKEOFF_RESULTS_2026-07-17.md)
+9. ✅ Network fitness check (20 Jul) - method + first results; provisional OSM/Mapbox OK for pilot routing - [`NETWORK_FITNESS_CHECK.md`](NETWORK_FITNESS_CHECK.md) · [`NETWORK_FITNESS_RESULTS.md`](NETWORK_FITNESS_RESULTS.md)
+10. ✅ **Hybrid trip mode (30 Jul)** — challenger service + `/api/challenger-route`; OD-11 Fairmead cut-through; pin stubs; geometry stitch fix; importance prefs with dynamic efficiency; match-score sort/tiebreak; scoring bbox + “Calculating your walks…” — [`HYBRID_ROUTING_AUDIT_2026-07-30.md`](HYBRID_ROUTING_AUDIT_2026-07-30.md)
 
-**Out of scope:** Council dashboard, submissions, weighted-cost routing, outing/loop mode
+**Out of scope for D:** Council dashboard, submissions, full T1EAM-native graph, brand polish
 
-### Sprint E — Council insights (after D)
+### Sprint D+ — Resident UX flow (user-first) — **next**
+
+**One-line goal:** Lead with “Tell us about your walk”, then either **trip (A→B)** or **outing (~N minutes from here)**, with optional amenity overlays — before heavy branding polish.
+
+**Entry flow (proposed):**
+1. **Tell us about your walk** — Day / Night + what matters (importance sliders)
+2. **How are you walking?**
+   - **A to B** — start + end (search / pin / geolocate) → hybrid ranked options (current)
+   - **Around here** — start (geolocate / address / pin) + duration (~15 / 25 / 40 min) → outing options (L2b)
+3. **Along the way (overlays)** — optional checkboxes: toilets, dog bags, benches, drinking fountains (index overlays only — not in Day/Night score per methodology)
+4. Results cards → Use this route (polish / colour later)
+
+**Build order:**
+1. Entry chooser + keep current A→B as first path (ship framing without blocking)
+2. Overlay toggles on map (amenity layers already ingested where available)
+3. Outing mode prototype (L2b) using hybrid graph where possible
+4. Colour / brand pass once flow is sticky
+
+**Stocktake 30 Jul 2026:** Routing logic and preference ranking are QA-credible for pilot. Next investment is **flow and discoverability**, not more ranking math — then visual polish.
+
+### Sprint E — Council insights (after resident UX)
 
 **One-line goal:** Staff insights surface per `council-dashboard-mockup/` — hotspots, suburb focus, choropleth evidence. Routing optional, not required.
 

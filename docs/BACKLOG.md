@@ -93,7 +93,7 @@ Before a backlog item is considered complete, it must meet all of the following:
 
 **Dependencies**: Routing engine decision, base map data, pilot area boundaries
 
-**Status**: 🔄 In progress (Sprint D) — Trip mode: Mapbox alternatives + mild bias (no vias), rank by prefs + time/distance; resident `/`; workbench at `/lab`. Outing/loop mode deferred.
+**Status**: ✅ Hybrid trip mode (30 Jul 2026) — Mapbox + score-aware challenger; importance prefs + dynamic efficiency; match Recommended = highest match with preference tiebreaks. Outing/overlays = next UX slice (see L2b / N1b).
 
 ---
 
@@ -111,7 +111,26 @@ Before a backlog item is considered complete, it must meet all of the following:
 
 **Dependencies**: Scoring algorithm, PostGIS `segment_scores` (or client GeoJSON fallback)
 
-**Status**: 🔄 In progress (Sprint C started 16 Jul 2026).
+**Status**: ✅ Done for trip cards (Day/Night/Accessibility pills + reduced confidence) — 30 Jul 2026.
+
+---
+
+### N1b: Tell us about your walk — entry flow + overlays
+**Links**: [`FLOWS/01_plan_route.md`](FLOWS/01_plan_route.md), [`DELIVERY_PLAN.md`](DELIVERY_PLAN.md) Sprint D+, methodology overlays in [`VULNERABILITY_INDEX.md`](VULNERABILITY_INDEX.md)
+
+**Description**: User-first entry: choose trip (A→B) or outing (~N minutes from here); set importance; optionally show amenity overlays (toilets, dog bags, benches, fountains) that are **not** in the index.
+
+**Acceptance Criteria**:
+- Given a resident opens `/`
+- When they choose how they want to walk
+- Then they can pick **A to B** or **Around here** (duration + start via geolocate / search / pin)
+- And they can toggle overlay checkboxes for toilets, dog bags, benches, drinking fountains on the map
+- And overlays do not change Day/Night index maths
+- And A→B continues to use hybrid ranked routes
+
+**Dependencies**: N1 hybrid trip stable; amenity GeoJSON available in pipeline
+
+**Status**: Next (Sprint D+)
 
 ---
 
@@ -329,24 +348,26 @@ Before a backlog item is considered complete, it must meet all of the following:
 
 **Dependencies**: Trip mode stable; ADR-001 post-hoc
 
-**Status**: Backlog — after trip mode polish
+**Status**: Promoted into Sprint D+ / N1b — after hybrid trip QA (30 Jul 2026)
 
 ---
 
 ### L2c: Score-aware routing bake-off (pilot)
-**Links**: [`DECISIONS.md`](DECISIONS.md) ADR-001 north star
+**Links**: [`SCORE_AWARE_ROUTING_BAKEOFF.md`](SCORE_AWARE_ROUTING_BAKEOFF.md), [`DECISIONS.md`](DECISIONS.md) ADR-001, [`fixtures/bakeoff_od_sample.json`](fixtures/bakeoff_od_sample.json)
 
-**Description**: Prototype pathfinding that uses Casey segment scores (and prefs) as edge costs. Compare against current Mapbox post-hoc trip mode on a fixed OD sample. This is the product vision for directing people onto better local walking conditions — Mapbox remains the lean ship path until evidence says otherwise.
+**Description**: Prototype pathfinding that uses Casey segment scores as edge costs. Compare against current Mapbox post-hoc trip mode on a fixed OD sample. North star for directing people onto better local walking conditions; Mapbox remains the lean ship path until evidence says otherwise.
+
+**Locked defaults (17 Jul 2026)**: GraphHopper + OSM footways + Casey score join; Mapbox trip mode = control; OD-01 = Carranya → Robinswood (Promenade Reserve QA).
 
 **Acceptance Criteria**:
-- Given a defined set of Casey origin/destination pairs
-- When Mapbox post-hoc and a score-aware router both produce trip options
-- Then we can compare: index scores, distance/time detour, whether better corridors were missed, and qualitative UX
+- Given the bake-off OD sample in `docs/fixtures/bakeoff_od_sample.json`
+- When Mapbox post-hoc and GraphHopper score-aware both produce trip options
+- Then we can compare: index scores, distance/time detour, whether better corridors were missed, and join/confidence quality
 - And findings feed an ADR-001 revisit (stay post-hoc / hybrid / switch)
 
-**Dependencies**: Stable segment scores in PostGIS; trip mode baseline; engine choice (GraphHopper / Valhalla / custom)
+**Dependencies**: Stable segment scores; trip mode baseline; Casey OSM extract; GraphHopper local
 
-**Status**: Backlog — pilot experiment (not blocking current Mapbox trip UI)
+**Status**: ✅ Hybrid shipped into resident trip mode (30 Jul 2026) — see ADR-001, [`HYBRID_ROUTING_AUDIT_2026-07-30.md`](HYBRID_ROUTING_AUDIT_2026-07-30.md). Remaining: T1EAM-native edges for Casey-only gaps; preference-weighted edge costs inside pathfinding.
 
 ---
 

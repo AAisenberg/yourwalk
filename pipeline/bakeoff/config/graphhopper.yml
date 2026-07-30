@@ -1,0 +1,11 @@
+# Scaffold — wire casey_day / casey_night encoded values after OSM tagging.
+# See docs/SCORE_AWARE_ROUTING_BAKEOFF.md
+
+graphhopper:
+  datareader.file: /data/casey.osm.pbf
+  graph.location: /data/graph-cache
+  profiles:
+    - name: foot
+      custom_model_files: [foot.json]
+  profiles_ch: []
+  profiles_lm: []

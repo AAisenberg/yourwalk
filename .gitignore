@@ -46,6 +46,7 @@ pipeline/data/qa/*
 !pipeline/data/qa/.gitkeep
 pipeline/data/viewer/*
 !pipeline/data/viewer/.gitkeep
+pipeline/data/bakeoff/*
 pipeline/.venv/
 pipeline/**/*.egg-info/
 pipeline/**/__pycache__/

@@ -1,0 +1,10 @@
+{
+  "distance_influence": 90,
+  "priority": [
+    { "if": "foot == NO", "multiply_by": "0" },
+    { "else if": "road_access == DESTINATION", "multiply_by": "0.1" }
+  ],
+  "speed": [
+    { "if": "true", "limit_to": "5" }
+  ]
+}

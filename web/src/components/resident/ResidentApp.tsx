@@ -21,9 +21,14 @@ import { planScoredRoutes } from "@/lib/routing/planRoute";
 import {
   DEFAULT_PREFS_DAY,
   DEFAULT_PREFS_NIGHT,
+  PREF_IMPORTANCE_MAX,
+  PREF_IMPORTANCE_MIN,
   type RoutePreferences,
+  type WalkMode,
+  clampImportance,
   preferenceScore,
   routeCardLabel,
+  routeCardBlurb,
   sortRoutesByPreferences,
   tripRankScore,
 } from "@/lib/routing/preferences";
@@ -31,7 +36,6 @@ import type { LngLat, ScoredRoute } from "@/lib/routing/types";
 import { CASEY_BOUNDS } from "@/lib/scores";
 
 type PickMode = "idle" | "origin" | "destination";
-type WalkMode = "day" | "night";
 
 const ROUTE_COLORS = ["#00AAA6", "#27AAE1", "#8DC63F"] as const;
 
@@ -272,11 +276,11 @@ export function ResidentApp() {
 
   useEffect(() => {
     if (!routes.length) return;
-    const ranked = sortRoutesByPreferences(routes, prefs);
+    const ranked = sortRoutesByPreferences(routes, prefs, walkMode);
     setRoutes(ranked);
     setSelectedId(ranked[0]?.id ?? null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prefs]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-rank when prefs or mode change
+  }, [prefs, walkMode]);
 
   const onFindRoute = async () => {
     const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
@@ -287,6 +291,12 @@ export function ResidentApp() {
     }
     setPlanning(true);
     setRouteError(null);
+    setRoutes([]);
+    setSelectedId(null);
+    // Two frames so “Calculating your walks…” paints before heavy work
+    await new Promise<void>((r) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => r())),
+    );
     try {
       const scored = await planScoredRoutes(
         origin,
@@ -294,8 +304,9 @@ export function ResidentApp() {
         featuresRef.current,
         token,
         3,
+        walkMode,
       );
-      const ranked = sortRoutesByPreferences(scored, prefs);
+      const ranked = sortRoutesByPreferences(scored, prefs, walkMode);
       setRoutes(ranked);
       setSelectedId(ranked[0]?.id ?? null);
       setSheetMode("results");
@@ -383,6 +394,30 @@ export function ResidentApp() {
             </p>
           </div>
         ) : null}
+        {planning ? (
+          <div className="pointer-events-none absolute inset-0 z-[6] flex items-center justify-center bg-black/25">
+            <div
+              className={`flex items-center gap-2.5 rounded-2xl px-4 py-3 shadow-lg ${
+                isNight ? "bg-[#14152A]/95 text-white" : "bg-white/95 text-slate-800"
+              }`}
+            >
+              <span
+                className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-[#00AAA6] border-t-transparent"
+                aria-hidden
+              />
+              <div>
+                <p className="text-sm font-semibold">Calculating your walks…</p>
+                <p
+                  className={`text-[11px] ${
+                    isNight ? "text-white/50" : "text-slate-500"
+                  }`}
+                >
+                  Finding routes and scoring Casey footpaths
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <div
           className={`absolute inset-x-0 bottom-0 z-10 max-h-[62%] overflow-y-auto rounded-t-2xl px-4 pb-6 pt-3 shadow-2xl ${
@@ -397,7 +432,25 @@ export function ResidentApp() {
             }`}
           />
 
-          {sheetMode === "results" && routes.length > 0 ? (
+          {planning ? (
+            <div className="mb-4 flex flex-col items-center py-6 text-center">
+              <span
+                className="mb-3 inline-block h-8 w-8 animate-spin rounded-full border-[3px] border-[#00AAA6] border-t-transparent"
+                aria-hidden
+              />
+              <p className="text-sm font-semibold">Calculating your walks…</p>
+              <p
+                className={`mt-1 max-w-[16rem] text-[11px] leading-snug ${
+                  isNight ? "text-white/45" : "text-slate-500"
+                }`}
+              >
+                Longer trips take a moment — we ask Mapbox, check neighbourhood
+                links, then score each option.
+              </p>
+            </div>
+          ) : null}
+
+          {!planning && sheetMode === "results" && routes.length > 0 ? (
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">
@@ -410,8 +463,8 @@ export function ResidentApp() {
                   }`}
                 >
                   {routes.length === 1
-                    ? "1 trip option · scored for your preferences, time, and distance"
-                    : `${routes.length} trip options · ranked by preferences, time, and distance`}
+                    ? "1 trip option · lower importance favours a quicker walk"
+                    : `${routes.length} trip options · raise importance to favour better footpaths / after dark`}
                 </p>
               </div>
               <button
@@ -428,7 +481,7 @@ export function ResidentApp() {
             </div>
           ) : null}
 
-          {sheetMode === "plan" ? (
+          {!planning && sheetMode === "plan" ? (
             <>
               <div className="mb-3 space-y-2">
                 <PlaceField
@@ -498,15 +551,28 @@ export function ResidentApp() {
                   isNight ? "text-white/50" : "text-slate-500"
                 }`}
               >
-                What matters most to you?
+                How important is each to you?
               </p>
-              <PrefSlider
-                title="Safety after dark"
-                value={prefs.afterDark}
-                isNight={isNight}
-                accent="#27AAE1"
-                onChange={(afterDark) => setPrefs((p) => ({ ...p, afterDark }))}
-              />
+              <p
+                className={`mb-2 text-[10px] leading-snug ${
+                  isNight ? "text-white/40" : "text-slate-400"
+                }`}
+              >
+                {isNight
+                  ? "Importance ratings, not scores. Turn both down and we favour a quicker walk; turn them up and better after-dark / footpath corridors win."
+                  : "Importance ratings, not scores. Turn both down and we favour a quicker walk; turn them up and better shade / footpath corridors win."}
+              </p>
+              {isNight ? (
+                <PrefSlider
+                  title="Safety after dark"
+                  value={prefs.afterDark}
+                  isNight={isNight}
+                  accent="#27AAE1"
+                  onChange={(afterDark) =>
+                    setPrefs((p) => ({ ...p, afterDark }))
+                  }
+                />
+              ) : null}
               <PrefSlider
                 title="Accessible footpaths"
                 value={prefs.accessibility}
@@ -516,13 +582,17 @@ export function ResidentApp() {
                   setPrefs((p) => ({ ...p, accessibility }))
                 }
               />
-              <PrefSlider
-                title="Shade & heat comfort"
-                value={prefs.shadeHeat}
-                isNight={isNight}
-                accent="#F6871F"
-                onChange={(shadeHeat) => setPrefs((p) => ({ ...p, shadeHeat }))}
-              />
+              {!isNight ? (
+                <PrefSlider
+                  title="Shade & heat comfort"
+                  value={prefs.shadeHeat}
+                  isNight={isNight}
+                  accent="#F6871F"
+                  onChange={(shadeHeat) =>
+                    setPrefs((p) => ({ ...p, shadeHeat }))
+                  }
+                />
+              ) : null}
 
               <button
                 type="button"
@@ -574,15 +644,17 @@ export function ResidentApp() {
             <p className="mt-2 text-xs text-amber-500">{error}</p>
           ) : null}
 
-          {routes.length > 0 ? (
+          {!planning && routes.length > 0 ? (
             <ul className="mt-3 space-y-2.5">
               {routes.map((r, i) => {
                 const active = r.id === selectedId;
                 const shortestDur = Math.min(
                   ...routes.map((x) => x.duration_s),
                 );
-                const ranked = tripRankScore(r, prefs, shortestDur);
-                const display = toDisplayScore(ranked ?? preferenceScore(r, prefs));
+                const ranked = tripRankScore(r, prefs, shortestDur, walkMode);
+                const display = toDisplayScore(
+                  ranked ?? preferenceScore(r, prefs, walkMode),
+                );
                 const label = routeCardLabel(r, routes);
                 const color = ROUTE_COLORS[i % ROUTE_COLORS.length];
                 return (
@@ -617,22 +689,19 @@ export function ResidentApp() {
                               isNight ? "text-white/45" : "text-slate-500"
                             }`}
                           >
-                            {i === 0
-                              ? "Best balance of your preferences, time, and distance"
-                              : routes.length === 1
-                                ? "Only one sensible trip found for these points"
-                                : "Another walking option between your places"}
+                            {routeCardBlurb(r, routes)}
                           </p>
                         </div>
                         <div
                           className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-full border-2"
                           style={{ borderColor: color, color }}
+                          title="Match score used for Recommended. Pills are Casey corridor scores; tiebreaks use your highest importance (e.g. After dark)."
                         >
                           <span className="text-base font-extrabold leading-none">
                             {display == null ? "—" : display.toFixed(1)}
                           </span>
                           <span className="text-[8px] font-semibold opacity-70">
-                            /10
+                            match
                           </span>
                         </div>
                       </div>
@@ -645,28 +714,31 @@ export function ResidentApp() {
                             isNight ? "text-amber-300/80" : "text-amber-700"
                           }`}
                         >
-                          Reduced confidence — limited footpath score coverage
+                          Reduced confidence - limited footpath score coverage
                           along this path
                         </p>
                       )}
 
                       <div className="mt-2.5 flex flex-wrap gap-1.5">
-                        <ScorePill
-                          label="After dark"
-                          value={r.score.night_display}
-                          tone="amber"
-                          isNight={isNight}
-                        />
+                        {isNight ? (
+                          <ScorePill
+                            label="After dark"
+                            value={r.score.night_display}
+                            tone="amber"
+                            isNight={isNight}
+                          />
+                        ) : (
+                          <ScorePill
+                            label="Shade"
+                            value={r.score.day_display}
+                            tone="lime"
+                            isNight={isNight}
+                          />
+                        )}
                         <ScorePill
                           label="Footpaths"
                           value={r.score.accessibility_display}
                           tone="blue"
-                          isNight={isNight}
-                        />
-                        <ScorePill
-                          label="Shade"
-                          value={r.score.day_display}
-                          tone="lime"
                           isNight={isNight}
                         />
                       </div>
@@ -699,7 +771,7 @@ export function ResidentApp() {
             </ul>
           ) : null}
 
-          {sheetMode === "results" && routes.length > 0 ? (
+          {!planning && sheetMode === "results" && routes.length > 0 ? (
             <button
               type="button"
               className="mt-3 w-full rounded-xl bg-[#00AAA6] py-3 text-sm font-bold text-white"
@@ -727,9 +799,9 @@ export function ResidentApp() {
               isNight ? "text-white/35" : "text-slate-400"
             }`}
           >
-            Trip mode (pilot): sensible walks from A to B, ranked by Casey
-            walking-condition scores plus time and distance. Not a safety
-            guarantee. Score-aware pathfinding is planned next.
+            Trip mode (pilot): Mapbox walks plus neighbourhood score-aware
+            links, ranked by Casey scores plus time and distance. Not a safety
+            guarantee.
           </p>
         </div>
       </div>
@@ -779,6 +851,10 @@ function PrefSlider({
   accent: string;
   onChange: (v: number) => void;
 }) {
+  const clamped = Math.min(
+    PREF_IMPORTANCE_MAX,
+    Math.max(PREF_IMPORTANCE_MIN, value),
+  );
   return (
     <label className="mb-2 block">
       <div className="mb-1 flex justify-between text-xs">
@@ -786,18 +862,30 @@ function PrefSlider({
           {title}
         </span>
         <span className={isNight ? "text-white/40" : "text-slate-400"}>
-          {value}
+          Importance
         </span>
       </div>
       <input
         type="range"
-        min={0}
-        max={100}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
+        min={PREF_IMPORTANCE_MIN}
+        max={PREF_IMPORTANCE_MAX}
+        value={clamped}
+        onChange={(e) => onChange(clampImportance(Number(e.target.value)))}
         className="w-full"
         style={{ accentColor: accent }}
+        aria-valuemin={PREF_IMPORTANCE_MIN}
+        aria-valuemax={PREF_IMPORTANCE_MAX}
+        aria-valuenow={clamped}
+        aria-label={`${title} importance`}
       />
+      <div
+        className={`mt-0.5 flex justify-between text-[10px] ${
+          isNight ? "text-white/35" : "text-slate-400"
+        }`}
+      >
+        <span>Less important</span>
+        <span>More important</span>
+      </div>
     </label>
   );
 }

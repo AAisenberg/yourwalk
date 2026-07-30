@@ -17,7 +17,7 @@ Each decision includes:
 
 ### ADR-001: Routing Engine Approach
 
-**Status**: Accepted (lean) — revisit after first route vertical slice
+**Status**: Accepted (hybrid lean) — OD-11 evidence 30 Jul 2026
 
 **Decision Question**: How should we calculate and rank routes? Should we use post-hoc ranking (calculate standard routes then score/rank them) or weighted cost routing (build custom costs into routing algorithm)?
 
@@ -25,39 +25,41 @@ Each decision includes:
 
 1. **Post-hoc ranking**: Use standard routing engine to calculate 2–3 walk route options based on distance/time, then score and rank them using segment Day/Night Index scores
 2. **Weighted cost routing**: Build Day/Night factors into routing cost function
-3. **Hybrid**: Calculate initial routes with standard engine, then re-route with adjusted costs for top candidates
+3. **Hybrid**: Mapbox walking candidates plus a score-aware path on OSM+Casey edges; rank all by prefs + time/distance
 
-**Decision**: **Post-hoc ranking** for MVP. Prefer **Mapbox Directions API** (walking profile) for origin/destination → 2–3 alternatives, then aggregate `day_index_score` / `night_index_score` along the route from PostGIS segments. Revisit weighted-cost only if post-hoc routes systematically miss better-scored corridors.
+**Decision**: **Hybrid trip mode** for the pilot. Mapbox Directions (walking) still proposes 1–3 candidates; the app **always merges** a distinct OSM+Casey score-aware challenger when available. Length-weighted Day/Night/Accessibility scores still come from Casey T1EAM. Preferences rank candidates; score-aware pathfinding can invent geometries Mapbox never returns.
 
-**Rationale**: Phase B already produces segment scores. Post-hoc ranking ships fastest, matches Mapbox (ADR-002), and keeps methodology transparent (score after geometry). Weighted cost can wait until we have evidence post-hoc is insufficient.
+**Rationale**: OD-11 (7 Fairmead Place → 8 Hopwood Court, verified 30 Jul 2026) proved Mapbox-only post-hoc is not credible for neighbourhood cut-throughs. Mapbox returned a ~486 m road loop; Streets basemap and Google Maps show the mid-block walk; Casey T1EAM already scores that strip (9 segments, mean Acc ~83); OSM+Casey Dijkstra finds ~282 m via cycleway/service links (Night ~8.3). Post-hoc scoring cannot invent missing geometries. Hybrid clears the "match Google's efficient walk when we can see it" bar without switching the whole stack to T1EAM routing yet.
 
-**Trip mode (16 Jul 2026 — revised after resident QA):**  
-MVP resident flow is **trip**: fixed origin → destination. Generate sensible Mapbox walking candidates → length-weighted Day/Night/Accessibility scores → **rank by preference blend + time/distance** (soft efficiency weight).  
+**Trip mode (30 Jul 2026 — hybrid):**  
+Resident flow is **trip**: fixed origin → destination.
 
-Generation: (1) Mapbox `alternatives`, (2) mild `walkway_bias` variants, (3) dedupe, (4) reject candidates longer than **1.3× shortest**. **No perpendicular vias** (they caused backtracking / perimeter loops). Cap at 3; if only one distinct path exists, show one honestly.  
+Generation: (1) Mapbox `alternatives` + mild `walkway_bias`, (2) dedupe, (3) reject Mapbox candidates longer than **1.3× shortest Mapbox**, (4) **add score-aware challenger** when geometrically distinct (shorter paths are kept — do not apply the 1.3× Mapbox cap to the challenger), (5) ensure challenger is retained in the top cards when distinct. Cap ~3 cards. **No perpendicular vias**.
 
-Preferences and index scores **rank and label** candidates; they do not invent geometries (post-hoc, not weighted-cost).
+Score-aware graph: NetworkX Dijkstra on OSM walkable ways joined to Casey scores (`pipeline/bakeoff/`; served via `serve_challenger.py` + `/api/challenger-route`). Soft 1.15× cap vs graph-shortest distance path (OD-05). Reduced confidence when T1EAM coverage along the corridor is thin — never impute missing as zero.
 
-**Product north star (not MVP):**  
-**Score-aware routing** — pathfinding that uses Casey segment Day/Night/Accessibility (and user prefs) as edge costs so people are directed onto better local walking conditions, not only onto Mapbox’s shortest/default walk. Mapbox Directions is the right **pilot/lean** engine to ship and learn; it is **not** the long-term routing vision. Pilot work must include a **comparison track**: same OD pairs → Mapbox post-hoc vs score-aware router (e.g. GraphHopper / Valhalla / custom graph on T1EAM or OSM+Casey scores) → measure whether better-scored corridors are missed, detour cost, and resident UX. Revisit ADR-001 formally when comparison evidence is in.
+**Product north star:**  
+Preference-weighted score-aware pathfinding (and T1EAM-native edges where OSM cannot connect scored cut-throughs). Mapbox remains map/geocode + useful candidate source, not the sole geometry authority.
+
+**Bake-off note (17 Jul 2026):** First full-sample run (`docs/BAKEOFF_RESULTS_2026-07-17.md`) leaned hybrid. **OD-11 (30 Jul 2026) upgrades that lean to shipping requirement** for credible trip options.
 
 **Outing mode** (e.g. ~25 min walk from a start / optional loop): backlog later — not MVP trip.
 
 **Consequences**:
 
-- Sprint A does **not** require routing; Sprint C (route vertical slice) implements this lean
-- Route scores are aggregations of segment scores, not a third scoring model
-- Alternatives that leave the walk network may need snapping / reduced confidence
+- Resident `/` and lab plan-route require the challenger service (or graceful Mapbox-only fallback with a quiet log)
+- Route scores remain aggregations of segment scores, not a third scoring model
+- Alternatives that leave scored footpaths show reduced confidence
 - Community app at `/`; scored-network workbench at `/lab`
-- Score-aware routing is a planned pilot experiment, not a silent assumption of current `/`
+- Full switch away from Mapbox candidates is not required for pilot credibility
 
-**Open Questions** (non-blocking for Sprint A):
+**Open Questions** (non-blocking for hybrid ship):
 
 - Exact segment↔route matching (buffer / nearest segment along polyline)
 - Aggregation rule (length-weighted mean vs median vs worst segment)
 - Material after-dark overlap for Night Index trigger (civil twilight)
-- Score-aware graph base: T1EAM centerlines vs OSM footways enriched with Casey scores
-- Comparison metrics and OD sample for Mapbox vs score-aware bake-off
+- T1EAM-native edges for true Casey-only links (OSM has no walkable way) — see [`SCORE_AWARE_ROUTING_BAKEOFF.md`](SCORE_AWARE_ROUTING_BAKEOFF.md)
+- Preference weights inside edge costs (sliders affect pathfinding, not only ranking)
 
 ---
 

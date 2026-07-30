@@ -8,6 +8,10 @@ import type { RouteScore } from "./types";
 
 const BUFFER_KM = 0.02; // 20 m — matches Sprint C / PostGIS default
 const MIN_OVERLAP_M = 0.5;
+/** Degrees ≈ 20 m pad around corridor bbox (Casey latitudes). */
+const BBOX_PAD_DEG = 0.00025;
+
+type BBox = [number, number, number, number]; // minLng, minLat, maxLng, maxLat
 
 function num(v: unknown): number | null {
   if (typeof v === "number" && !Number.isNaN(v)) return v;
@@ -22,9 +26,71 @@ function str(v: unknown): string | null {
   return typeof v === "string" && v.length ? v : null;
 }
 
+function coordsBBox(coords: GeoJSON.Position[]): BBox | null {
+  if (!coords.length) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const c of coords) {
+    const x = c[0];
+    const y = c[1];
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (x > maxX) maxX = x;
+    if (y > maxY) maxY = y;
+  }
+  if (!Number.isFinite(minX)) return null;
+  return [minX, minY, maxX, maxY];
+}
+
+function geomBBox(geom: GeoJSON.Geometry): BBox | null {
+  switch (geom.type) {
+    case "Point":
+      return coordsBBox([geom.coordinates]);
+    case "MultiPoint":
+    case "LineString":
+      return coordsBBox(geom.coordinates);
+    case "MultiLineString":
+    case "Polygon":
+      return coordsBBox(geom.coordinates.flat());
+    case "MultiPolygon":
+      return coordsBBox(geom.coordinates.flat(2));
+    case "GeometryCollection": {
+      let out: BBox | null = null;
+      for (const g of geom.geometries) {
+        const b = geomBBox(g);
+        if (!b) continue;
+        out = out
+          ? [
+              Math.min(out[0], b[0]),
+              Math.min(out[1], b[1]),
+              Math.max(out[2], b[2]),
+              Math.max(out[3], b[3]),
+            ]
+          : b;
+      }
+      return out;
+    }
+    default:
+      return null;
+  }
+}
+
+function expandBBox(b: BBox, pad: number): BBox {
+  return [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad];
+}
+
+function bboxOverlaps(a: BBox, b: BBox): boolean {
+  return !(a[2] < b[0] || a[0] > b[2] || a[3] < b[1] || a[1] > b[3]);
+}
+
 /**
  * Length-weighted mean of segment scores along a route corridor.
  * Lean client path: uses loaded GeoJSON until PostGIS RPC is applied.
+ *
+ * Bbox prefilter avoids turf intersects against the full ~27k T1EAM set
+ * (main-thread freeze on long walks).
  */
 export function scoreRouteAgainstSegments(
   geometry: GeoJSON.LineString,
@@ -36,6 +102,11 @@ export function scoreRouteAgainstSegments(
   if (!corridor) {
     return emptyScore(routeDistanceM ?? length(line, { units: "meters" }));
   }
+
+  const routeBBox = expandBBox(
+    coordsBBox(geometry.coordinates) ?? [0, 0, 0, 0],
+    BBOX_PAD_DEG,
+  );
 
   let weightSum = 0;
   let daySum = 0;
@@ -53,6 +124,9 @@ export function scoreRouteAgainstSegments(
     const props = seg.properties ?? {};
     if (props.score_eligible === false) continue;
 
+    const sb = geomBBox(seg.geometry);
+    if (!sb || !bboxOverlaps(routeBBox, sb)) continue;
+
     const poly = turfFeature(seg.geometry);
     try {
       if (!booleanIntersects(corridor, poly)) continue;
@@ -60,7 +134,6 @@ export function scoreRouteAgainstSegments(
       continue;
     }
 
-    // Prefer segment length_m; fallback turf length on polygon perimeter proxy
     const w =
       num(props.length_m) ??
       Math.max(MIN_OVERLAP_M, length(poly, { units: "meters" }) * 0.15);

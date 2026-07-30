@@ -1,0 +1,17 @@
+# Optional GraphHopper service for L2c (swap challenger when ready).
+# Challenger v1 uses Python Dijkstra on the same OSM+Casey cost model.
+#
+# Usage (after OSM PBF is prepared):
+#   docker compose up -d
+#   open http://localhost:8989
+
+services:
+  graphhopper:
+    image: israelhikingmap/graphhopper:latest
+    ports:
+      - "8989:8989"
+    volumes:
+      - ./gh-data:/data
+      - ./config/graphhopper.yml:/graphhopper/config.yml:ro
+    # Mount casey.osm.pbf into gh-data/ before first start
+    command: ["--host", "0.0.0.0"]

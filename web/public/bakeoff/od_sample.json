@@ -1,0 +1,184 @@
+{
+  "name": "YourWalk L2c score-aware bake-off OD sample",
+  "version": "1.2",
+  "locked_at": "2026-07-30",
+  "crs": "EPSG:4326",
+  "coordinate_order": "[lng, lat]",
+  "notes": "OD-01 verified from resident QA. OD-11/OD-12 verified from resident app QA 30 Jul 2026 (Mapbox road-loop vs basemap cut-through). Station/mall coords from published sources; other residential origins are representative Casey anchors.",
+  "defaults": {
+    "control": "mapbox_posthoc_trip",
+    "challenger": "osm_casey_dijkstra",
+    "modes": ["day", "night"],
+    "detour_reference": "control_shortest"
+  },
+  "pairs": [
+    {
+      "id": "OD-01",
+      "label": "Carranya Court → Robinswood (Promenade Reserve QA)",
+      "verified": true,
+      "why": "Live QA 17 Jul 2026: Mapbox primary through Promenade Reserve.",
+      "origin": {
+        "name": "1 Carranya Court, Narre Warren South VIC 3805",
+        "center": [145.305058, -38.06246]
+      },
+      "destination": {
+        "name": "88 Robinswood Parade, Narre Warren South VIC 3805",
+        "center": [145.313031, -38.065931]
+      }
+    },
+    {
+      "id": "OD-02",
+      "label": "Hillsmeade school area → Fountain Gate precinct",
+      "verified": false,
+      "why": "School to activity centre; arterial vs local paths",
+      "origin": {
+        "name": "Hillsmeade Primary School precinct, Narre Warren South",
+        "center": [145.3028, -38.0572]
+      },
+      "destination": {
+        "name": "Westfield Fountain Gate precinct, Narre Warren",
+        "center": [145.3040, -38.0175]
+      }
+    },
+    {
+      "id": "OD-03",
+      "label": "Narre Warren station → Fountain Gate",
+      "verified": true,
+      "why": "Station to mall; night/lighting sensitive",
+      "origin": {
+        "name": "Narre Warren railway station (Webb St)",
+        "center": [145.3039, -38.0277]
+      },
+      "destination": {
+        "name": "Westfield Fountain Gate precinct, Narre Warren",
+        "center": [145.3040, -38.0175]
+      }
+    },
+    {
+      "id": "OD-04",
+      "label": "Berwick station → Berwick Village",
+      "verified": false,
+      "why": "Activity centre walk",
+      "origin": {
+        "name": "Berwick railway station precinct",
+        "center": [145.3442, -38.0395]
+      },
+      "destination": {
+        "name": "Berwick Village / High Street",
+        "center": [145.3495, -38.0308]
+      }
+    },
+    {
+      "id": "OD-05",
+      "label": "Hampton Park residential → shops",
+      "verified": false,
+      "why": "Mid-suburb local trip",
+      "origin": {
+        "name": "Hampton Park residential (Stuart Ave area)",
+        "center": [145.2555, -38.0335]
+      },
+      "destination": {
+        "name": "Hampton Park Shopping Centre precinct",
+        "center": [145.2648, -38.0342]
+      }
+    },
+    {
+      "id": "OD-06",
+      "label": "Endeavour Hills residential → shops",
+      "verified": false,
+      "why": "Local trip, second suburb",
+      "origin": {
+        "name": "Endeavour Hills residential (Matthew Flinders area)",
+        "center": [145.2520, -37.9785]
+      },
+      "destination": {
+        "name": "Endeavour Hills Shopping Centre precinct",
+        "center": [145.2585, -37.9768]
+      }
+    },
+    {
+      "id": "OD-07",
+      "label": "Clyde North → Casey Central",
+      "verified": false,
+      "why": "Growth-area network and heat",
+      "origin": {
+        "name": "Clyde North residential (Hardys Rd area)",
+        "center": [145.3380, -38.1085]
+      },
+      "destination": {
+        "name": "Casey Central Shopping Centre, Cranbourne East",
+        "center": [145.3055, -38.1105]
+      }
+    },
+    {
+      "id": "OD-08",
+      "label": "Cranbourne residential → town centre",
+      "verified": false,
+      "why": "Longer local trip",
+      "origin": {
+        "name": "Cranbourne residential (Camms Rd south)",
+        "center": [145.2750, -38.1120]
+      },
+      "destination": {
+        "name": "Cranbourne Park Shopping Centre precinct",
+        "center": [145.2815, -38.1005]
+      }
+    },
+    {
+      "id": "OD-09",
+      "label": "RBG Cranbourne → Cranbourne town centre",
+      "verified": false,
+      "why": "Park/edge OSM↔T1EAM join stress test",
+      "origin": {
+        "name": "Royal Botanic Gardens Cranbourne visitor centre precinct",
+        "center": [145.2785, -38.1320]
+      },
+      "destination": {
+        "name": "Cranbourne Park Shopping Centre precinct",
+        "center": [145.2815, -38.1005]
+      }
+    },
+    {
+      "id": "OD-10",
+      "label": "Berwick north → Berwick station",
+      "verified": false,
+      "why": "Highway barrier / crossing quality",
+      "origin": {
+        "name": "Berwick residential north of Princes Hwy (Peet St area)",
+        "center": [145.3485, -38.0245]
+      },
+      "destination": {
+        "name": "Berwick railway station precinct",
+        "center": [145.3442, -38.0395]
+      }
+    },
+    {
+      "id": "OD-11",
+      "label": "Fairmead Place → Hopwood Court (cul-de-sac cut-through)",
+      "verified": true,
+      "why": "Live QA 30 Jul 2026: Mapbox walking returned road loop via Raleigh Dr (~469 m, Footpaths 8.1) while Streets basemap shows mid-block ped links through Delmare/Lowden. T1EAM probe: 9 scored segments (~659 m, mean Acc ~83) in the cut-through strip Mapbox skipped — Casey can score the gap; Mapbox did not propose the geometry.",
+      "origin": {
+        "name": "7 Fairmead Place, Narre Warren South VIC 3805",
+        "center": [145.290956, -38.057233]
+      },
+      "destination": {
+        "name": "8 Hopwood Court, Narre Warren South VIC 3805",
+        "center": [145.294142, -38.057559]
+      }
+    },
+    {
+      "id": "OD-12",
+      "label": "Cupples Crescent → Ashfield Drive (road alts only)",
+      "verified": true,
+      "why": "Live QA 30 Jul 2026: two Mapbox options both on road centreline (~1.8–1.9 km); park / neighbourhood paths unused. Stress test for candidate diversity + whether score-aware finds non-road corridor. T1EAM mid-corridor has many scored segments (Casey coverage exists).",
+      "origin": {
+        "name": "66 Cupples Crescent, Berwick VIC 3806",
+        "center": [145.324244, -38.056162]
+      },
+      "destination": {
+        "name": "2 Ashfield Drive, Berwick VIC 3806",
+        "center": [145.337065, -38.050622]
+      }
+    }
+  ]
+}
