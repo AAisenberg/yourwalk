@@ -17,29 +17,25 @@ Pilot routing and preference ranking are in good shape. Next work puts the **use
 
 Methodology reminder: toilets, dog bags, YourGround = **overlays only**, not in Day/Night index. Fountains + benches sit in the Day (Heat & Shade) stream for scoring; still useful as map overlays for “along the way.”
 
-## Proposed entry: “Tell us about your walk”
+## Spec (source of truth for this slice)
+
+Full flow, acceptance criteria, open questions, and no-account enhancers:
+
+→ [`FLOWS/02_tell_us_about_your_walk.md`](FLOWS/02_tell_us_about_your_walk.md)
 
 ```text
-1. Day or Night walk?
-2. What matters? (importance — already built)
-3. How are you walking?
-   ├─ A to B → From / To → Find routes (current)
-   └─ Around here → Start + ~15 / 25 / 40 min → Outing options
-4. Along the way? □ Toilets □ Dog bags □ Benches □ Fountains
-5. Results → Use this route
+1. When? Day / Night + what matters (importance — built)
+2. How? A to B  |  Around here (~15 / 25 / 40 min)
+3. Along the way? □ Toilets □ Dog bags □ Benches □ Fountains
+4. Results → Use this route → Open in Maps / share link (no account)
 ```
-
-## Why this order
-
-- Residents often want a **local walk**, not only a destination.
-- Overlays answer “what’s useful along the way” without polluting the index.
-- Keeps hybrid ranking as the engine under both trip and (later) outing.
 
 ## Build sequence
 
-1. Entry chooser wrapping today’s A→B (low risk).
-2. Overlay checkboxes + map layers.
-3. Outing mode (L2b / N1b).
-4. Colour / brand pass.
+1. Entry chooser wrapping today’s A→B  
+2. Overlay checkboxes + map markers  
+3. Outing (~N min) vertical slice  
+4. Open in Maps + shareable link + “Why this walk?”  
+5. Colour / brand polish  
 
-Detail and sprint framing: [`DELIVERY_PLAN.md`](DELIVERY_PLAN.md) Sprint D+. Backlog: [`BACKLOG.md`](BACKLOG.md) N1b.
+Sprint framing: [`DELIVERY_PLAN.md`](DELIVERY_PLAN.md) Sprint D+. Backlog: [`BACKLOG.md`](BACKLOG.md) N1b.

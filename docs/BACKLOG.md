@@ -116,7 +116,7 @@ Before a backlog item is considered complete, it must meet all of the following:
 ---
 
 ### N1b: Tell us about your walk — entry flow + overlays
-**Links**: [`FLOWS/01_plan_route.md`](FLOWS/01_plan_route.md), [`DELIVERY_PLAN.md`](DELIVERY_PLAN.md) Sprint D+, methodology overlays in [`VULNERABILITY_INDEX.md`](VULNERABILITY_INDEX.md)
+**Links**: [`FLOWS/02_tell_us_about_your_walk.md`](FLOWS/02_tell_us_about_your_walk.md), [`DELIVERY_PLAN.md`](DELIVERY_PLAN.md) Sprint D+, methodology overlays in [`VULNERABILITY_INDEX.md`](VULNERABILITY_INDEX.md)
 
 **Description**: User-first entry: choose trip (A→B) or outing (~N minutes from here); set importance; optionally show amenity overlays (toilets, dog bags, benches, fountains) that are **not** in the index.
 
