@@ -254,7 +254,9 @@ export function sortRoutesByPreferences(
 }
 
 export function isScoreAwareStrategy(strategy?: string): boolean {
-  return Boolean(strategy?.startsWith("score_aware") || strategy?.startsWith("distance_"));
+  return Boolean(
+    strategy?.startsWith("score_aware") || strategy?.startsWith("distance_"),
+  );
 }
 
 export function routeCardLabel(
