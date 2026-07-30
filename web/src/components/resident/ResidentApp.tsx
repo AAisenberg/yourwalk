@@ -17,7 +17,18 @@ import {
   formatDuration,
   toDisplayScore,
 } from "@/lib/routing/geo";
+import {
+  DEFAULT_OVERLAYS,
+  OVERLAY_DEFS,
+  type OverlayId,
+  type OverlayState,
+} from "@/lib/overlays";
 import { planScoredRoutes } from "@/lib/routing/planRoute";
+import {
+  OUTING_DURATIONS_MIN,
+  type OutingDurationMin,
+  planOutingRoutes,
+} from "@/lib/routing/planOuting";
 import {
   DEFAULT_PREFS_DAY,
   DEFAULT_PREFS_NIGHT,
@@ -36,6 +47,8 @@ import type { LngLat, ScoredRoute } from "@/lib/routing/types";
 import { CASEY_BOUNDS } from "@/lib/scores";
 
 type PickMode = "idle" | "origin" | "destination";
+/** How are you walking? — trip A→B vs timed outing from a start. */
+type WalkIntent = "trip" | "outing";
 
 const ROUTE_COLORS = ["#00AAA6", "#27AAE1", "#8DC63F"] as const;
 
@@ -79,6 +92,11 @@ export function ResidentApp() {
   const [planning, setPlanning] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
   const [sheetMode, setSheetMode] = useState<"plan" | "results">("plan");
+  const [walkIntent, setWalkIntent] = useState<WalkIntent>("trip");
+  const [outingMinutes, setOutingMinutes] =
+    useState<OutingDurationMin>(25);
+  const [overlays, setOverlays] = useState<OverlayState>(DEFAULT_OVERLAYS);
+  const [geoBusy, setGeoBusy] = useState(false);
 
   useEffect(() => {
     pickModeRef.current = pickMode;
@@ -87,6 +105,14 @@ export function ResidentApp() {
   useEffect(() => {
     setPrefs(walkMode === "day" ? DEFAULT_PREFS_DAY : DEFAULT_PREFS_NIGHT);
   }, [walkMode]);
+
+  useEffect(() => {
+    if (walkIntent === "outing") {
+      setDestination(null);
+      setDestLabel("");
+      setPickMode((m) => (m === "destination" ? "idle" : m));
+    }
+  }, [walkIntent]);
 
   const paintRoutes = useCallback(
     (list: ScoredRoute[], selected: string | null) => {
@@ -274,6 +300,49 @@ export function ResidentApp() {
     map.getCanvas().style.cursor = pickMode === "idle" ? "" : "crosshair";
   }, [pickMode]);
 
+  // Along-the-way amenity overlays (visibility only)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+
+    for (const def of OVERLAY_DEFS) {
+      if (!def.available || !def.url) continue;
+      const srcId = `overlay-${def.id}`;
+      const layerId = `overlay-${def.id}-pts`;
+      const on = overlays[def.id];
+
+      if (on) {
+        if (!map.getSource(srcId)) {
+          map.addSource(srcId, { type: "geojson", data: def.url });
+          map.addLayer({
+            id: layerId,
+            type: "circle",
+            source: srcId,
+            paint: {
+              "circle-radius": [
+                "interpolate",
+                ["linear"],
+                ["zoom"],
+                11,
+                3,
+                15,
+                5,
+              ],
+              "circle-color": def.color,
+              "circle-stroke-width": 1,
+              "circle-stroke-color": "#ffffff",
+              "circle-opacity": 0.9,
+            },
+          });
+        } else if (map.getLayer(layerId)) {
+          map.setLayoutProperty(layerId, "visibility", "visible");
+        }
+      } else if (map.getLayer(layerId)) {
+        map.setLayoutProperty(layerId, "visibility", "none");
+      }
+    }
+  }, [overlays, mapReady]);
+
   useEffect(() => {
     if (!routes.length) return;
     const ranked = sortRoutesByPreferences(routes, prefs, walkMode);
@@ -282,9 +351,53 @@ export function ResidentApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-rank when prefs or mode change
   }, [prefs, walkMode]);
 
-  const onFindRoute = async () => {
+  const useMyLocation = useCallback(async () => {
     const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-    if (!token || !origin || !destination) return;
+    if (!token) return;
+    if (!navigator.geolocation) {
+      setRouteError("Location isn’t available in this browser.");
+      return;
+    }
+    setGeoBusy(true);
+    setRouteError(null);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const point = {
+            lng: pos.coords.longitude,
+            lat: pos.coords.latitude,
+          };
+          const label = await reverseGeocode(point, token);
+          setOrigin(point);
+          setOriginLabel(label || "Current location");
+          setPickMode("idle");
+          mapRef.current?.flyTo({
+            center: [point.lng, point.lat],
+            zoom: 14,
+            duration: 600,
+          });
+        } catch (err) {
+          setRouteError(
+            err instanceof Error ? err.message : "Couldn’t label this location",
+          );
+        } finally {
+          setGeoBusy(false);
+        }
+      },
+      () => {
+        setGeoBusy(false);
+        setRouteError(
+          "Couldn’t get your location. Allow location access, or search / drop a pin.",
+        );
+      },
+      { enableHighAccuracy: true, timeout: 12000 },
+    );
+  }, []);
+
+  const onFindWalk = async () => {
+    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+    if (!token || !origin) return;
+    if (walkIntent === "trip" && !destination) return;
     if (!networkReady || featuresRef.current.length === 0) {
       setRouteError("Footpath network is still loading — try again in a moment.");
       return;
@@ -293,20 +406,32 @@ export function ResidentApp() {
     setRouteError(null);
     setRoutes([]);
     setSelectedId(null);
-    // Two frames so “Calculating your walks…” paints before heavy work
     await new Promise<void>((r) =>
       requestAnimationFrame(() => requestAnimationFrame(() => r())),
     );
     try {
-      const scored = await planScoredRoutes(
-        origin,
-        destination,
-        featuresRef.current,
-        token,
-        3,
-        walkMode,
-      );
-      const ranked = sortRoutesByPreferences(scored, prefs, walkMode);
+      let ranked: ScoredRoute[];
+      if (walkIntent === "outing") {
+        ranked = await planOutingRoutes(
+          origin,
+          outingMinutes,
+          featuresRef.current,
+          token,
+          walkMode,
+          prefs,
+          3,
+        );
+      } else {
+        const scored = await planScoredRoutes(
+          origin,
+          destination!,
+          featuresRef.current,
+          token,
+          3,
+          walkMode,
+        );
+        ranked = sortRoutesByPreferences(scored, prefs, walkMode);
+      }
       setRoutes(ranked);
       setSelectedId(ranked[0]?.id ?? null);
       setSheetMode("results");
@@ -320,7 +445,7 @@ export function ResidentApp() {
           }
         }
         bounds.extend([origin.lng, origin.lat]);
-        bounds.extend([destination.lng, destination.lat]);
+        if (destination) bounds.extend([destination.lng, destination.lat]);
         map.fitBounds(bounds, { padding: 72, maxZoom: 15, duration: 700 });
       }
     } catch (err) {
@@ -330,6 +455,12 @@ export function ResidentApp() {
     } finally {
       setPlanning(false);
     }
+  };
+
+  const toggleOverlay = (id: OverlayId) => {
+    const def = OVERLAY_DEFS.find((d) => d.id === id);
+    if (!def?.available) return;
+    setOverlays((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
   const isNight = walkMode === "night";
@@ -454,17 +585,20 @@ export function ResidentApp() {
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">
-                  {shortLabel(originLabel) || "Origin"} →{" "}
-                  {shortLabel(destLabel) || "Destination"}
+                  {walkIntent === "outing"
+                    ? `${shortLabel(originLabel) || "Start"} · ~${outingMinutes} min`
+                    : `${shortLabel(originLabel) || "Origin"} → ${shortLabel(destLabel) || "Destination"}`}
                 </p>
                 <p
                   className={`text-[11px] ${
                     isNight ? "text-white/45" : "text-slate-500"
                   }`}
                 >
-                  {routes.length === 1
-                    ? "1 trip option · lower importance favours a quicker walk"
-                    : `${routes.length} trip options · raise importance to favour better footpaths / after dark`}
+                  {walkIntent === "outing"
+                    ? `${routes.length} walk${routes.length === 1 ? "" : "s"} from your start · ranked by what matters and time`
+                    : routes.length === 1
+                      ? "1 trip option · lower importance favours a quicker walk"
+                      : `${routes.length} trip options · raise importance to favour better footpaths / after dark`}
                 </p>
               </div>
               <button
@@ -483,71 +617,24 @@ export function ResidentApp() {
 
           {!planning && sheetMode === "plan" ? (
             <>
-              <div className="mb-3 space-y-2">
-                <PlaceField
-                  label="From"
-                  placeholder="Suburb, address, or place"
-                  dot="#009444"
-                  isNight={isNight}
-                  valueLabel={shortLabel(originLabel)}
-                  pickActive={pickMode === "origin"}
-                  onPickToggle={() =>
-                    setPickMode((m) => (m === "origin" ? "idle" : "origin"))
-                  }
-                  onPlace={({ center, label }) => {
-                    setOrigin(center);
-                    setOriginLabel(label);
-                    setPickMode("idle");
-                    mapRef.current?.flyTo({
-                      center: [center.lng, center.lat],
-                      zoom: 14,
-                      duration: 600,
-                    });
-                  }}
-                />
-                <PlaceField
-                  label="To"
-                  placeholder="Where are you walking to?"
-                  dot="#EC008C"
-                  isNight={isNight}
-                  valueLabel={shortLabel(destLabel)}
-                  pickActive={pickMode === "destination"}
-                  onPickToggle={() =>
-                    setPickMode((m) =>
-                      m === "destination" ? "idle" : "destination",
-                    )
-                  }
-                  onPlace={({ center, label }) => {
-                    setDestination(center);
-                    setDestLabel(label);
-                    setPickMode("idle");
-                    mapRef.current?.flyTo({
-                      center: [center.lng, center.lat],
-                      zoom: 14,
-                      duration: 600,
-                    });
-                  }}
-                />
-              </div>
-
-              {pickMode !== "idle" ? (
-                <p className="mb-2 text-xs text-[#27AAE1]">
-                  Tap the map to set{" "}
-                  {pickMode === "origin" ? "origin" : "destination"}
-                </p>
-              ) : !origin || !destination ? (
-                <p
-                  className={`mb-2 text-xs ${
-                    isNight ? "text-white/45" : "text-slate-500"
-                  }`}
-                >
-                  Set From and To (search or Map), then choose what matters and
-                  find your walk.
-                </p>
-              ) : null}
+              <h1
+                className={`mb-1 text-base font-extrabold tracking-tight ${
+                  isNight ? "text-white" : "text-[#292984]"
+                }`}
+              >
+                Tell us about your walk
+              </h1>
+              <p
+                className={`mb-3 text-[11px] leading-snug ${
+                  isNight ? "text-white/45" : "text-slate-500"
+                }`}
+              >
+                When you walk, how you want to walk, and what to show along the
+                way. Not a safety guarantee.
+              </p>
 
               <p
-                className={`mb-2 text-xs font-semibold ${
+                className={`mb-1.5 text-xs font-semibold ${
                   isNight ? "text-white/50" : "text-slate-500"
                 }`}
               >
@@ -559,8 +646,8 @@ export function ResidentApp() {
                 }`}
               >
                 {isNight
-                  ? "Importance ratings, not scores. Turn both down and we favour a quicker walk; turn them up and better after-dark / footpath corridors win."
-                  : "Importance ratings, not scores. Turn both down and we favour a quicker walk; turn them up and better shade / footpath corridors win."}
+                  ? "Turn both down to favour a quicker walk; turn them up for better after-dark / footpath corridors."
+                  : "Turn both down to favour a quicker walk; turn them up for better shade / footpath corridors."}
               </p>
               {isNight ? (
                 <PrefSlider
@@ -594,6 +681,233 @@ export function ResidentApp() {
                 />
               ) : null}
 
+              <p
+                className={`mb-1.5 mt-3 text-xs font-semibold ${
+                  isNight ? "text-white/50" : "text-slate-500"
+                }`}
+              >
+                How are you walking?
+              </p>
+              <div className="mb-3 grid grid-cols-2 gap-2">
+                {(
+                  [
+                    ["trip", "A to B", "Start and end places"],
+                    ["outing", "Around here", "About N minutes from a start"],
+                  ] as const
+                ).map(([id, title, blurb]) => {
+                  const on = walkIntent === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setWalkIntent(id)}
+                      className={`rounded-xl border px-2.5 py-2.5 text-left ${
+                        on
+                          ? "border-[#00AAA6] bg-[#00AAA6]/15"
+                          : isNight
+                            ? "border-white/15 bg-white/[0.03]"
+                            : "border-slate-200 bg-slate-50"
+                      }`}
+                    >
+                      <div className="text-[13px] font-bold">{title}</div>
+                      <div
+                        className={`mt-0.5 text-[10px] leading-snug ${
+                          isNight ? "text-white/45" : "text-slate-500"
+                        }`}
+                      >
+                        {blurb}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {walkIntent === "trip" ? (
+                <div className="mb-3 space-y-2">
+                  <PlaceField
+                    label="From"
+                    placeholder="Suburb, address, or place"
+                    dot="#009444"
+                    isNight={isNight}
+                    valueLabel={shortLabel(originLabel)}
+                    pickActive={pickMode === "origin"}
+                    onPickToggle={() =>
+                      setPickMode((m) => (m === "origin" ? "idle" : "origin"))
+                    }
+                    onPlace={({ center, label }) => {
+                      setOrigin(center);
+                      setOriginLabel(label);
+                      setPickMode("idle");
+                      mapRef.current?.flyTo({
+                        center: [center.lng, center.lat],
+                        zoom: 14,
+                        duration: 600,
+                      });
+                    }}
+                  />
+                  <PlaceField
+                    label="To"
+                    placeholder="Where are you walking to?"
+                    dot="#EC008C"
+                    isNight={isNight}
+                    valueLabel={shortLabel(destLabel)}
+                    pickActive={pickMode === "destination"}
+                    onPickToggle={() =>
+                      setPickMode((m) =>
+                        m === "destination" ? "idle" : "destination",
+                      )
+                    }
+                    onPlace={({ center, label }) => {
+                      setDestination(center);
+                      setDestLabel(label);
+                      setPickMode("idle");
+                      mapRef.current?.flyTo({
+                        center: [center.lng, center.lat],
+                        zoom: 14,
+                        duration: 600,
+                      });
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="mb-3 space-y-2">
+                  <PlaceField
+                    label="Start"
+                    placeholder="Where will you begin?"
+                    dot="#009444"
+                    isNight={isNight}
+                    valueLabel={shortLabel(originLabel)}
+                    pickActive={pickMode === "origin"}
+                    onPickToggle={() =>
+                      setPickMode((m) => (m === "origin" ? "idle" : "origin"))
+                    }
+                    onPlace={({ center, label }) => {
+                      setOrigin(center);
+                      setOriginLabel(label);
+                      setPickMode("idle");
+                      mapRef.current?.flyTo({
+                        center: [center.lng, center.lat],
+                        zoom: 14,
+                        duration: 600,
+                      });
+                    }}
+                  />
+                  <button
+                    type="button"
+                    disabled={geoBusy || !mapReady}
+                    onClick={() => void useMyLocation()}
+                    className={`w-full rounded-lg border px-2 py-2 text-xs font-semibold disabled:opacity-40 ${
+                      isNight
+                        ? "border-white/20 text-white/80"
+                        : "border-slate-200 text-slate-700"
+                    }`}
+                  >
+                    {geoBusy ? "Getting location…" : "Use my location"}
+                  </button>
+                  <p
+                    className={`text-[10px] ${
+                      isNight ? "text-white/40" : "text-slate-400"
+                    }`}
+                  >
+                    About how long?
+                  </p>
+                  <div className="flex gap-2">
+                    {OUTING_DURATIONS_MIN.map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setOutingMinutes(m)}
+                        className={`flex-1 rounded-lg border py-2 text-xs font-bold ${
+                          outingMinutes === m
+                            ? "border-[#00AAA6] bg-[#00AAA6]/15 text-[#00AAA6]"
+                            : isNight
+                              ? "border-white/15 text-white/70"
+                              : "border-slate-200 text-slate-600"
+                        }`}
+                      >
+                        ~{m} min
+                      </button>
+                    ))}
+                  </div>
+                  <p
+                    className={`text-[10px] leading-snug ${
+                      isNight ? "text-white/35" : "text-slate-400"
+                    }`}
+                  >
+                    Testing slice: one-way walks of about that length in a few
+                    directions — not a loop yet.
+                  </p>
+                </div>
+              )}
+
+              {pickMode !== "idle" ? (
+                <p className="mb-2 text-xs text-[#27AAE1]">
+                  Tap the map to set{" "}
+                  {pickMode === "origin"
+                    ? walkIntent === "outing"
+                      ? "start"
+                      : "origin"
+                    : "destination"}
+                </p>
+              ) : null}
+
+              <p
+                className={`mb-1.5 text-xs font-semibold ${
+                  isNight ? "text-white/50" : "text-slate-500"
+                }`}
+              >
+                Along the way
+              </p>
+              <p
+                className={`mb-2 text-[10px] leading-snug ${
+                  isNight ? "text-white/40" : "text-slate-400"
+                }`}
+              >
+                Show on the map only — does not change walk scores.
+              </p>
+              <div className="mb-3 grid grid-cols-2 gap-1.5">
+                {OVERLAY_DEFS.map((def) => {
+                  const checked = overlays[def.id];
+                  return (
+                    <label
+                      key={def.id}
+                      className={`flex cursor-pointer items-start gap-2 rounded-lg border px-2 py-2 text-[11px] ${
+                        !def.available
+                          ? isNight
+                            ? "border-white/10 opacity-45"
+                            : "border-slate-100 opacity-50"
+                          : checked
+                            ? "border-[#00AAA6]/50 bg-[#00AAA6]/10"
+                            : isNight
+                              ? "border-white/15"
+                              : "border-slate-200"
+                      }`}
+                      title={def.hint}
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        disabled={!def.available}
+                        checked={checked}
+                        onChange={() => toggleOverlay(def.id)}
+                      />
+                      <span>
+                        <span className="font-semibold">{def.label}</span>
+                        {!def.available ? (
+                          <span
+                            className={`block text-[9px] ${
+                              isNight ? "text-white/35" : "text-slate-400"
+                            }`}
+                          >
+                            Coming soon
+                          </span>
+                        ) : null}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+
               <button
                 type="button"
                 disabled={
@@ -601,16 +915,18 @@ export function ResidentApp() {
                   !networkReady ||
                   planning ||
                   !origin ||
-                  !destination
+                  (walkIntent === "trip" && !destination)
                 }
-                onClick={onFindRoute}
-                className="mt-3 w-full rounded-xl bg-[#27AAE1] py-3 text-sm font-bold text-white disabled:opacity-40"
+                onClick={() => void onFindWalk()}
+                className="mt-1 w-full rounded-xl bg-[#27AAE1] py-3 text-sm font-bold text-white disabled:opacity-40"
               >
                 {planning
-                  ? "Finding routes…"
+                  ? "Finding walks…"
                   : !networkReady
                     ? "Loading network…"
-                    : "Find my route"}
+                    : walkIntent === "outing"
+                      ? "Find my walk"
+                      : "Find my route"}
               </button>
               {mapReady ? (
                 <p

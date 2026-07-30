@@ -42,3 +42,6 @@ next-env.d.ts
 
 # Local scored network for offline/dev when Supabase unavailable
 /public/map-data/
+
+# Local amenity overlays (symlink to pipeline viewer)
+/public/overlays/

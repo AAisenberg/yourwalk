@@ -101,9 +101,8 @@ Rules:
 ### 5. After “Use this route” (lightweight, no account)
 
 - Keep selected route highlighted
-- Offer: **Open in Maps** (Apple / Google walking deep link from geometry or O/D)
-- Offer: **Copy link** or share sheet with start/end + mode (encode in URL query; no login)
 - Do **not** require save-to-account
+- **Open in Apple / Google Maps** is a later nice-to-have only: it would hand off **origin + destination** (or start) and let *their* router choose the path — not YourWalk’s scored geometry. Useful as turn-by-turn handoff; confusing if residents expect Casey scores to follow. Defer until flow QA is solid; prefer in-app geometry + optional shareable YourWalk link first.
 
 ---
 
