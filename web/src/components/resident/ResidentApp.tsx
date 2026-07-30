@@ -54,6 +54,77 @@ type WalkIntent = "trip" | "outing";
 
 const ROUTE_COLORS = ["#00AAA6", "#27AAE1", "#8DC63F"] as const;
 
+const DAY_BASEMAP = "mapbox://styles/mapbox/streets-v12";
+const NIGHT_BASEMAP = "mapbox://styles/mapbox/dark-v11";
+
+/** Install route + optional LGA layers after load or basemap style switch. */
+function installMapChrome(
+  map: mapboxgl.Map,
+  opts: {
+    lga?: GeoJSON.FeatureCollection | null;
+    night: boolean;
+  },
+) {
+  if (!map.getSource("routes")) {
+    map.addSource("routes", {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: [] },
+    });
+  }
+  if (!map.getLayer("routes-alt")) {
+    map.addLayer({
+      id: "routes-alt",
+      type: "line",
+      source: "routes",
+      filter: ["==", ["get", "selected"], 0],
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: {
+        "line-color": ["get", "color"],
+        "line-width": 3.5,
+        "line-opacity": opts.night ? 0.45 : 0.38,
+      },
+    });
+  }
+  if (!map.getLayer("routes-selected")) {
+    map.addLayer({
+      id: "routes-selected",
+      type: "line",
+      source: "routes",
+      filter: ["==", ["get", "selected"], 1],
+      layout: {
+        "line-cap": "round",
+        "line-join": "round",
+      },
+      paint: {
+        "line-color": ["get", "color"],
+        // Round caps + short dashes ≈ dotted circles along the path
+        "line-width": 5,
+        "line-opacity": 0.98,
+        "line-dasharray": [0.12, 1.65],
+      },
+    });
+  }
+
+  if (opts.lga) {
+    if (map.getLayer("lga-line")) map.removeLayer("lga-line");
+    if (map.getSource("lga")) map.removeSource("lga");
+    map.addSource("lga", { type: "geojson", data: opts.lga });
+    map.addLayer(
+      {
+        id: "lga-line",
+        type: "line",
+        source: "lga",
+        paint: {
+          "line-color": opts.night ? "#8B8DD9" : "#292984",
+          "line-width": 2,
+          "line-opacity": opts.night ? 0.55 : 0.45,
+        },
+      },
+      "routes-alt",
+    );
+  }
+}
+
 function resolveGeoJsonUrl(): string {
   const explicit = process.env.NEXT_PUBLIC_SEGMENTS_GEOJSON_URL?.trim();
   if (explicit) return explicit;
@@ -77,6 +148,11 @@ export function ResidentApp() {
   const pickModeRef = useRef<PickMode>("idle");
   const originMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const destMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const lgaDataRef = useRef<GeoJSON.FeatureCollection | null>(null);
+  const routesRef = useRef<ScoredRoute[]>([]);
+  const selectedIdRef = useRef<string | null>(null);
+  const basemapStyleRef = useRef<string>(DAY_BASEMAP);
+  const walkModeRef = useRef<WalkMode>("day");
 
   const [mapReady, setMapReady] = useState(false);
   const [networkReady, setNetworkReady] = useState(false);
@@ -106,8 +182,17 @@ export function ResidentApp() {
   }, [pickMode]);
 
   useEffect(() => {
+    walkModeRef.current = walkMode;
     setPrefs(walkMode === "day" ? DEFAULT_PREFS_DAY : DEFAULT_PREFS_NIGHT);
   }, [walkMode]);
+
+  useEffect(() => {
+    routesRef.current = routes;
+  }, [routes]);
+
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
 
   useEffect(() => {
     if (walkIntent === "outing") {
@@ -139,6 +224,51 @@ export function ResidentApp() {
     [],
   );
 
+  /** Re-attach amenity overlay layers (needed after basemap style swap). */
+  const syncOverlayLayers = useCallback(
+    (overlayState: OverlayState = overlays) => {
+      const map = mapRef.current;
+      if (!map) return;
+      for (const def of OVERLAY_DEFS) {
+        if (!def.available || !def.url) continue;
+        const srcId = `overlay-${def.id}`;
+        const layerId = `overlay-${def.id}-pts`;
+        const on = overlayState[def.id];
+
+        if (on) {
+          if (!map.getSource(srcId)) {
+            map.addSource(srcId, { type: "geojson", data: def.url });
+            map.addLayer({
+              id: layerId,
+              type: "circle",
+              source: srcId,
+              paint: {
+                "circle-radius": [
+                  "interpolate",
+                  ["linear"],
+                  ["zoom"],
+                  11,
+                  3,
+                  15,
+                  5,
+                ],
+                "circle-color": def.color,
+                "circle-stroke-width": 1,
+                "circle-stroke-color": "#ffffff",
+                "circle-opacity": 0.9,
+              },
+            });
+          } else if (map.getLayer(layerId)) {
+            map.setLayoutProperty(layerId, "visibility", "visible");
+          }
+        } else if (map.getLayer(layerId)) {
+          map.setLayoutProperty(layerId, "visibility", "none");
+        }
+      }
+    },
+    [overlays],
+  );
+
   useEffect(() => {
     paintRoutes(routes, selectedId);
   }, [routes, selectedId, paintRoutes]);
@@ -152,10 +282,12 @@ export function ResidentApp() {
     if (!containerRef.current || mapRef.current) return;
 
     mapboxgl.accessToken = token;
+    const initialStyle =
+      walkModeRef.current === "night" ? NIGHT_BASEMAP : DAY_BASEMAP;
+    basemapStyleRef.current = initialStyle;
     const map = new mapboxgl.Map({
       container: containerRef.current,
-      // Streets basemap so roads/labels read clearly under the link network
-      style: "mapbox://styles/mapbox/streets-v12",
+      style: initialStyle,
       bounds: [
         [CASEY_BOUNDS.west, CASEY_BOUNDS.south],
         [CASEY_BOUNDS.east, CASEY_BOUNDS.north],
@@ -168,60 +300,27 @@ export function ResidentApp() {
     // Basemap first — do not block on the segment GeoJSON download
     map.on("load", () => {
       map.resize();
-      // Second resize after layout (bottom sheet / flex) settles
       requestAnimationFrame(() => map.resize());
       window.setTimeout(() => map.resize(), 250);
 
-      map.addSource("routes", {
-        type: "geojson",
-        data: { type: "FeatureCollection", features: [] },
-      });
-      // Alternatives first (under): quieter solid lines — Google-like chrome
-      map.addLayer({
-        id: "routes-alt",
-        type: "line",
-        source: "routes",
-        filter: ["==", ["get", "selected"], 0],
-        layout: { "line-cap": "round", "line-join": "round" },
-        paint: {
-          "line-color": ["get", "color"],
-          "line-width": 4,
-          "line-opacity": 0.38,
-        },
-      });
-      // Selected on top: stronger dotted path
-      map.addLayer({
-        id: "routes-selected",
-        type: "line",
-        source: "routes",
-        filter: ["==", ["get", "selected"], 1],
-        layout: { "line-cap": "round", "line-join": "round" },
-        paint: {
-          "line-color": ["get", "color"],
-          "line-width": 7.5,
-          "line-opacity": 0.98,
-          "line-dasharray": [0.8, 1.4],
-        },
+      installMapChrome(map, {
+        lga: lgaDataRef.current,
+        night: walkModeRef.current === "night",
       });
 
-      const onRouteClick = (
-        e: mapboxgl.MapLayerMouseEvent,
-      ) => {
-        const id = e.features?.[0]?.properties?.id;
-        if (typeof id === "string") setSelectedId(id);
-      };
-      map.on("click", "routes-alt", onRouteClick);
-      map.on("click", "routes-selected", onRouteClick);
-      for (const layerId of ["routes-alt", "routes-selected"] as const) {
-        map.on("mouseenter", layerId, () => {
-          map.getCanvas().style.cursor = "pointer";
-        });
-        map.on("mouseleave", layerId, () => {
-          map.getCanvas().style.cursor = "";
-        });
-      }
-
+      // Single click handler survives style reloads (queries live layer ids)
       map.on("click", async (e) => {
+        const routeHit = map.queryRenderedFeatures(e.point, {
+          layers: ["routes-alt", "routes-selected"].filter((id) =>
+            Boolean(map.getLayer(id)),
+          ),
+        });
+        const routeId = routeHit[0]?.properties?.id;
+        if (typeof routeId === "string") {
+          setSelectedId(routeId);
+          return;
+        }
+
         const mode = pickModeRef.current;
         if (mode === "idle") return;
         const point = { lng: e.lngLat.lng, lat: e.lngLat.lat };
@@ -236,30 +335,29 @@ export function ResidentApp() {
         setPickMode("idle");
       });
 
+      map.on("mousemove", (e) => {
+        if (pickModeRef.current !== "idle") return;
+        const layers = ["routes-alt", "routes-selected"].filter((id) =>
+          Boolean(map.getLayer(id)),
+        );
+        if (!layers.length) return;
+        const hit = map.queryRenderedFeatures(e.point, { layers });
+        map.getCanvas().style.cursor = hit.length ? "pointer" : "";
+      });
+
       setMapReady(true);
 
-      // LGA context only on the map. Segment scores load in memory for route
-      // ranking — no scored-network choropleth on the resident surface.
       void (async () => {
         const lgaUrl = resolveLgaUrl();
         if (lgaUrl) {
           try {
             const lga = await fetchLgaBoundary(lgaUrl);
             if (!mapRef.current) return;
-            map.addSource("lga", { type: "geojson", data: lga });
-            map.addLayer(
-              {
-                id: "lga-line",
-                type: "line",
-                source: "lga",
-                paint: {
-                  "line-color": "#292984",
-                  "line-width": 2,
-                  "line-opacity": 0.45,
-                },
-              },
-              "routes-alt",
-            );
+            lgaDataRef.current = lga;
+            installMapChrome(map, {
+              lga,
+              night: walkModeRef.current === "night",
+            });
           } catch {
             /* optional */
           }
@@ -296,6 +394,25 @@ export function ResidentApp() {
     };
   }, []);
 
+  // Day streets ↔ Night dark basemap (style swap clears custom layers)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const next = walkMode === "night" ? NIGHT_BASEMAP : DAY_BASEMAP;
+    if (basemapStyleRef.current === next) return;
+    basemapStyleRef.current = next;
+
+    map.setStyle(next);
+    map.once("style.load", () => {
+      installMapChrome(map, {
+        lga: lgaDataRef.current,
+        night: walkMode === "night",
+      });
+      paintRoutes(routesRef.current, selectedIdRef.current);
+      syncOverlayLayers();
+    });
+  }, [walkMode, mapReady, paintRoutes, syncOverlayLayers]);
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -329,46 +446,9 @@ export function ResidentApp() {
 
   // Along-the-way amenity overlays (visibility only)
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady) return;
-
-    for (const def of OVERLAY_DEFS) {
-      if (!def.available || !def.url) continue;
-      const srcId = `overlay-${def.id}`;
-      const layerId = `overlay-${def.id}-pts`;
-      const on = overlays[def.id];
-
-      if (on) {
-        if (!map.getSource(srcId)) {
-          map.addSource(srcId, { type: "geojson", data: def.url });
-          map.addLayer({
-            id: layerId,
-            type: "circle",
-            source: srcId,
-            paint: {
-              "circle-radius": [
-                "interpolate",
-                ["linear"],
-                ["zoom"],
-                11,
-                3,
-                15,
-                5,
-              ],
-              "circle-color": def.color,
-              "circle-stroke-width": 1,
-              "circle-stroke-color": "#ffffff",
-              "circle-opacity": 0.9,
-            },
-          });
-        } else if (map.getLayer(layerId)) {
-          map.setLayoutProperty(layerId, "visibility", "visible");
-        }
-      } else if (map.getLayer(layerId)) {
-        map.setLayoutProperty(layerId, "visibility", "none");
-      }
-    }
-  }, [overlays, mapReady]);
+    if (!mapReady) return;
+    syncOverlayLayers(overlays);
+  }, [overlays, mapReady, syncOverlayLayers]);
 
   useEffect(() => {
     if (!routes.length) return;
@@ -852,7 +932,7 @@ export function ResidentApp() {
                       isNight ? "text-white/40" : "text-slate-400"
                     }`}
                   >
-                    About how long?
+                    About how long? (options stay within ~5 min)
                   </p>
                   <div className="flex gap-2">
                     {OUTING_DURATIONS_MIN.map((m) => (

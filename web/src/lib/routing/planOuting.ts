@@ -66,10 +66,17 @@ const START_STUB_IGNORE_M = 80;
  * time ≈ asked duration. Road networks are longer than crow-fly, so use a
  * shrink factor (not duration/3 raw metres).
  */
-const LOOP_VIA_STRAIGHT_FACTOR = 0.52;
-/** LQ-2: shown loops must sit in this duration band vs asked N. */
-const LOOP_DUR_MIN_RATIO = 0.6;
-const LOOP_DUR_MAX_RATIO = 1.55;
+/** Slightly larger vias so ~40 min asks land nearer 35–45, not mid‑20s. */
+const LOOP_VIA_STRAIGHT_FACTOR = 0.62;
+/**
+ * Resident rule (30 Jul): only show walks within ±5 minutes of the ask.
+ * No widening the band to fill cards.
+ */
+const OUTING_DURATION_SLACK_S = 5 * 60;
+/** Loop cards: prefer two; third only if still in-band and quality holds. */
+const LOOP_PREFER_OPTIONS = 2;
+const LOOP_MAX_OPTIONS = 3;
+const LOOP_THIRD_MIN_QUALITY = 48;
 /** Cul-de-sac spur one-way length band (metres). Skip short corner noise. */
 const SPUR_MIN_M = 60;
 const SPUR_MAX_M = 160;
@@ -311,15 +318,23 @@ function amenityVias(
   return out;
 }
 
+/** True when walking time is within ±5 minutes of the asked duration. */
+function withinAskedDuration(durationS: number, targetS: number): boolean {
+  if (!Number.isFinite(targetS) || targetS <= 0) return false;
+  return Math.abs(durationS - targetS) <= OUTING_DURATION_SLACK_S;
+}
+
 /**
  * How close duration is to the asked outing length (100 = exact).
- * Prefer this over “shortest in the set wins” — that made 14 min there-and-backs
- * beat a ~15–20 min loop on match while Loop was selected.
+ * In-band ±5 still applies for inclusion; fit at the edge floors at 40 so a
+ * 35 min walk for a 40 ask isn’t crushed to ~4.8 while corridor pills look fine.
  */
 function outingDurationFit(durationS: number, targetS: number): number {
   if (!Number.isFinite(targetS) || targetS <= 0) return 50;
-  const err = Math.abs(durationS / targetS - 1);
-  return Math.max(0, 100 * (1 - err / 0.55));
+  const errMin = Math.abs(durationS - targetS) / 60;
+  if (errMin > 5) return 0;
+  // 0 min off → 100; 5 min off → 40
+  return 100 - 12 * errMin;
 }
 
 function outingMatchScore(
@@ -337,10 +352,8 @@ function outingMatchScore(
 }
 
 /**
- * Rank outing cards. Match score = prefs + fit-to-asked-duration + amenity soft
- * bonus (shown in the ring). Circuit quality / spur demotion is a tiebreak —
- * and may reorder when match scores are close so Recommended is not a spurred
- * loop while a cleaner peer exists (LQ-3).
+ * Rank outing cards. Match ring and Recommended must agree: highest
+ * match_score wins. Circuit quality / spur only break true ties.
  */
 function rankOuting(
   routes: ScoredRoute[],
@@ -363,14 +376,11 @@ function rankOuting(
 
   return scored.sort((a, b) => {
     const byMatch = (b.match_score ?? 0) - (a.match_score ?? 0);
-    const qa = circuitQuality.get(a.id) ?? 0;
-    const qb = circuitQuality.get(b.id) ?? 0;
-    const cq = qb - qa;
-
-    // Mild preference for cleaner circuits when match is nearly tied
-    if (Math.abs(byMatch) < 2.5 && Math.abs(cq) >= 20) return cq;
-
+    // Display is one decimal (/10); keep order aligned with the ring
     if (Math.abs(byMatch) > 0.05) return byMatch;
+
+    const cq =
+      (circuitQuality.get(b.id) ?? 0) - (circuitQuality.get(a.id) ?? 0);
     if (cq !== 0) return cq;
 
     const durErr =
@@ -398,8 +408,7 @@ async function collectOneWay(
     try {
       const routes = await fetchWalkingRouteCandidates(start, dest, token, 1);
       for (const r of routes) {
-        const ratio = r.duration / targetDurationS;
-        if (ratio < 0.55 || ratio > 1.45) continue;
+        if (!withinAskedDuration(r.duration, targetDurationS)) continue;
         const soft = amenitySoftScore(r.geometry, amenitySets);
         pushUnique(collected, {
           id: `outing-oneway-${bearing}-${collected.length}`,
@@ -429,25 +438,22 @@ async function collectOneWay(
           { lng: end[0], lat: end[1] },
           mode,
         );
-        if (ch) {
-          const ratio = ch.duration_s / targetDurationS;
-          if (ratio >= 0.55 && ratio <= 1.45) {
-            const soft = amenitySoftScore(ch.geometry, amenitySets);
-            pushUnique(collected, {
-              id: "outing-oneway-score-aware",
-              index: collected.length,
-              distance_m: ch.distance_m,
-              duration_s: ch.duration_s,
-              geometry: ch.geometry,
-              strategy: ch.strategy,
-              amenity_note: soft.note,
-              score: scoreRouteAgainstSegments(
-                ch.geometry,
-                segments,
-                ch.distance_m,
-              ),
-            });
-          }
+        if (ch && withinAskedDuration(ch.duration_s, targetDurationS)) {
+          const soft = amenitySoftScore(ch.geometry, amenitySets);
+          pushUnique(collected, {
+            id: "outing-oneway-score-aware",
+            index: collected.length,
+            distance_m: ch.distance_m,
+            duration_s: ch.duration_s,
+            geometry: ch.geometry,
+            strategy: ch.strategy,
+            amenity_note: soft.note,
+            score: scoreRouteAgainstSegments(
+              ch.geometry,
+              segments,
+              ch.distance_m,
+            ),
+          });
         }
       }
     } catch {
@@ -481,8 +487,7 @@ async function collectOutAndBack(
       const geom = outAndBackGeometry(r.geometry);
       const distance_m = r.distance * 2;
       const duration_s = r.duration * 2;
-      const ratio = duration_s / targetDurationS;
-      if (ratio < 0.55 || ratio > 1.5) continue;
+      if (!withinAskedDuration(duration_s, targetDurationS)) continue;
       const soft = amenitySoftScore(geom, amenitySets);
       pushUnique(collected, {
         id: `outing-oab-${i}`,
@@ -815,24 +820,30 @@ type LoopPoolItem = {
 
 function selectDiverseLoops(
   pool: LoopPoolItem[],
-  maxRoutes: number,
+  preferCount: number,
+  maxCount: number,
 ): ScoredRoute[] {
   const ranked = [...pool].sort((a, b) => {
+    // Closest to asked duration first (all already within ±5)
+    if (a.durErr !== b.durErr) return a.durErr - b.durErr;
     if (a.hard !== b.hard) return a.hard ? -1 : 1;
-    // Prefer low-spur / high quality before duration (LQ-3 / LQ-4)
     if (a.quality !== b.quality) return b.quality - a.quality;
     if (a.spur.worstSpurM !== b.spur.worstSpurM) {
       return a.spur.worstSpurM - b.spur.worstSpurM;
     }
-    if (a.durErr !== b.durErr) return a.durErr - b.durErr;
     return a.revisit - b.revisit;
   });
 
   const out: ScoredRoute[] = [];
   for (const item of ranked) {
     if (out.some((c) => loopsTooSimilar(c, item.scored))) continue;
+    if (out.length >= preferCount) {
+      if (out.length >= maxCount) break;
+      // Third only if quality still holds
+      if (item.quality < LOOP_THIRD_MIN_QUALITY) continue;
+    }
     out.push(item.scored);
-    if (out.length >= maxRoutes) break;
+    if (out.length >= maxCount) break;
   }
   return out;
 }
@@ -869,10 +880,7 @@ async function collectLoop(
       if (!end) continue;
       if (haversineM(start, { lng: end[0], lat: end[1] }) > 40) continue;
 
-      const durRatio = r.duration / targetDurationS;
-      if (durRatio < LOOP_DUR_MIN_RATIO || durRatio > LOOP_DUR_MAX_RATIO) {
-        continue;
-      }
+      if (!withinAskedDuration(r.duration, targetDurationS)) continue;
 
       const overlap = reverseOverlapRatio(geometry);
       if (overlap > MAX_LOOP_REVERSE_OVERLAP) continue;
@@ -931,12 +939,19 @@ async function collectLoop(
       // skip
     }
     await yieldToUi();
-    // Keep searching until we have enough *diverse* options (not only hard/clean)
-    if (selectDiverseLoops(pool, maxRoutes).length >= maxRoutes) break;
+    if (
+      selectDiverseLoops(pool, LOOP_PREFER_OPTIONS, maxRoutes).length >=
+      maxRoutes
+    ) {
+      break;
+    }
   }
 
-  // Take the best diverse set from the full pool (mild spurs OK)
-  for (const r of selectDiverseLoops(pool, maxRoutes)) {
+  for (const r of selectDiverseLoops(
+    pool,
+    LOOP_PREFER_OPTIONS,
+    Math.min(maxRoutes, LOOP_MAX_OPTIONS),
+  )) {
     pushDistinctLoop(collected, r);
   }
 }
@@ -953,7 +968,7 @@ export async function planOutingRoutes(
   mode: "day" | "night",
   prefs: RoutePreferences,
   opts: OutingPlanOpts = { shape: "loop" },
-  maxRoutes = 3,
+  maxRoutes = LOOP_MAX_OPTIONS,
 ): Promise<ScoredRoute[]> {
   if (!pointInCaseyBbox(start)) {
     throw new Error("Start must be inside the Casey pilot area.");
@@ -963,6 +978,7 @@ export async function planOutingRoutes(
   const targetDurationS = durationMin * 60;
   const amenitySets = await loadAmenitySets(opts.amenityGoals ?? []);
   const collected: ScoredRoute[] = [];
+  const loopCap = Math.min(maxRoutes, LOOP_MAX_OPTIONS);
 
   if (shape === "one_way") {
     const targetM = Math.max(400, durationMin * WALK_M_PER_MIN);
@@ -990,63 +1006,48 @@ export async function planOutingRoutes(
       maxRoutes,
     );
   } else {
-    // Crow-fly via radius shrunk so walking triangle ≈ asked duration
+    // Crow-fly via radius sized so walking triangle ≈ asked duration (±5 min)
     const viaM = Math.max(
       160,
       (durationMin / 3) * WALK_M_PER_MIN * LOOP_VIA_STRAIGHT_FACTOR,
     );
-    await collectLoop(
-      start,
-      viaM,
-      targetDurationS,
-      segments,
-      token,
-      amenitySets,
-      collected,
-      maxRoutes,
-    );
-    // Aim for a couple of options: retry other radii if the pool is thin
-    if (collected.length < 2) {
+    // Prefer larger vias first — short undershoots were common at 40 min
+    const viaScales = [1, 1.12, 1.28, 0.9, 0.78];
+    for (const scale of viaScales) {
+      if (collected.length >= LOOP_PREFER_OPTIONS) break;
       await collectLoop(
         start,
-        viaM * 0.7,
+        viaM * scale,
         targetDurationS,
         segments,
         token,
         amenitySets,
         collected,
-        maxRoutes,
+        loopCap,
       );
     }
-    if (collected.length < 2) {
-      await collectLoop(
-        start,
-        viaM * 1.25,
-        targetDurationS,
-        segments,
-        token,
-        amenitySets,
-        collected,
-        maxRoutes,
-      );
-    }
-    // LQ-1 / LQ-5: never pad Loop with there-and-backs
+    // Never pad Loop with there-and-backs or out-of-band times
   }
 
-  if (!collected.length) {
+  // Final guard: drop anything outside ±5 (belt-and-braces)
+  const inBand = collected.filter((r) =>
+    withinAskedDuration(r.duration_s, targetDurationS),
+  );
+
+  if (!inBand.length) {
     if (shape === "loop") {
       throw new Error(
-        "Couldn’t find a loop circuit of about that length from this start. Try a start further inside Casey (edges are harder), There and back, or a different duration.",
+        "Couldn’t find a loop within about 5 minutes of that length from this start. Try a start further inside Casey, There and back, or another duration.",
       );
     }
     throw new Error(
-      "Couldn’t find walks of about that length from this start. Try another spot, shape, or duration.",
+      "Couldn’t find a walk within about 5 minutes of that length from this start. Try another spot, shape, or duration.",
     );
   }
 
   const amenityBonus = new Map<string, number>();
   const circuitQuality = new Map<string, number>();
-  for (const r of collected) {
+  for (const r of inBand) {
     const soft = amenitySoftScore(r.geometry, amenitySets);
     amenityBonus.set(r.id, soft.bonus);
     if (soft.note && !r.amenity_note) r.amenity_note = soft.note;
@@ -1058,15 +1059,16 @@ export async function planOutingRoutes(
     }
   }
 
+  const cap = shape === "loop" ? loopCap : maxRoutes;
   return rankOuting(
-    collected,
+    inBand,
     prefs,
     mode,
     targetDurationS,
     amenityBonus,
     circuitQuality,
   )
-    .slice(0, maxRoutes)
+    .slice(0, cap)
     .map((r, i) => ({ ...r, index: i, id: r.id }));
 }
 

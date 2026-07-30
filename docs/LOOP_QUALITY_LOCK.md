@@ -32,10 +32,11 @@ Parent notes: [`LOOP_BACKTRACK_AND_MAP_UX.md`](LOOP_BACKTRACK_AND_MAP_UX.md) · 
 **And** no card is labelled or noted as “Same path home” unless we found *zero* circuits and surface a clear empty/error (“Try There and back”)
 
 ### LQ-2 Duration band
-**Given** asked duration N ∈ {15, 25, 40}  
-**When** loops are ranked  
-**Then** each shown option’s walking time is within about **0.7×–1.4×** of N  
-**And** ranking prefers closer to N (not “shortest in the set wins”)
+**Given** asked duration N (chips today; slider later)  
+**When** walks are returned  
+**Then** each option’s walking time is within **±5 minutes** of N  
+**And** ranking prefers closer to N  
+**And** we never widen the band to fill empty cards
 
 ### LQ-3 Spur demotion
 **Given** two valid circuits, one with a clear cul-de-sac reverse spur (&lt; ~150 m out-and-back notch)  
@@ -44,9 +45,9 @@ Parent notes: [`LOOP_BACKTRACK_AND_MAP_UX.md`](LOOP_BACKTRACK_AND_MAP_UX.md) · 
 **And** Recommended is not the spurred option if a cleaner peer exists
 
 ### LQ-4 Diversity
-**Given** at least three geometrically distinct circuits pass filters  
+**Given** geometrically distinct circuits pass filters  
 **When** results show  
-**Then** up to 3 cards use different street corridors (not near-duplicates)  
+**Then** prefer **2** cards; add a **third** only if still in ±5 and quality holds  
 **And** secondary cards may read “Another loop”
 
 ### LQ-5 Honest empty
