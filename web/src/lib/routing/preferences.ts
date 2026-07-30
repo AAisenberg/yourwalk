@@ -264,6 +264,18 @@ export function routeCardLabel(
   ranked: ScoredRoute[],
 ): string {
   if (ranked[0]?.id === route.id) return "Best for you";
+  if (
+    route.strategy?.startsWith("out_and_back") ||
+    route.outing_note?.includes("Same path home")
+  ) {
+    return "There and back";
+  }
+  if (
+    route.id.startsWith("outing-loop") ||
+    route.strategy?.startsWith("loop_")
+  ) {
+    return "Another loop";
+  }
   if (isScoreAwareStrategy(route.strategy)) return "Neighbourhood links";
   const shortest = [...ranked].sort((a, b) => a.distance_m - b.distance_m)[0];
   if (shortest?.id === route.id) return "Shortest";

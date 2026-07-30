@@ -65,31 +65,39 @@ Two clear choices (cards or segmented control):
 
 #### 2B — Around here (outing)
 
+**Default product meaning:** a **circuit** of about N minutes that returns near the start — not “how far can I get in N minutes.”
+
 - **Start**: my location / search / pin (Casey)
-- **About how long?**: e.g. ~15 / ~25 / ~40 minutes (single choice)
-- Optional: “Prefer a loop back near start” vs “Out-and-back ok” (open question below)
-- **Find my walk** → 1–3 outing geometries near that duration, scored and ranked with same importance + efficiency logic
-- Cards use same language: Recommended / Neighbourhood links / Another option
+- **About how long?**: e.g. ~15 / ~25 / ~40 minutes = **total** walk time for the outing
+- **Shape** (segmented, under Around here — not a buried checkbox):
+  - **Loop** (default) — a **circuit**: leave and return near start on a *different* path (not the same street reverse / opposite kerb). Generator uses two vias + reverse-overlap filter; if true circuits are scarce, may fall back to same-path home with an honest card note
+  - **There and back** — out along a good corridor, **same way home** (explicit choice, also engineering fallback)
+  - **One way** — explore in a direction for ~N min (advanced / testing only; not the default story)
+- **Find my walk** → 1–3 geometries near that duration, scored and ranked with importance + efficiency
+- Cards: same Recommended / Neighbourhood links language; outing copy should say “about N min loop” when Loop is selected
 
-Outing pathfinding is **new** (backlog L2b); trip mode must keep working if outing is not ready yet (ship chooser with outing “Coming soon” only if needed — prefer vertical slice).
+**Amenities on an outing** (see §3): checking fountains / benches / toilets / dog bags both **shows** them on the map and, for Around here, **soft-biases** candidate circuits toward passing near at least one of the checked types when data exists. Missing amenities never score as zero; if none are reachable in time, show honest empty copy and still offer unscored-amenity loops.
 
-### 3. Along the way (overlays)
+### 3. Along the way (context + soft outing bias)
 
-Checkboxes (multi-select), visible before and after results:
+Same amenity set for trip and outing; behaviour differs slightly by intent.
 
-| Overlay | Index role | UX role |
-|---------|------------|---------|
-| Public toilets | Overlay only | See facilities near route / start |
-| Dog bag dispensers | Overlay only | Same |
-| Benches / seats | Day stream for scoring; also overlay | Rest points on map |
-| Drinking fountains | Day stream for scoring; also overlay | Water on map |
+| Amenity | Index role | On A to B | On Around here |
+|---------|------------|-----------|----------------|
+| Public toilets | Overlay only | Map show | Map show + soft prefer near |
+| Dog bag dispensers | Overlay only | Map show | Map show + soft prefer near |
+| Benches / seats | Also in Day scoring stream | Map show | Map show + soft prefer near |
+| Drinking fountains | Also in Day scoring stream | Map show | Map show + soft prefer near |
 
 Rules:
 
-- Toggles **paint map markers/clusters** only; they do **not** change Day/Night/Accessibility maths
-- Optional later: “Prefer routes near a toilet” as a soft preference — **not** MVP of this flow; keep checkboxes as visibility first
-- Empty state if layer has no features in view: “None shown in this area”
+- Checkboxes always **paint** markers when the layer is available
+- They do **not** change Day / Night / Accessibility **index** maths on segments
+- On **Around here** only: checked types act as **soft goals** when generating/ranking circuits (e.g. bonus if path comes within ~80–100 m of a checked amenity). Never require all types; never punish missing Council data
+- On **A to B**: visibility only for this slice (soft “via fountain” trip bias can wait)
+- Empty / unavailable layers: “None in this area” or “Coming soon” — never invent points
 - Provenance tip: Council / open data; vintage if known
+- Card microcopy when bias applied: e.g. “Passes a drinking fountain” (factual, not a score inflate in the /10 index pills)
 
 ### 4. Results
 
@@ -117,32 +125,40 @@ Rules:
 **When** they find routes  
 **Then** hybrid ranked options appear with match score and stream pills  
 
-**Given** they choose Around here, a start in Casey, and ~25 minutes  
+**Given** they choose Around here (default Loop), a start in Casey, and ~25 minutes  
 **When** they find a walk  
-**Then** 1–3 options near that duration are shown and ranked with the same preference model  
+**Then** 1–3 options near that **total** duration are shown, preferring return near start  
+**And** options are ranked with the same importance model  
 
-**Given** overlay checkboxes for toilets / dog bags / benches / fountains  
+**Given** they check drinking fountains (or other amenities) on Around here  
+**When** walks are generated  
+**Then** markers show on the map  
+**And** candidate ranking soft-prefers circuits that pass near a fountain when data allows  
+**And** Day/Night/Accessibility pills remain Casey corridor scores (not amenity counts)  
+
+**Given** overlay checkboxes on A to B  
 **When** they toggle a layer on  
 **Then** features appear on the map without changing route index scores  
 
 **Given** no user account  
 **When** they complete a walk plan  
-**Then** they can still use, share, or open the walk in an external maps app  
+**Then** they can use the walk in-app without login  
 
 ---
 
 ## Open questions
 
-### OQ-1: Outing geometry style
+### OQ-1: Outing geometry style — **decided lean (30 Jul 2026)**
 
-| Option | Pros | Cons |
-|--------|------|------|
-| A. Soft loop toward start | Feels like a local walk | Harder; needs graph loops |
-| B. Out-and-back along best corridor | Simpler; reuses trip scoring | Less “explore” |
-| C. Offer both as ranked cards | Honest choice | More UI |
+| Option | Role |
+|--------|------|
+| **A. Loop (default)** | Product default for Around here |
+| **B. There and back** | Ship-first engineering fallback if true loops slip |
+| **C. One way** | Secondary / testing only |
 
-**Decision criteria:** Ship B first if loops slip; aim for A when hybrid graph supports it.  
-**Lean:** B for first outing slice; A as follow-up.
+**Decision:** Default UI = Loop. Implement there-and-back first if needed to hit duration, then true loops. Do not present reachability-style one-way as the default story.
+
+**Loop backtracking (30 Jul investigation):** Mapbox multi-waypoint routes can still reverse streets or spur into cul-de-sacs. Mitigation in `planOuting.ts`: (1) triangle vias start→A→B→start, not single turnaround; (2) half-vs-half reverse-overlap reject; (3) full-path **revisit ratio** (samples every ~28 m; ignore inevitable mid-block stub at the start pin); hard reject above ~20% revisit, soft-accept to ~32% with card note; (4) rank remaining circuits by low revisit. Residual shared path near the pin is expected; mid-loop backtracking should be rare. Deeper fix later: score-aware graph circuits on T1EAM (challenger), not Mapbox alone.
 
 ### OQ-2: Geolocate failure
 
@@ -153,9 +169,11 @@ Rules:
 
 **Lean:** A with clear permission copy.
 
-### OQ-3: Overlays vs “prefer near amenity”
+### OQ-3: Overlays vs “prefer near amenity” — **decided lean (30 Jul 2026)**
 
-Visibility-only for this flow. Soft routing bias toward amenities = later experiment (must not impute missing amenities as zero).
+- **A to B:** visibility only (this slice)
+- **Around here:** visibility + soft prefer near checked amenities
+- Never impute missing amenities as zero; never put amenity counts into the Day/Night index pills
 
 ### OQ-4: URL deep links
 
@@ -195,11 +213,12 @@ Explicitly **later / icebox** (not this flow): accounts, saved libraries, histor
 
 ## Build sequence
 
-1. Entry chooser + copy (“Tell us about your walk”) wrapping current A→B  
-2. Overlay checkboxes + map markers  
-3. Outing (~15/25/40) vertical slice  
-4. Open in Maps + shareable A→B link  
-5. “Why this walk?” explainers  
-6. Colour / brand polish  
+1. ✅ Entry chooser + A→B + overlay visibility + one-way outing test slice (30 Jul)  
+2. ✅ Around here **Loop** default UI + there-and-back / loop generator (30 Jul)  
+3. ✅ Soft amenity bias on Around here when checkboxes are on (30 Jul)  
+4. Loop quality lock + map route chrome (selected vs alternatives) — next  
+5. Optional backtrack **snip** spike — see [`LOOP_BACKTRACK_AND_MAP_UX.md`](../LOOP_BACKTRACK_AND_MAP_UX.md)  
+6. Shareable A→B link + “Why this walk?”  
+7. Colour / brand polish  
 
-Trace: [`BACKLOG.md`](../BACKLOG.md) N1b · [`DELIVERY_PLAN.md`](../DELIVERY_PLAN.md) Sprint D+ · [`RESIDENT_UX_NEXT.md`](../RESIDENT_UX_NEXT.md)
+Trace: [`BACKLOG.md`](../BACKLOG.md) N1b · [`DELIVERY_PLAN.md`](../DELIVERY_PLAN.md) Sprint D+ · [`RESIDENT_UX_NEXT.md`](../RESIDENT_UX_NEXT.md) · [`LOOP_BACKTRACK_AND_MAP_UX.md`](../LOOP_BACKTRACK_AND_MAP_UX.md)

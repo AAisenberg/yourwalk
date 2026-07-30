@@ -24,6 +24,15 @@ export type ScoredRoute = {
   score: RouteScore;
   /** Diversification strategy that produced this geometry (QA). */
   strategy?: string;
+  /** Soft amenity proximity note for Around-here cards (not index maths). */
+  amenity_note?: string;
+  /** Outing shape honesty (e.g. fell back from circuit to same-path home). */
+  outing_note?: string;
+  /**
+   * 0–100 match used for ranking. When set, the UI must show this (not a
+   * recomputed trip score that can disagree with card order).
+   */
+  match_score?: number;
 };
 
 export type RankMode = "day" | "night" | "accessibility";

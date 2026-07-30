@@ -26,7 +26,9 @@ import {
 import { planScoredRoutes } from "@/lib/routing/planRoute";
 import {
   OUTING_DURATIONS_MIN,
+  OUTING_SHAPES,
   type OutingDurationMin,
+  type OutingShape,
   planOutingRoutes,
 } from "@/lib/routing/planOuting";
 import {
@@ -95,6 +97,7 @@ export function ResidentApp() {
   const [walkIntent, setWalkIntent] = useState<WalkIntent>("trip");
   const [outingMinutes, setOutingMinutes] =
     useState<OutingDurationMin>(25);
+  const [outingShape, setOutingShape] = useState<OutingShape>("loop");
   const [overlays, setOverlays] = useState<OverlayState>(DEFAULT_OVERLAYS);
   const [geoBusy, setGeoBusy] = useState(false);
 
@@ -412,6 +415,11 @@ export function ResidentApp() {
     try {
       let ranked: ScoredRoute[];
       if (walkIntent === "outing") {
+        const amenityGoals = (Object.keys(overlays) as OverlayId[]).filter(
+          (id) =>
+            overlays[id] &&
+            OVERLAY_DEFS.some((d) => d.id === id && d.available),
+        );
         ranked = await planOutingRoutes(
           origin,
           outingMinutes,
@@ -419,6 +427,7 @@ export function ResidentApp() {
           token,
           walkMode,
           prefs,
+          { shape: outingShape, amenityGoals },
           3,
         );
       } else {
@@ -586,7 +595,13 @@ export function ResidentApp() {
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">
                   {walkIntent === "outing"
-                    ? `${shortLabel(originLabel) || "Start"} · ~${outingMinutes} min`
+                    ? `${shortLabel(originLabel) || "Start"} · ~${outingMinutes} min ${
+                        outingShape === "loop"
+                          ? "loop"
+                          : outingShape === "out_and_back"
+                            ? "there and back"
+                            : "one way"
+                      }`
                     : `${shortLabel(originLabel) || "Origin"} → ${shortLabel(destLabel) || "Destination"}`}
                 </p>
                 <p
@@ -595,7 +610,11 @@ export function ResidentApp() {
                   }`}
                 >
                   {walkIntent === "outing"
-                    ? `${routes.length} walk${routes.length === 1 ? "" : "s"} from your start · ranked by what matters and time`
+                    ? `${routes.length} walk${routes.length === 1 ? "" : "s"} from your start · ranked by what matters, time${
+                        Object.values(overlays).some(Boolean)
+                          ? ", and amenity proximity"
+                          : ""
+                      }`
                     : routes.length === 1
                       ? "1 trip option · lower importance favours a quicker walk"
                       : `${routes.length} trip options · raise importance to favour better footpaths / after dark`}
@@ -830,12 +849,45 @@ export function ResidentApp() {
                     ))}
                   </div>
                   <p
+                    className={`text-[10px] ${
+                      isNight ? "text-white/40" : "text-slate-400"
+                    }`}
+                  >
+                    Shape
+                  </p>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {OUTING_SHAPES.map((s) => {
+                      const on = outingShape === s.id;
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          title={s.hint}
+                          onClick={() => setOutingShape(s.id)}
+                          className={`rounded-lg border px-1.5 py-2 text-center text-[11px] font-bold leading-tight ${
+                            on
+                              ? "border-[#00AAA6] bg-[#00AAA6]/15 text-[#00AAA6]"
+                              : isNight
+                                ? "border-white/15 text-white/70"
+                                : "border-slate-200 text-slate-600"
+                          }`}
+                        >
+                          {s.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p
                     className={`text-[10px] leading-snug ${
                       isNight ? "text-white/35" : "text-slate-400"
                     }`}
                   >
-                    Testing slice: one-way walks of about that length in a few
-                    directions — not a loop yet.
+                    {
+                      OUTING_SHAPES.find((s) => s.id === outingShape)?.hint
+                    }
+                    {outingShape === "loop"
+                      ? " We’ll offer a few different circuits when we can — not there-and-backs mixed in."
+                      : ""}
                   </p>
                 </div>
               )}
@@ -863,7 +915,9 @@ export function ResidentApp() {
                   isNight ? "text-white/40" : "text-slate-400"
                 }`}
               >
-                Show on the map only — does not change walk scores.
+                {walkIntent === "outing"
+                  ? "Show on the map. On Around here, also soft-prefer walks near checked types when data exists — does not change corridor score pills."
+                  : "Show on the map only — does not change walk scores."}
               </p>
               <div className="mb-3 grid grid-cols-2 gap-1.5">
                 {OVERLAY_DEFS.map((def) => {
@@ -967,7 +1021,10 @@ export function ResidentApp() {
                 const shortestDur = Math.min(
                   ...routes.map((x) => x.duration_s),
                 );
-                const ranked = tripRankScore(r, prefs, shortestDur, walkMode);
+                // Prefer match_score from outing planner when set — must match card order
+                const ranked =
+                  r.match_score ??
+                  tripRankScore(r, prefs, shortestDur, walkMode);
                 const display = toDisplayScore(
                   ranked ?? preferenceScore(r, prefs, walkMode),
                 );
@@ -1007,6 +1064,24 @@ export function ResidentApp() {
                           >
                             {routeCardBlurb(r, routes)}
                           </p>
+                          {r.amenity_note ? (
+                            <p
+                              className={`mt-1 text-[10px] leading-snug ${
+                                isNight ? "text-[#8DC63F]/90" : "text-[#5a8f1f]"
+                              }`}
+                            >
+                              {r.amenity_note}
+                            </p>
+                          ) : null}
+                          {r.outing_note ? (
+                            <p
+                              className={`mt-1 text-[10px] leading-snug ${
+                                isNight ? "text-amber-300/85" : "text-amber-800"
+                              }`}
+                            >
+                              {r.outing_note}
+                            </p>
+                          ) : null}
                         </div>
                         <div
                           className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-full border-2"

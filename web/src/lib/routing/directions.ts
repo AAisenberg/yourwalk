@@ -112,6 +112,31 @@ async function requestWalking(
   opts: QueryOpts,
 ): Promise<MapboxRoute[]> {
   const coords = `${origin.lng},${origin.lat};${destination.lng},${destination.lat}`;
+  return requestWalkingCoords(coords, token, opts);
+}
+
+/**
+ * Walking route through an ordered waypoint list (e.g. start → via → start for loops).
+ */
+export async function fetchWalkingWaypointRoute(
+  waypoints: LngLat[],
+  token: string,
+  strategy: string,
+): Promise<MapboxRoute | null> {
+  if (waypoints.length < 2) return null;
+  const coords = waypoints.map((w) => `${w.lng},${w.lat}`).join(";");
+  const routes = await requestWalkingCoords(coords, token, {
+    alternatives: false,
+    strategy,
+  });
+  return routes[0] ?? null;
+}
+
+async function requestWalkingCoords(
+  coords: string,
+  token: string,
+  opts: QueryOpts,
+): Promise<MapboxRoute[]> {
   const url = new URL(
     `https://api.mapbox.com/directions/v5/mapbox/walking/${coords}`,
   );
