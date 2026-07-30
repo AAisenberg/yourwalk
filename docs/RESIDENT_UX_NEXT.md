@@ -14,8 +14,9 @@ Pilot routing and preference ranking are in good shape. Around-here Loop is test
 | Tell us about your walk shell (A→B / Around here) | Shipped (testing) |
 | Around here Loop / there-and-back / one-way | Shipped (testing) — Loop = circuits only; via sizing tuned |
 | Soft amenity bias on Around here | Shipped (testing) |
+| Loop quality lock (spur demote / reject, empty state) | Implemented — awaiting manual review ([`LOOP_QUALITY_LOCK.md`](LOOP_QUALITY_LOCK.md)) |
 | Backtrack spur snip on loops | Not built — see notes |
-| Google-like selected/alternative map chrome | Not built — see notes |
+| Google-like selected/alternative map chrome | Not built — next after review |
 | Brand / colour system | Deferred until flow is solid |
 
 Methodology reminder: toilets, dog bags, YourGround = **overlays only**, not in Day/Night index. Fountains + benches sit in the Day (Heat & Shade) stream for scoring; still useful as map overlays for “along the way.”

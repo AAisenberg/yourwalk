@@ -73,15 +73,18 @@ Parent notes: [`LOOP_BACKTRACK_AND_MAP_UX.md`](LOOP_BACKTRACK_AND_MAP_UX.md) · 
 
 ## Done when
 
-- [ ] LQ-1…LQ-5 pass on two Casey starts × 15 and 40 min  
-- [ ] No Loop result set mixes there-and-backs  
-- [ ] Stocktake in [`RESIDENT_UX_NEXT.md`](RESIDENT_UX_NEXT.md) marks loop quality lock ✅  
+- [x] Implement spur measure + reject/demote + Loop-only empty error (30 Jul)  
+- [ ] LQ-1…LQ-5 pass on two Casey starts × 15 and 40 min (**manual review**)  
+- [x] No Loop result set mixes there-and-backs  
+- [ ] Stocktake in [`RESIDENT_UX_NEXT.md`](RESIDENT_UX_NEXT.md) marks loop quality lock ✅ after review  
 - [ ] Then start **map selected / alternative styling**
+
+**Sanity:** `cd web && node scripts/check-spur-measure.mjs`
 
 ---
 
 ## Session handoff
 
-**Shipped this session:** Loop / there-and-back / one-way UI + generator, via sizing fix, amenity soft bias, docs (`d2ad915` and parents).  
+**Implemented:** spur measure (gentle demotion; only extreme spurs rejected), duration band ~0.6–1.55×, Loop empty copy, diversity softened so **2–3 circuits** are likelier; retry extra via radii when the pool is thin. Edge-of-Casey starts may still fail honestly.  
 
-**Next session:** Implement this lock (spur demotion + empty state), QA, commit; then map chrome slice.
+**After review:** map chrome slice.

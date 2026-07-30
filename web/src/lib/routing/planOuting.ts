@@ -53,9 +53,9 @@ export const OUTING_SHAPES: {
  * (Too-strict revisit + oversized vias made every loop fail duration checks,
  * then there-and-back fallback looked like “lines going out”.)
  */
-const MAX_LOOP_REVISIT = 0.28;
-const SOFT_LOOP_REVISIT = 0.48;
-const MAX_LOOP_REVERSE_OVERLAP = 0.72;
+const MAX_LOOP_REVISIT = 0.32;
+const SOFT_LOOP_REVISIT = 0.55;
+const MAX_LOOP_REVERSE_OVERLAP = 0.78;
 const SAME_PATH_NEAR_M = 45;
 const REVISIT_NEAR_M = 36;
 const REVISIT_SAMPLE_STEP_M = 28;
@@ -67,6 +67,22 @@ const START_STUB_IGNORE_M = 80;
  * shrink factor (not duration/3 raw metres).
  */
 const LOOP_VIA_STRAIGHT_FACTOR = 0.52;
+/** LQ-2: shown loops must sit in this duration band vs asked N. */
+const LOOP_DUR_MIN_RATIO = 0.6;
+const LOOP_DUR_MAX_RATIO = 1.55;
+/** Cul-de-sac spur one-way length band (metres). Skip short corner noise. */
+const SPUR_MIN_M = 60;
+const SPUR_MAX_M = 160;
+/**
+ * Only reject extreme spur farms — mild cul-de-sac notches are OK on suburban
+ * loops (resident feedback 30 Jul). Prefer demotion over dropping options.
+ */
+const SPUR_REJECT_WORST_M = 200;
+const SPUR_REJECT_TOTAL_M = 420;
+/** Soft note when worst spur exceeds this (still keep the card). */
+const SPUR_NOTE_M = 90;
+/** Path overlap above this ⇒ treat as the same loop option. */
+const LOOP_SIMILAR_OVERLAP = 0.78;
 
 export type OutingPlanOpts = {
   shape: OutingShape;
@@ -166,11 +182,11 @@ function pathPairOverlap(
 }
 
 function loopsTooSimilar(a: ScoredRoute, b: ScoredRoute): boolean {
-  if (isDup(a, b) && pathPairOverlap(a.geometry, b.geometry) > 0.45) {
+  if (isDup(a, b) && pathPairOverlap(a.geometry, b.geometry) > 0.5) {
     return true;
   }
-  // Same neighbourhood circuit even if length differs a bit
-  return pathPairOverlap(a.geometry, b.geometry) > 0.62;
+  // Allow different corridors that share a street or two
+  return pathPairOverlap(a.geometry, b.geometry) > LOOP_SIMILAR_OVERLAP;
 }
 
 function pushUnique(collected: ScoredRoute[], scored: ScoredRoute): void {
@@ -322,8 +338,9 @@ function outingMatchScore(
 
 /**
  * Rank outing cards. Match score = prefs + fit-to-asked-duration + amenity soft
- * bonus. Circuit quality (low revisit) is a tiebreak only — never a hidden
- * bump that makes Recommended show a lower match ring than Shortest.
+ * bonus (shown in the ring). Circuit quality / spur demotion is a tiebreak —
+ * and may reorder when match scores are close so Recommended is not a spurred
+ * loop while a cleaner peer exists (LQ-3).
  */
 function rankOuting(
   routes: ScoredRoute[],
@@ -346,10 +363,14 @@ function rankOuting(
 
   return scored.sort((a, b) => {
     const byMatch = (b.match_score ?? 0) - (a.match_score ?? 0);
-    if (Math.abs(byMatch) > 0.05) return byMatch;
+    const qa = circuitQuality.get(a.id) ?? 0;
+    const qb = circuitQuality.get(b.id) ?? 0;
+    const cq = qb - qa;
 
-    const cq =
-      (circuitQuality.get(b.id) ?? 0) - (circuitQuality.get(a.id) ?? 0);
+    // Mild preference for cleaner circuits when match is nearly tied
+    if (Math.abs(byMatch) < 2.5 && Math.abs(cq) >= 20) return cq;
+
+    if (Math.abs(byMatch) > 0.05) return byMatch;
     if (cq !== 0) return cq;
 
     const durErr =
@@ -611,6 +632,88 @@ function pathRevisitRatio(
   return { ratio: scored ? revisit / scored : 1, totalM };
 }
 
+export type SpurMeasure = {
+  /** Sum of distinct cul-de-sac spur one-way lengths (m). */
+  totalSpurM: number;
+  /** Longest single spur tip (m). */
+  worstSpurM: number;
+};
+
+/**
+ * Detect short reverse notches (cul-de-sac out-and-backs) along a circuit.
+ * Ignores the inevitable leave/return stub at the start pin.
+ */
+export function measureCulDeSacSpurs(
+  geometry: GeoJSON.LineString,
+  start: LngLat,
+): SpurMeasure {
+  const samples = densifyPathSamples(geometry);
+  if (samples.length < 10) return { totalSpurM: 0, worstSpurM: 0 };
+  const totalM = samples[samples.length - 1].along;
+
+  let worstSpurM = 0;
+  let totalSpurM = 0;
+  const countedBuckets = new Set<number>();
+
+  for (let i = 2; i < samples.length; i++) {
+    const s = samples[i];
+    // Ignore leave/return stubs at the pin (start and end of circuit)
+    if (haversineM(s.p, start) <= START_STUB_IGNORE_M) continue;
+    if (s.along < START_STUB_IGNORE_M) continue;
+    if (s.along > totalM - START_STUB_IGNORE_M) continue;
+
+    for (let j = i - 1; j >= 0; j--) {
+      const earlier = samples[j];
+      const sep = s.along - earlier.along;
+      if (sep < SPUR_MIN_M * 2) continue;
+      if (sep > SPUR_MAX_M * 2 + 40) break;
+
+      if (haversineM(earlier.p, start) <= START_STUB_IGNORE_M) continue;
+      if (earlier.along < START_STUB_IGNORE_M * 0.5) continue;
+      if (haversineM(s.p, earlier.p) > REVISIT_NEAR_M) continue;
+
+      // Midpoint of the out-and-back should be the spur tip (away from mouth)
+      const midAlong = (s.along + earlier.along) / 2;
+      let mid = earlier;
+      let midErr = Infinity;
+      for (let k = j; k <= i; k++) {
+        const err = Math.abs(samples[k].along - midAlong);
+        if (err < midErr) {
+          midErr = err;
+          mid = samples[k];
+        }
+      }
+      const spurLen = sep / 2;
+      if (spurLen < SPUR_MIN_M || spurLen > SPUR_MAX_M) break;
+
+      const tipAway = haversineM(mid.p, earlier.p);
+      // Real cul-de-sac: tip sits roughly spurLen away from the mouth
+      if (tipAway < Math.max(50, spurLen * 0.6)) continue;
+      if (tipAway > spurLen * 1.35) continue;
+
+      worstSpurM = Math.max(worstSpurM, spurLen);
+      const bucket = Math.floor(earlier.along / 50);
+      if (!countedBuckets.has(bucket)) {
+        countedBuckets.add(bucket);
+        totalSpurM += spurLen;
+      }
+      break;
+    }
+  }
+
+  return { totalSpurM, worstSpurM };
+}
+
+/** Higher = cleaner circuit (gentle demotion — spurs are acceptable). */
+function circuitQualityScore(
+  revisit: number,
+  spur: SpurMeasure,
+): number {
+  const base = (1 - Math.min(1, revisit)) * 100;
+  const spurPenalty = spur.worstSpurM * 0.35 + spur.totalSpurM * 0.06;
+  return Math.round(base - spurPenalty);
+}
+
 type LoopCandidate = {
   a: LngLat;
   b: LngLat;
@@ -664,11 +767,11 @@ function loopWaypointPairs(
     }
 
     for (const bearing of BEARINGS_DEG) {
-      for (const spread of [115, -115]) {
+      for (const spread of [100, 120, -100, -120]) {
         const a = destinationAt(start, radius, bearing);
         const b = destinationAt(start, radius * 0.95, bearing + spread);
         if (!pointInCaseyBbox(a) || !pointInCaseyBbox(b)) continue;
-        if (haversineM(a, b) < radius * 0.35) continue;
+        if (haversineM(a, b) < radius * 0.32) continue;
         pairs.push({
           a,
           b,
@@ -696,7 +799,7 @@ function loopWaypointPairs(
     if (seen.has(p.strategy)) continue;
     picked.push(p);
     seen.add(p.strategy);
-    if (picked.length >= 14) break;
+    if (picked.length >= 20) break;
   }
   return picked;
 }
@@ -706,6 +809,8 @@ type LoopPoolItem = {
   revisit: number;
   hard: boolean;
   durErr: number;
+  spur: SpurMeasure;
+  quality: number;
 };
 
 function selectDiverseLoops(
@@ -714,6 +819,11 @@ function selectDiverseLoops(
 ): ScoredRoute[] {
   const ranked = [...pool].sort((a, b) => {
     if (a.hard !== b.hard) return a.hard ? -1 : 1;
+    // Prefer low-spur / high quality before duration (LQ-3 / LQ-4)
+    if (a.quality !== b.quality) return b.quality - a.quality;
+    if (a.spur.worstSpurM !== b.spur.worstSpurM) {
+      return a.spur.worstSpurM - b.spur.worstSpurM;
+    }
     if (a.durErr !== b.durErr) return a.durErr - b.durErr;
     return a.revisit - b.revisit;
   });
@@ -729,7 +839,7 @@ function selectDiverseLoops(
 
 /**
  * Circuit walks: Mapbox start→A→B→start. Returns several distinct loops when possible.
- * Does not add there-and-backs.
+ * Does not add there-and-backs. Applies spur reject/demote (LQ-1…3).
  */
 async function collectLoop(
   start: LngLat,
@@ -760,19 +870,27 @@ async function collectLoop(
       if (haversineM(start, { lng: end[0], lat: end[1] }) > 40) continue;
 
       const durRatio = r.duration / targetDurationS;
-      // Wide window; we rank by closeness to target afterward
-      if (durRatio < 0.45 || durRatio > 1.65) continue;
+      if (durRatio < LOOP_DUR_MIN_RATIO || durRatio > LOOP_DUR_MAX_RATIO) {
+        continue;
+      }
 
       const overlap = reverseOverlapRatio(geometry);
-      // Reject pure there-and-back disguised as a waypoint route
       if (overlap > MAX_LOOP_REVERSE_OVERLAP) continue;
 
       const { ratio: revisit } = pathRevisitRatio(geometry, start);
       if (revisit > SOFT_LOOP_REVISIT) continue;
 
-      // Must leave the pin — far point of the circuit
+      const spur = measureCulDeSacSpurs(geometry, start);
+      if (
+        spur.worstSpurM > SPUR_REJECT_WORST_M ||
+        spur.totalSpurM > SPUR_REJECT_TOTAL_M
+      ) {
+        continue;
+      }
+
       let maxAway = 0;
-      for (let k = 0; k < geometry.coordinates.length; k += Math.max(1, Math.floor(geometry.coordinates.length / 20))) {
+      const step = Math.max(1, Math.floor(geometry.coordinates.length / 20));
+      for (let k = 0; k < geometry.coordinates.length; k += step) {
         const c = geometry.coordinates[k];
         maxAway = Math.max(
           maxAway,
@@ -782,14 +900,19 @@ async function collectLoop(
       if (maxAway < viaM * 0.35) continue;
 
       const soft = amenitySoftScore(geometry, amenitySets);
-      const hard = revisit <= MAX_LOOP_REVISIT && overlap <= 0.55;
+      const quality = circuitQualityScore(revisit, spur);
+      const hard =
+        revisit <= MAX_LOOP_REVISIT &&
+        overlap <= 0.55 &&
+        spur.worstSpurM <= SPUR_NOTE_M;
+
       const scored: ScoredRoute = {
         id: `outing-loop-${i}`,
         index: pool.length,
         distance_m: r.distance,
         duration_s: r.duration,
         geometry,
-        strategy: `${r.strategy}_rev${revisit.toFixed(2)}_ov${overlap.toFixed(2)}`,
+        strategy: `${r.strategy}_rev${revisit.toFixed(2)}_sp${Math.round(spur.worstSpurM)}`,
         amenity_note: soft.note,
         outing_note: hard
           ? undefined
@@ -801,16 +924,18 @@ async function collectLoop(
         revisit,
         hard,
         durErr: Math.abs(r.duration - targetDurationS),
+        spur,
+        quality,
       });
     } catch {
       // skip
     }
     await yieldToUi();
-    if (selectDiverseLoops(pool.filter((p) => p.hard), maxRoutes).length >= maxRoutes) {
-      break;
-    }
+    // Keep searching until we have enough *diverse* options (not only hard/clean)
+    if (selectDiverseLoops(pool, maxRoutes).length >= maxRoutes) break;
   }
 
+  // Take the best diverse set from the full pool (mild spurs OK)
   for (const r of selectDiverseLoops(pool, maxRoutes)) {
     pushDistinctLoop(collected, r);
   }
@@ -880,11 +1005,11 @@ export async function planOutingRoutes(
       collected,
       maxRoutes,
     );
-    // Retry smaller vias if nothing fitted (common when first pass overshoots time)
-    if (collected.length === 0) {
+    // Aim for a couple of options: retry other radii if the pool is thin
+    if (collected.length < 2) {
       await collectLoop(
         start,
-        viaM * 0.65,
+        viaM * 0.7,
         targetDurationS,
         segments,
         token,
@@ -893,10 +1018,27 @@ export async function planOutingRoutes(
         maxRoutes,
       );
     }
-    // No there-and-back padding under Loop — keep shape honest
+    if (collected.length < 2) {
+      await collectLoop(
+        start,
+        viaM * 1.25,
+        targetDurationS,
+        segments,
+        token,
+        amenitySets,
+        collected,
+        maxRoutes,
+      );
+    }
+    // LQ-1 / LQ-5: never pad Loop with there-and-backs
   }
 
   if (!collected.length) {
+    if (shape === "loop") {
+      throw new Error(
+        "Couldn’t find a loop circuit of about that length from this start. Try a start further inside Casey (edges are harder), There and back, or a different duration.",
+      );
+    }
     throw new Error(
       "Couldn’t find walks of about that length from this start. Try another spot, shape, or duration.",
     );
@@ -909,10 +1051,10 @@ export async function planOutingRoutes(
     amenityBonus.set(r.id, soft.bonus);
     if (soft.note && !r.amenity_note) r.amenity_note = soft.note;
 
-    if (shape === "loop" && r.strategy && !r.strategy.startsWith("out_and_back")) {
+    if (shape === "loop") {
       const { ratio } = pathRevisitRatio(r.geometry, start);
-      // Higher = cleaner circuit (tiebreak only; not added into match ring)
-      circuitQuality.set(r.id, Math.round((1 - Math.min(1, ratio)) * 100));
+      const spur = measureCulDeSacSpurs(r.geometry, start);
+      circuitQuality.set(r.id, circuitQualityScore(ratio, spur));
     }
   }
 
