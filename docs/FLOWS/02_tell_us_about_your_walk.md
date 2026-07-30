@@ -216,9 +216,10 @@ Explicitly **later / icebox** (not this flow): accounts, saved libraries, histor
 1. ✅ Entry chooser + A→B + overlay visibility + one-way outing test slice (30 Jul)  
 2. ✅ Around here **Loop** default UI + there-and-back / loop generator (30 Jul)  
 3. ✅ Soft amenity bias on Around here when checkboxes are on (30 Jul)  
-4. Loop quality lock + map route chrome (selected vs alternatives) — next  
-5. Optional backtrack **snip** spike — see [`LOOP_BACKTRACK_AND_MAP_UX.md`](../LOOP_BACKTRACK_AND_MAP_UX.md)  
-6. Shareable A→B link + “Why this walk?”  
-7. Colour / brand polish  
+4. ✅ Loop quality lock (spur demotion, multi-circuit options)  
+5. ✅ Map route chrome (dotted selected / quieter alternatives + tap)  
+6. Optional backtrack **snip** spike — see [`LOOP_BACKTRACK_AND_MAP_UX.md`](../LOOP_BACKTRACK_AND_MAP_UX.md)  
+7. Shareable A→B link + “Why this walk?”  
+8. Colour / brand polish  
 
 Trace: [`BACKLOG.md`](../BACKLOG.md) N1b · [`DELIVERY_PLAN.md`](../DELIVERY_PLAN.md) Sprint D+ · [`RESIDENT_UX_NEXT.md`](../RESIDENT_UX_NEXT.md) · [`LOOP_BACKTRACK_AND_MAP_UX.md`](../LOOP_BACKTRACK_AND_MAP_UX.md)

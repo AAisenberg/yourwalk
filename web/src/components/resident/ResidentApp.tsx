@@ -122,6 +122,7 @@ export function ResidentApp() {
       const map = mapRef.current;
       const src = map?.getSource("routes") as mapboxgl.GeoJSONSource | undefined;
       if (!src) return;
+      // selected as 0/1 — Mapbox property filters are more reliable than booleans
       src.setData({
         type: "FeatureCollection",
         features: list.map((r, i) => ({
@@ -129,7 +130,7 @@ export function ResidentApp() {
           properties: {
             id: r.id,
             color: ROUTE_COLORS[i % ROUTE_COLORS.length],
-            selected: r.id === selected,
+            selected: r.id === selected ? 1 : 0,
           },
           geometry: r.geometry,
         })),
@@ -175,27 +176,50 @@ export function ResidentApp() {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
       });
+      // Alternatives first (under): quieter solid lines — Google-like chrome
       map.addLayer({
-        id: "routes-line",
+        id: "routes-alt",
         type: "line",
         source: "routes",
+        filter: ["==", ["get", "selected"], 0],
         layout: { "line-cap": "round", "line-join": "round" },
         paint: {
           "line-color": ["get", "color"],
-          "line-width": [
-            "case",
-            ["boolean", ["get", "selected"], false],
-            7,
-            4.5,
-          ],
-          "line-opacity": 0.95,
+          "line-width": 4,
+          "line-opacity": 0.38,
+        },
+      });
+      // Selected on top: stronger dotted path
+      map.addLayer({
+        id: "routes-selected",
+        type: "line",
+        source: "routes",
+        filter: ["==", ["get", "selected"], 1],
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": ["get", "color"],
+          "line-width": 7.5,
+          "line-opacity": 0.98,
+          "line-dasharray": [0.8, 1.4],
         },
       });
 
-      map.on("click", "routes-line", (e) => {
+      const onRouteClick = (
+        e: mapboxgl.MapLayerMouseEvent,
+      ) => {
         const id = e.features?.[0]?.properties?.id;
         if (typeof id === "string") setSelectedId(id);
-      });
+      };
+      map.on("click", "routes-alt", onRouteClick);
+      map.on("click", "routes-selected", onRouteClick);
+      for (const layerId of ["routes-alt", "routes-selected"] as const) {
+        map.on("mouseenter", layerId, () => {
+          map.getCanvas().style.cursor = "pointer";
+        });
+        map.on("mouseleave", layerId, () => {
+          map.getCanvas().style.cursor = "";
+        });
+      }
 
       map.on("click", async (e) => {
         const mode = pickModeRef.current;
@@ -234,7 +258,7 @@ export function ResidentApp() {
                   "line-opacity": 0.45,
                 },
               },
-              "routes-line",
+              "routes-alt",
             );
           } catch {
             /* optional */
@@ -614,10 +638,10 @@ export function ResidentApp() {
                         Object.values(overlays).some(Boolean)
                           ? ", and amenity proximity"
                           : ""
-                      }`
+                      } · tap a path on the map to select`
                     : routes.length === 1
                       ? "1 trip option · lower importance favours a quicker walk"
-                      : `${routes.length} trip options · raise importance to favour better footpaths / after dark`}
+                      : `${routes.length} trip options · tap a path on the map to select`}
                 </p>
               </div>
               <button
