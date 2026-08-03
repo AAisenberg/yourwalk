@@ -57,6 +57,11 @@ OBJECT_GZIP = "segment_scores.geojson.gz"
 OBJECT_META = "segment_scores.meta.json"
 OBJECT_LGA = "casey_lga_boundary.geojson"
 LGA_LOCAL = VIEWER_DIR / "casey_lga_boundary.geojson"
+# Lab evidence layers (Night Index inputs) — optional if viewer export exists
+EVIDENCE_UPLOADS = (
+    ("streetlights.geojson", VIEWER_DIR / "streetlights.geojson"),
+    ("park_lights.geojson", VIEWER_DIR / "park_lights.geojson"),
+)
 MIGRATION = (
     PIPELINE_ROOT.parent
     / "supabase"
@@ -278,6 +283,27 @@ def main() -> int:
             "application/json",
         )
 
+        evidence_urls: dict[str, str] = {}
+        for object_name, local_path in EVIDENCE_UPLOADS:
+            if not local_path.exists():
+                print(
+                    f"  skip evidence {object_name} "
+                    f"(missing {local_path.name} — run build_viewer_layers.py)"
+                )
+                continue
+            print(
+                f"  evidence {object_name} "
+                f"({local_path.stat().st_size / 1e6:.1f} MB)…"
+            )
+            evidence_urls[object_name] = upload_object(
+                client,
+                base,
+                key,
+                object_name,
+                local_path.read_bytes(),
+                "application/geo+json",
+            )
+
     print(json.dumps({"meta_url": url_meta, **meta_public}, indent=2))
     print("\nAdd to web/.env.local:")
     # Prefer plain .geojson — Cloudflare Smart CDN compresses on the wire.
@@ -285,6 +311,18 @@ def main() -> int:
     print(f"NEXT_PUBLIC_SEGMENTS_GEOJSON_URL={url_json}")
     print(f"NEXT_PUBLIC_LGA_BOUNDARY_URL={url_lga}")
     print(f"# optional archive copy: {url_gz}")
+    if evidence_urls:
+        print("# Lab evidence layers (optional overrides; defaults use map-data/):")
+        if "streetlights.geojson" in evidence_urls:
+            print(
+                "NEXT_PUBLIC_STREETLIGHTS_GEOJSON_URL="
+                f"{evidence_urls['streetlights.geojson']}"
+            )
+        if "park_lights.geojson" in evidence_urls:
+            print(
+                "NEXT_PUBLIC_PARK_LIGHTS_GEOJSON_URL="
+                f"{evidence_urls['park_lights.geojson']}"
+            )
     return 0
 
 

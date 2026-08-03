@@ -41,10 +41,22 @@ Only as needed so trip verification doesn’t silently diverge from resident ran
 ## Build sequence (lab vNext)
 
 1. ✅ Resident slice committed (duration slider, prefer shared paths, Day/Night → edit) — 3 Aug  
-2. **Dataset toggles** on lab map — lighting first (AusNet/UE street lights + park/reserve lights), then other index inputs as needed  
-3. Align lab trip plan with shared resident libs (hybrid + optional prefs/match)  
-4. Collapse bake-off to OD regression drawer  
-5. Later: Council-dashboard horizon (auth, curated layers, export) — separate decision  
+2. ✅ **Lighting evidence toggles** on `/lab` — street lights (AusNet/UE) + park/reserve lights — 3 Aug  
+3. Further dataset toggles as needed (heat, canopy, crossings, …)  
+4. Align lab trip plan with shared resident libs (hybrid + optional prefs/match)  
+5. Collapse bake-off to OD regression drawer  
+6. Later: Council-dashboard horizon (auth, curated layers, export) — separate decision  
+
+### Local lighting data
+
+```bash
+# After pipeline/scripts/build_viewer_layers.py
+mkdir -p web/public/overlays
+ln -sf ../../../pipeline/data/viewer/streetlights.geojson web/public/overlays/streetlights.geojson
+ln -sf ../../../pipeline/data/viewer/park_lights.geojson web/public/overlays/park_lights.geojson
+```
+
+`web/public/overlays/` is gitignored. Dev loads these locally; production uses Supabase `map-data/` (upload via `upload_segment_scores_geojson.py`, which also pushes lighting GeoJSON when present). Suburb filter on lights is case-insensitive (park suburbs are often UPPERCASE).
 
 ## Relationship to methodology
 

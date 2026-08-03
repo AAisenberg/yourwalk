@@ -5,6 +5,15 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+  DEFAULT_EVIDENCE,
+  EVIDENCE_LAYER_DEFS,
+  evidencePopupHtml,
+  evidenceSuburbFilter,
+  resolveEvidenceUrl,
+  type EvidenceLayerId,
+  type EvidenceState,
+} from "@/lib/evidenceLayers";
+import {
   defaultLgaBoundaryUrl,
   defaultSegmentsGeoJsonUrl,
   fetchLgaBoundary,
@@ -114,6 +123,10 @@ export function ScoringMap() {
   const pendingBakeoffRef = useRef<BakeoffSelection | null>(null);
   const [odSample, setOdSample] = useState<OdSamplePair[]>([]);
   const [odSampleId, setOdSampleId] = useState<string>("");
+  const [evidence, setEvidence] = useState<EvidenceState>(DEFAULT_EVIDENCE);
+  const [evidenceLoading, setEvidenceLoading] =
+    useState<EvidenceLayerId | null>(null);
+  const evidenceHandlersRef = useRef<Set<string>>(new Set());
 
   const loading = loadPhase === "map" || loadPhase === "segments";
 
@@ -535,6 +548,89 @@ export function ScoringMap() {
     }
   }, [scoreField]);
 
+  /** Lazy-load evidence point layers (street / park lights) on first toggle. */
+  const syncEvidenceLayers = useCallback(
+    (state: EvidenceState) => {
+      const map = mapRef.current;
+      if (!map?.isStyleLoaded() || loadPhase !== "ready") return;
+
+      for (const def of EVIDENCE_LAYER_DEFS) {
+        const srcId = `evidence-${def.id}`;
+        const layerId = `evidence-${def.id}-pts`;
+        const on = state[def.id];
+        const url = resolveEvidenceUrl(def);
+
+        if (on) {
+          if (!map.getSource(srcId)) {
+            setEvidenceLoading(def.id);
+            map.addSource(srcId, { type: "geojson", data: url });
+            map.addLayer({
+              id: layerId,
+              type: "circle",
+              source: srcId,
+              paint: {
+                "circle-radius": [
+                  "interpolate",
+                  ["linear"],
+                  ["zoom"],
+                  11,
+                  def.radius[0],
+                  15,
+                  def.radius[1],
+                ],
+                "circle-color": def.color,
+                "circle-stroke-width": 0.5,
+                "circle-stroke-color": "#1e293b",
+                "circle-opacity": 0.85,
+              },
+            });
+
+            const suburbFilter = evidenceSuburbFilter(suburb);
+            map.setFilter(layerId, suburbFilter);
+
+            if (!evidenceHandlersRef.current.has(layerId)) {
+              evidenceHandlersRef.current.add(layerId);
+              const layerEvidenceId = def.id;
+              map.on("click", layerId, (e) => {
+                const f = e.features?.[0];
+                if (!f?.properties) return;
+                new mapboxgl.Popup()
+                  .setLngLat(e.lngLat)
+                  .setHTML(evidencePopupHtml(layerEvidenceId, f.properties))
+                  .addTo(map);
+              });
+              map.on("mouseenter", layerId, () => {
+                map.getCanvas().style.cursor = "pointer";
+              });
+              map.on("mouseleave", layerId, () => {
+                map.getCanvas().style.cursor = "";
+              });
+            }
+
+            const onSource = (ev: mapboxgl.MapSourceDataEvent) => {
+              if (ev.sourceId === srcId && ev.isSourceLoaded) {
+                setEvidenceLoading((cur) => (cur === def.id ? null : cur));
+                map.off("sourcedata", onSource);
+              }
+            };
+            map.on("sourcedata", onSource);
+          } else if (map.getLayer(layerId)) {
+            map.setLayoutProperty(layerId, "visibility", "visible");
+          }
+        } else if (map.getLayer(layerId)) {
+          map.setLayoutProperty(layerId, "visibility", "none");
+          setEvidenceLoading((cur) => (cur === def.id ? null : cur));
+        }
+      }
+    },
+    [loadPhase, suburb],
+  );
+
+  useEffect(() => {
+    if (loadPhase !== "ready") return;
+    syncEvidenceLayers(evidence);
+  }, [evidence, loadPhase, syncEvidenceLayers]);
+
   // Suburb / path-class filters
   useEffect(() => {
     const map = mapRef.current;
@@ -544,6 +640,14 @@ export function ScoringMap() {
     map.setFilter("segments-fill", filter);
     if (map.getLayer("segments-outline")) {
       map.setFilter("segments-outline", filter);
+    }
+
+    const lightFilter = evidenceSuburbFilter(suburb);
+    for (const def of EVIDENCE_LAYER_DEFS) {
+      const layerId = `evidence-${def.id}-pts`;
+      if (map.getLayer(layerId)) {
+        map.setFilter(layerId, lightFilter);
+      }
     }
 
     const n = countMatching(featuresRef.current, suburb, pathClass);
@@ -960,6 +1064,49 @@ export function ScoringMap() {
           <option value="footpath">Footpath</option>
           <option value="shared_use">Shared use</option>
         </select>
+
+        <div className="mb-3 border-t border-slate-700 pt-3">
+          <div className="mb-1 text-xs font-medium text-slate-300">
+            Evidence layers
+          </div>
+          <p className="mb-2 text-[10px] text-slate-500">
+            Night Index inputs under the score — not amenity overlays
+          </p>
+          <ul className="space-y-1.5">
+            {EVIDENCE_LAYER_DEFS.map((def) => (
+              <li key={def.id}>
+                <label className="flex cursor-pointer items-start gap-2 text-xs text-slate-200">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={evidence[def.id]}
+                    disabled={loading || loadPhase !== "ready"}
+                    onChange={(e) =>
+                      setEvidence((prev) => ({
+                        ...prev,
+                        [def.id]: e.target.checked,
+                      }))
+                    }
+                  />
+                  <span>
+                    <span
+                      className="mr-1.5 inline-block h-2 w-2 rounded-full"
+                      style={{ background: def.color }}
+                      aria-hidden
+                    />
+                    {def.label}
+                    {evidenceLoading === def.id ? (
+                      <span className="ml-1 text-sky-300">Loading…</span>
+                    ) : null}
+                    <span className="mt-0.5 block text-[10px] text-slate-500">
+                      {def.hint}
+                    </span>
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
 
         <div className="mb-1 flex gap-0.5 text-[9px] leading-tight">
           {stops.map(({ value, color }) => (
