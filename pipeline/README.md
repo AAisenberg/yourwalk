@@ -236,6 +236,39 @@ python scripts/ingest_benches_seats.py --force-download
 | **Records** | 3,411 |
 | **QA** | ~64% have `quantity=0`; `capacity` mostly `TBD` — documented, not used in scoring |
 
+### Public toilets (T1EAM) ✅
+
+**Overlay only** — resident along-the-way + QA viewer. Not in Day/Night index.
+
+```bash
+python scripts/ingest_public_toilets.py
+python scripts/ingest_public_toilets.py --force-download
+```
+
+| Item | Detail |
+|------|--------|
+| **Source** | [Public Toilet Blocks (T1EAM)](https://data.casey.vic.gov.au/explore/dataset/public_toilet_block_pt_t1eam/) |
+| **Output** | `data/intermediate/public_toilet_block_pt_t1eam.parquet` |
+| **Records** | 55 (portal export 3 Aug 2026) |
+| **QA** | `not_public_toilet` when name says so; retained, not dropped |
+| **App** | Symlink `web/public/overlays/toilets.geojson` → viewer export |
+
+### Dog bag dispensers (T1EAM) ✅
+
+**Overlay only** — resident along-the-way + QA viewer. Not in Day/Night index.
+
+```bash
+python scripts/ingest_dog_bag_dispensers.py
+python scripts/ingest_dog_bag_dispensers.py --force-download
+```
+
+| Item | Detail |
+|------|--------|
+| **Source** | [Dog Dispenser Bags (T1EAM)](https://data.casey.vic.gov.au/explore/dataset/dog-dispenser-bags-pt-t1eam/) |
+| **Output** | `data/intermediate/dog_dispenser_bags_pt_t1eam.parquet` |
+| **Records** | 10 (portal export 3 Aug 2026 — sparse vs older ~164 register note) |
+| **App** | Symlink `web/public/overlays/dog_bags.geojson` → viewer export |
+
 ### Casey Asset Lights — parks/reserves (T1EAM) ✅
 
 Night Index lighting enrichment for off-road paths and reserves.

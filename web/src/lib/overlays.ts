@@ -31,18 +31,16 @@ export const OVERLAY_DEFS: OverlayDef[] = [
   {
     id: "toilets",
     label: "Toilets",
-    url: null,
+    url: "/overlays/toilets.geojson",
     color: "#7C3AED",
-    available: false,
-    hint: "Council layer not on the map yet",
+    available: true,
   },
   {
     id: "dog_bags",
     label: "Dog bags",
-    url: null,
+    url: "/overlays/dog_bags.geojson",
     color: "#F6871F",
-    available: false,
-    hint: "Council layer not on the map yet",
+    available: true,
   },
 ];
 
