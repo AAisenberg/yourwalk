@@ -26,7 +26,7 @@ It **may evolve** toward a Council dashboard later. Treat that as a horizon, not
 
 Hybrid routing is locked (ADR-001). The large OD bake-off UI earned that lock; it is no longer the lab’s centrepiece.
 
-**Lean:** Collapse to a small **“OD regression”** drawer (load fixture OD, paint Mapbox vs challenger). Keep until a few more Casey starts look solid in resident, then retire if unused.
+**Lean:** Collapse to a small **“OD regression”** drawer (load fixture OD, paint Mapbox vs challenger). Keep until a few more Casey starts look solid in resident, then retire if unused. Lab defaults bake-off to **hidden** (Show to expand).
 
 ### Pipeline QA viewer — **keep for now**
 
@@ -46,6 +46,8 @@ Only as needed so trip verification doesn’t silently diverge from resident ran
 4. Align lab trip plan with shared resident libs (hybrid + optional prefs/match)  
 5. Collapse bake-off to OD regression drawer  
 6. Later: Council-dashboard horizon (auth, curated layers, export) — separate decision  
+
+**Scoring note (3 Aug):** Lighting uses length-normalised density (v1.1.3) — see [`LIGHTING_DENSITY.md`](LIGHTING_DENSITY.md). Re-upload map GeoJSON after local rescore if lab/prod should match.
 
 ### Local lighting data
 

@@ -119,7 +119,7 @@ export function ScoringMap() {
   const [rankMode, setRankMode] = useState<RankMode>("day");
   const [planning, setPlanning] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
-  const [bakeoffOpen, setBakeoffOpen] = useState(true);
+  const [bakeoffOpen, setBakeoffOpen] = useState(false);
   const pendingBakeoffRef = useRef<BakeoffSelection | null>(null);
   const [odSample, setOdSample] = useState<OdSamplePair[]>([]);
   const [odSampleId, setOdSampleId] = useState<string>("");

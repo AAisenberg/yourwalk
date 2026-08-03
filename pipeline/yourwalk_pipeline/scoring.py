@@ -16,7 +16,13 @@ import pandas as pd
 from yourwalk_pipeline.paths import INTERMEDIATE_DIR
 
 METHODOLOGY_VERSION = "1.1"
-SCORING_SPEC_VERSION = "1.1.2"
+SCORING_SPEC_VERSION = "1.1.3"
+
+# Lighting density (lights per 100 m of segment). See SCORING_SPEC §6.1.
+LIGHT_DENSITY_GOOD = 1.0  # ~1 light / 100 m — minimum for good tier
+LIGHT_DENSITY_POOR = 0.3  # < ~1 light / 333 m — poor tier
+LIGHT_DENSITY_SAT = 2.0  # ~1 light / 50 m — saturates density bonus
+LIGHT_LENGTH_FLOOR_100M = 0.5  # treat stubs shorter than 50 m as 50 m
 
 DATA_VINTAGE = {
     "heat": "2018",
@@ -217,26 +223,40 @@ def score_heat_shade(df: pd.DataFrame, eligible: pd.Series) -> tuple[pd.Series, 
     return _clamp(total), components
 
 
-def _combined_lighting(df: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
+def _combined_lighting(df: pd.DataFrame) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """Nearest m, combined count, and lights per 100 m of segment length."""
     street_near = df["streetlight_nearest_m"].astype(float)
     park_near = df.get("park_light_nearest_m", pd.Series(np.nan, index=df.index)).astype(float)
     nearest = pd.concat([street_near, park_near], axis=1).min(axis=1, skipna=True)
     count = df["streetlight_count_30m"].fillna(0).astype(float) + df.get(
         "park_light_count_50m", pd.Series(0, index=df.index)
     ).fillna(0).astype(float)
-    return nearest, count
+    length_m = df["length_m"].astype(float)
+    density = count / np.maximum(length_m / 100.0, LIGHT_LENGTH_FLOOR_100M)
+    return nearest, count, density
 
 
 def score_lighting(df: pd.DataFrame) -> pd.Series:
-    nearest, count = _combined_lighting(df)
-    poor = (nearest > 40) | count.eq(0)
-    good = (nearest <= 25) & (count >= 1)
+    """Length-normalised lighting coverage (SCORING_SPEC §6.1 / v1.1.3).
 
-    curve = 70.0 + 30.0 * (1.0 - nearest / 25.0) + 5.0 * np.minimum(count, 6.0)
+    Nearest distance alone must not mark a long segment as well lit when only
+    one pole sits on the buffer edge (creek trails / mega-polygons).
+    """
+    nearest, count, density = _combined_lighting(df)
+    poor = (nearest > 40) | count.eq(0) | (density < LIGHT_DENSITY_POOR)
+    good = (nearest <= 25) & (density >= LIGHT_DENSITY_GOOD)
+
+    # Good: proximity term + density term (saturates near typical ~50 m spacing)
+    curve = (
+        55.0
+        + 25.0 * (1.0 - nearest / 25.0)
+        + 20.0 * np.minimum(density / LIGHT_DENSITY_SAT, 1.0)
+    )
     curve = np.minimum(100.0, curve)
 
-    moderate = ~(poor | good)
-    mod_score = 36.0 + 48.0 * (1.0 - (nearest - 25.0).clip(lower=0) / 15.0)
+    mod_score = 30.0 + 40.0 * (1.0 - (nearest - 25.0).clip(lower=0) / 15.0)
+    mod_score = mod_score + 15.0 * np.minimum(density / LIGHT_DENSITY_GOOD, 1.0)
+    mod_score = mod_score.clip(upper=84.0)
     mod_score = mod_score.where(count >= 1, mod_score * 0.7)
 
     out = pd.Series(np.where(good, curve, np.where(poor, 35.0, mod_score)), index=df.index)
@@ -280,8 +300,8 @@ def compute_confidence(df: pd.DataFrame, scored: pd.DataFrame) -> tuple[pd.Serie
         "uhi18_m"
     ].isna()
 
-    nearest, count = _combined_lighting(df)
-    light_poor = (nearest > 40) | count.eq(0)
+    nearest, count, density = _combined_lighting(df)
+    light_poor = (nearest > 40) | count.eq(0) | (density < LIGHT_DENSITY_POOR)
 
     crossing_gap = df.get("coverage_flags", pd.Series("{}", index=df.index)).astype(str).str.contains(
         '"crossing": "gap"'
@@ -345,6 +365,8 @@ def score_segments(features: gpd.GeoDataFrame) -> tuple[gpd.GeoDataFrame, dict[s
     out["heat_shade_score"] = heat_shade.round(1)
     out["day_index_score"] = day_index.round(1)
 
+    _nearest, _count, lighting_density = _combined_lighting(df)
+    out["lighting_density_per_100m"] = lighting_density.round(3)
     out["score_lighting"] = night_parts["lighting"].round(1)
     out["score_crash"] = night_parts["crash"].round(1)
     out["lighting_after_dark_score"] = lighting_stream.round(1)
@@ -389,6 +411,21 @@ def score_segments(features: gpd.GeoDataFrame) -> tuple[gpd.GeoDataFrame, dict[s
             "heat_shade_score": float(out.loc[eligible, "heat_shade_score"].median()),
             "lighting_after_dark_score": float(
                 out.loc[eligible, "lighting_after_dark_score"].median()
+            ),
+            "score_lighting": float(out.loc[eligible, "score_lighting"].median()),
+            "lighting_density_per_100m": float(
+                out.loc[eligible, "lighting_density_per_100m"].median()
+            ),
+        },
+        "lighting_density": {
+            "good_threshold_per_100m": LIGHT_DENSITY_GOOD,
+            "poor_threshold_per_100m": LIGHT_DENSITY_POOR,
+            "saturation_per_100m": LIGHT_DENSITY_SAT,
+            "eligible_median_density": float(
+                out.loc[eligible, "lighting_density_per_100m"].median()
+            ),
+            "eligible_below_poor_threshold": int(
+                (out.loc[eligible, "lighting_density_per_100m"] < LIGHT_DENSITY_POOR).sum()
             ),
         },
         "confidence_day_counts": out["confidence_day"].value_counts().to_dict(),

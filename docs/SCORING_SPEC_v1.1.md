@@ -1,8 +1,8 @@
 # YourWalk Scoring Specification
 
-**Version:** 1.1.2  
-**Status:** Accepted — locked for City of Casey pilot (Nikki Kalms / XYX Lab sign-off 3 Jul 2026)  
-**Last updated:** 15 July 2026  
+**Version:** 1.1.3  
+**Status:** Accepted — locked for City of Casey pilot (Nikki Kalms / XYX Lab sign-off 3 Jul 2026); **1.1.3** lighting density patch 3 Aug 2026  
+**Last updated:** 3 August 2026  
 **Methodology gate:** [`VULNERABILITY_INDEX.md`](VULNERABILITY_INDEX.md) v1.1  
 **Sign-off log:** [`meeting-prep/NIKKI_SIGNOFF_DECISIONS.md`](meeting-prep/NIKKI_SIGNOFF_DECISIONS.md)  
 **Harmonisation input:** [`SEGMENT_HARMONISATION.md`](SEGMENT_HARMONISATION.md) v0.3 → `segment_features.parquet`
@@ -210,28 +210,35 @@ Sub-weights:
 
 ### 6.1 Merged lighting
 
-Combine AusNet/United Energy street lights and Casey park/reserve lights:
+Combine AusNet/United Energy street lights and Casey park/reserve lights, then **normalise count by segment length** (same spirit as crash density). Design note: [`LIGHTING_DENSITY.md`](LIGHTING_DENSITY.md).
 
 ```
 combined_nearest_m = min(streetlight_nearest_m, park_light_nearest_m)   -- ignore NULL side
-combined_count_30m = streetlight_count_30m + coalesce(park_light_count_50m, 0)
+combined_count     = streetlight_count_30m + coalesce(park_light_count_50m, 0)
+density_per_100m   = combined_count / max(length_m / 100, 0.5)
 ```
 
-**Coverage rule (v1):**
+Store `lighting_density_per_100m` on `segment_scores` for transparency.
+
+**Coverage rule (v1.1.3):**
 
 | Condition | Lighting score |
 |-----------|----------------|
-| `combined_nearest_m ≤ 25` **and** `combined_count_30m ≥ 1` | **Good** — base 85–100 from distance/count curve |
-| `combined_nearest_m > 40` **or** `combined_count_30m = 0` | **Poor** — cap at 35 |
-| otherwise (25–40 m or sparse count) | **Moderate** — 36–84 linear blend |
+| `combined_nearest_m ≤ 25` **and** `density_per_100m ≥ 1.0` | **Good** — proximity + density curve |
+| `combined_nearest_m > 40` **or** `combined_count = 0` **or** `density_per_100m < 0.3` | **Poor** — cap at 35 |
+| otherwise | **Moderate** — nearest + density blend, max 84 |
 
 Good-tier curve:
 
 ```
-lighting_score = min(100, 70 + 30 * (1 - combined_nearest_m / 25) + 5 * min(combined_count_30m, 6))
+lighting_score = min(100,
+  55 + 25 * (1 - combined_nearest_m / 25)
+    + 20 * min(density_per_100m / 2.0, 1))
 ```
 
-No lux weighting in v1 ([`SEGMENT_HARMONISATION.md`](SEGMENT_HARMONISATION.md) §5.8).
+Density saturates at **2.0 lights / 100 m** (~1 pole per 50 m). Absolute count alone must not put a long sparsely lit segment in the good tier (e.g. one pole on a 200 m path → density 0.5 → moderate).
+
+No lux / wattage weighting in v1 ([`SEGMENT_HARMONISATION.md`](SEGMENT_HARMONISATION.md) §5.8). **Max gap along path** remains v1.2.
 
 ### 6.2 Night pedestrian crashes
 
@@ -277,7 +284,7 @@ Per-index confidence: `high` | `medium` | `low`. Full ADR-005 model TBD; v1 uses
 | `coverage_flags.crossing = gap` | −1 tier on accessibility |
 | `uhi_join_method = nearest` or `uhi18_m` NULL | −1 tier on day |
 | `canopy_cover_pct = 0` | −1 tier on day (shade) |
-| `streetlight_nearest_m > 40` or combined count 0 | −1 tier on night |
+| `streetlight_nearest_m > 40` or combined count 0 or `lighting_density_per_100m < 0.3` | −1 tier on night |
 | Multiple −1 signals | floor at `low` |
 
 Start at `high`; apply deductions; never below `low`.
@@ -307,7 +314,7 @@ accessibility_score
 score_heat, score_canopy, score_comfort, heat_shade_score, day_index_score
 
 -- Night components
-score_lighting, score_crash, lighting_after_dark_score, night_index_score
+lighting_density_per_100m, score_lighting, score_crash, lighting_after_dark_score, night_index_score
 
 -- Display helpers
 day_index_display, night_index_display          -- index / 10
@@ -368,7 +375,8 @@ python scripts/score_segments.py
 | Limitation | Handling |
 |------------|----------|
 | 2018 heat vintage | Document in `data_vintage`; canopy partially mitigates |
-| No lux / wattage weighting | Proximity + count only |
+| No lux / wattage weighting | Proximity + **length-normalised density** only (v1.1.3); no occlusion model |
+| Long trail / mega-polygons | Density gate stops one edge pole lighting the whole segment; max-gap deferred to v1.2 |
 | General crossings / kerb ramps missing | School crossing bonus only; `coverage_flags.crossing = gap` |
 | Brick paving / moderate surfaces | Moderate bucket = 50 per Nikki sign-off 3 Jul 2026 |
 | Parks overlap ≠ walkable | Parks layer viewer-only; no `in_park_reserve` in v1 |
@@ -390,6 +398,7 @@ python scripts/score_segments.py
 
 | Version | Date | Changes |
 |---------|------|---------|
+| **1.1.3** | **3 Aug 2026** | Lighting: length-normalised density gate (lights per 100 m); replaces absolute-count good tier — see [`LIGHTING_DENSITY.md`](LIGHTING_DENSITY.md) |
 | **1.1.2 Accepted** | **15 Jul 2026** | Status → Accepted; Phase C (PostGIS + app) unlocked |
 | **1.1.2** | **3 Jul 2026** | Nikki sign-off: Moderate bucket → 50 (brick paving, crushed rock, timber); supersedes draft 65 |
 | **1.1** | **3 Jun 2026** | Initial scoring spec — width class split, speed renormalisation, merged lighting rule, graffiti log+recency, council trees excluded from canopy |

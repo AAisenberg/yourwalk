@@ -279,13 +279,15 @@ Walking-comfort buffers; exact scoring threshold TBD in scoring spec.
 | `streetlight_count_30m` | Count within **30 m** buffer |
 | `streetlight_count_50m` | Count within **50 m** buffer |
 | `streetlight_nearest_wattage_w` | Wattage of nearest light (if known) |
-| `streetlight_max_gap_m` | **Derived (v1.1):** Along segment polygon, estimate max distance between consecutive lights within 50 m buffer — optional advanced field; defer to v1.2 if costly |
+| `streetlight_max_gap_m` | **Derived (v1.2 stretch):** Along segment polygon, estimate max distance between consecutive lights within 50 m buffer |
 
-**Gap length** is the highest-value lighting metric but requires ordered lights along segment — document as stretch goal.
+**Gap length** remains the highest-value lighting metric but needs ordered lights along the path — defer to v1.2.
+
+**Scoring (v1.1.3):** Harmonised nearest + counts are unchanged. Scoring normalises count by `length_m` → `lighting_density_per_100m` so one pole cannot light an entire long segment. See [`LIGHTING_DENSITY.md`](LIGHTING_DENSITY.md) and [`SCORING_SPEC_v1.1.md`](SCORING_SPEC_v1.1.md) §6.1.
 
 #### 5.8a Light-type attributes in source data (v1 — not harmonised)
 
-We **do** have technology/type fields, but v1 Night Index lighting uses **proximity only** (counts + distances). No lux.
+We **do** have technology/type fields, but v1 Night Index lighting uses **proximity + length-normalised density** only. No lux.
 
 **AusNet / United Energy street lights** (42,258 points):
 
