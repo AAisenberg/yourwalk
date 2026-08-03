@@ -49,6 +49,10 @@ Only as needed so trip verification doesn’t silently diverge from resident ran
 
 **Scoring note (3 Aug):** Lighting uses length-normalised density (v1.1.3) — see [`LIGHTING_DENSITY.md`](LIGHTING_DENSITY.md). Re-upload map GeoJSON after local rescore if lab/prod should match.
 
+**Resident transparency (3 Aug):** Trip cards show coverage warnings when Mapbox geometry only partly overlaps Casey T1EAM scored polygons (pills can borrow from nearby streets). QA viewer: purple multi-select pick list + Copy IDs for corridor inventories.
+
+**Priority corridors:** Hallam Creek Trail + Eumemmerring Creek Trail segment inventories — [`PRIORITY_CORRIDORS.md`](PRIORITY_CORRIDORS.md).
+
 ### Local lighting data
 
 ```bash

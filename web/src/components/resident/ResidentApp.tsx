@@ -1214,19 +1214,6 @@ export function ResidentApp() {
                         </div>
                       </div>
 
-                      {(r.score.confidence_day === "reduced" ||
-                        r.score.confidence_night === "reduced" ||
-                        r.score.coverage_ratio < 0.35) && (
-                        <p
-                          className={`mt-1.5 text-[10px] ${
-                            isNight ? "text-amber-300/80" : "text-amber-700"
-                          }`}
-                        >
-                          Reduced confidence - limited footpath score coverage
-                          along this path
-                        </p>
-                      )}
-
                       <div className="mt-2.5 flex flex-wrap gap-1.5">
                         {isNight ? (
                           <ScorePill
@@ -1250,6 +1237,27 @@ export function ResidentApp() {
                           isNight={isNight}
                         />
                       </div>
+
+                      {(() => {
+                        const note = scoreCoverageNote(r.score);
+                        if (!note) return null;
+                        return (
+                          <p
+                            className={`mt-1.5 text-[10px] leading-snug ${
+                              note.tone === "warn"
+                                ? isNight
+                                  ? "text-amber-300/85"
+                                  : "text-amber-800"
+                                : isNight
+                                  ? "text-white/45"
+                                  : "text-slate-500"
+                            }`}
+                            title={note.detail}
+                          >
+                            {note.text}
+                          </p>
+                        );
+                      })()}
 
                       <div
                         className={`mt-2 flex gap-3 text-xs ${
@@ -1315,6 +1323,45 @@ export function ResidentApp() {
       </div>
     </div>
   );
+}
+
+/**
+ * Honest copy when Mapbox geometry and Casey T1EAM scored polygons diverge.
+ * Pills are length-weighted means within ~20 m of the route — nearby streets
+ * can fill scores even when the trail itself has no scoring segment.
+ */
+function scoreCoverageNote(score: {
+  coverage_ratio: number;
+  segment_count: number;
+  matched_length_m: number;
+}): { text: string; detail: string; tone: "warn" | "soft" } | null {
+  const pct = Math.round(Math.max(0, Math.min(1, score.coverage_ratio)) * 100);
+  const segs = score.segment_count;
+  const detail = `${segs} scored segment${segs === 1 ? "" : "s"} · ~${Math.round(score.matched_length_m)} m matched · ${pct}% of path`;
+
+  if (segs === 0 || score.coverage_ratio <= 0) {
+    return {
+      text: "No Casey scored footpath under this path — index pills unavailable",
+      detail,
+      tone: "warn",
+    };
+  }
+  if (score.coverage_ratio < 0.35) {
+    return {
+      text: `Limited score coverage (${pct}% of path) — pills may reflect nearby streets, not this trail`,
+      detail,
+      tone: "warn",
+    };
+  }
+  if (score.coverage_ratio < 0.85) {
+    return {
+      text: `Partial score coverage (${pct}% of path) — some stretches may use nearby footpath scores`,
+      detail,
+      tone: "soft",
+    };
+  }
+  // High coverage: no extra chrome
+  return null;
 }
 
 function ScorePill({

@@ -76,6 +76,47 @@
     #coverage-stats dl { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 0.15rem 0.75rem; }
     #coverage-stats dt { color: var(--muted); }
     #coverage-stats dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+    #selection-panel {
+      margin: 0 1rem 0.5rem;
+      padding: 0.65rem 0.75rem;
+      background: #0f172a;
+      border: 1px solid #7e22ce;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      line-height: 1.45;
+      flex-shrink: 0;
+    }
+    #selection-panel h3 {
+      margin: 0 0 0.35rem;
+      font-size: 0.78rem;
+      color: #c084fc;
+    }
+    #selection-panel p { margin: 0 0 0.45rem; color: var(--muted); }
+    #selection-ids {
+      width: 100%;
+      min-height: 3.2rem;
+      max-height: 7rem;
+      resize: vertical;
+      background: #020617;
+      color: #e9d5ff;
+      border: 1px solid #6b21a8;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      padding: 0.35rem 0.4rem;
+      margin-bottom: 0.45rem;
+    }
+    #selection-panel .sel-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+    #selection-panel button {
+      background: #0f172a;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 0.72rem;
+      padding: 0.25rem 0.45rem;
+      cursor: pointer;
+    }
+    #selection-panel button.primary { border-color: #c084fc; color: #c084fc; }
     #layer-list { flex: 1; overflow-y: auto; padding: 0.5rem 0; min-height: 0; }
     .layer-group { padding: 0.35rem 1rem 0.15rem; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
     .layer-item {
@@ -178,6 +219,16 @@
         </label>
       </div>
       <div id="coverage-stats"><h3>Coverage</h3><p style="color:var(--muted);margin:0">Loading…</p></div>
+      <div id="selection-panel">
+        <h3>Segment pick list</h3>
+        <p>Click segments to toggle a <strong style="color:#c084fc">purple</strong> highlight. Click again to remove. Copy IDs for corridor notes (e.g. Hallam Valley Trail).</p>
+        <textarea id="selection-ids" readonly placeholder="No segments selected yet…"></textarea>
+        <div class="sel-actions">
+          <button type="button" class="primary" id="copy-selection">Copy IDs</button>
+          <button type="button" id="clear-selection">Clear</button>
+          <span id="selection-count" style="color:var(--muted);align-self:center">0 selected</span>
+        </div>
+      </div>
       <div id="layer-list"></div>
       <div id="status">Loading manifest…</div>
     </aside>
@@ -217,7 +268,9 @@
     let pathClassFilter = 'all';
     let boundaryLayer = null;
     let lgaBoundaryLayer = null;
-    let highlightedFeature = null;
+    /** Multi-select: key → { layer, spec, segmentId } — purple highlight persists across clicks. */
+    const selectedFeatures = new Map();
+    const SELECT_COLOR = '#a855f7';
     let qaHighlightOn = false;
     let legendControl = null;
     let filterApplyToken = 0;
@@ -555,35 +608,114 @@
       };
     }
 
+    function selectionKey(spec, feature, layer) {
+      const props = feature.properties || {};
+      const id =
+        props.segment_id ??
+        props.gisfid ??
+        props.light_id ??
+        props.t1key ??
+        null;
+      if (id != null && String(id).length) return `${spec.id}:${id}`;
+      return `${spec.id}:L${layer._leaflet_id}`;
+    }
+
+    function segmentIdFromProps(props) {
+      if (!props) return null;
+      const id = props.segment_id ?? props.gisfid ?? props.light_id ?? props.t1key;
+      return id == null ? null : String(id);
+    }
+
+    function styleForLayer(spec, layer) {
+      const props = layer.feature?.properties || {};
+      if (spec.geometry === 'point') return pointStyle(spec, props);
+      if (spec.geometry === 'line') return lineStyle(spec, props);
+      return polygonStyle(spec, props);
+    }
+
+    function applySelectStyle(layer, spec) {
+      if (!layer.setStyle) return;
+      const baseOpacity = getLayerState(spec).opacity || 0.5;
+      layer.setStyle({
+        weight: Math.max(4, (spec.weight ?? 2) + 2),
+        color: SELECT_COLOR,
+        fillColor: SELECT_COLOR,
+        fillOpacity: Math.min(1, baseOpacity + 0.3),
+        opacity: 1,
+      });
+      if (layer.bringToFront) layer.bringToFront();
+    }
+
+    function resetLayerStyle(spec, layer) {
+      const parent = loadedLayers.get(spec.id);
+      if (parent && typeof parent.resetStyle === 'function') {
+        parent.resetStyle(layer);
+        return;
+      }
+      if (layer.setStyle) layer.setStyle(styleForLayer(spec, layer));
+    }
+
+    function isLayerSelected(spec, feature, layer) {
+      return selectedFeatures.has(selectionKey(spec, feature, layer));
+    }
+
+    function refreshSelectionPanel() {
+      const ids = [];
+      for (const entry of selectedFeatures.values()) {
+        if (entry.segmentId) ids.push(entry.segmentId);
+      }
+      const unique = [...new Set(ids)];
+      const ta = document.getElementById('selection-ids');
+      const countEl = document.getElementById('selection-count');
+      if (ta) ta.value = unique.join('\n');
+      if (countEl) {
+        countEl.textContent = `${unique.length} ID${unique.length === 1 ? '' : 's'} · ${selectedFeatures.size} feature${selectedFeatures.size === 1 ? '' : 's'}`;
+      }
+    }
+
+    function clearSelection() {
+      for (const entry of selectedFeatures.values()) {
+        resetLayerStyle(entry.spec, entry.layer);
+      }
+      selectedFeatures.clear();
+      refreshSelectionPanel();
+      setStatus('Selection cleared.');
+    }
+
     function bindFeatureInteraction(spec, feature, layer) {
       const props = feature.properties || {};
       layer.on('click', (e) => {
-        if (highlightedFeature && highlightedFeature.resetStyle) {
-          highlightedFeature.resetStyle();
-        }
-        highlightedFeature = e.target;
-        if (highlightedFeature.setStyle) {
-          highlightedFeature.setStyle({
-            weight: 5,
-            color: '#ffffff',
-            fillOpacity: Math.min(1, (getLayerState(spec).opacity || 0.5) + 0.2),
+        L.DomEvent.stopPropagation(e);
+        const key = selectionKey(spec, feature, layer);
+        if (selectedFeatures.has(key)) {
+          selectedFeatures.delete(key);
+          resetLayerStyle(spec, layer);
+          setStatus(`Removed from pick list (${selectedFeatures.size} selected).`);
+        } else {
+          selectedFeatures.set(key, {
+            layer,
+            spec,
+            segmentId: segmentIdFromProps(props),
           });
-          if (highlightedFeature.bringToFront) highlightedFeature.bringToFront();
+          applySelectStyle(layer, spec);
+          setStatus(`Added to pick list (${selectedFeatures.size} selected).`);
         }
+        refreshSelectionPanel();
         L.popup()
           .setLatLng(e.latlng)
           .setContent(`<strong>${spec.name}</strong><br>${popupHtml(props, spec.popup_fields, e.latlng)}`)
           .openOn(map);
       });
       layer.on('mouseover', () => {
-        if (layer.setStyle && layer !== highlightedFeature) {
-          layer.setStyle({ weight: (spec.weight ?? 2) + 1 });
-        }
+        if (!layer.setStyle || isLayerSelected(spec, feature, layer)) return;
+        layer.setStyle({ weight: (spec.weight ?? 2) + 1 });
       });
       layer.on('mouseout', () => {
-        if (layer !== highlightedFeature && layer.resetStyle) {
-          layer.resetStyle();
+        if (isLayerSelected(spec, feature, layer)) {
+          applySelectStyle(layer, spec);
+          return;
         }
+        resetLayerStyle(spec, layer);
       });
     }
 
@@ -600,7 +732,12 @@
       if (!entry) return;
       if (entry.eachLayer) {
         entry.eachLayer((layer) => {
-          const props = layer.feature?.properties || {};
+          const feature = layer.feature || { properties: {} };
+          if (isLayerSelected(spec, feature, layer)) {
+            applySelectStyle(layer, spec);
+            return;
+          }
+          const props = feature.properties || {};
           if (spec.geometry === 'point' && layer.setStyle) {
             layer.setStyle(pointStyle(spec, props));
           } else if (spec.geometry === 'line' && layer.setStyle) {
@@ -706,6 +843,14 @@
     function unloadLayer(spec) {
       const layer = loadedLayers.get(spec.id);
       if (layer) map.removeLayer(layer);
+      let removed = 0;
+      for (const [key, entry] of [...selectedFeatures.entries()]) {
+        if (entry.spec.id === spec.id) {
+          selectedFeatures.delete(key);
+          removed += 1;
+        }
+      }
+      if (removed) refreshSelectionPanel();
     }
 
     function refreshAllActiveStyles() {
@@ -852,6 +997,27 @@
     document.getElementById('reset-view').addEventListener('click', () => {
       const b = manifest.bounds;
       map.fitBounds([[b.south, b.west], [b.north, b.east]], { padding: [12, 12] });
+    });
+
+    document.getElementById('clear-selection').addEventListener('click', () => {
+      clearSelection();
+    });
+
+    document.getElementById('copy-selection').addEventListener('click', async () => {
+      const ta = document.getElementById('selection-ids');
+      const text = (ta?.value || '').trim();
+      if (!text) {
+        setStatus('Nothing to copy — click segments first.');
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(text);
+        setStatus(`Copied ${text.split('\n').length} segment ID(s) to clipboard.`);
+      } catch {
+        ta.focus();
+        ta.select();
+        setStatus('Clipboard blocked — IDs selected in the box; use Cmd/Ctrl+C.');
+      }
     });
 
     async function loadLgaBoundary() {
