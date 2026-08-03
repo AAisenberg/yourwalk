@@ -109,6 +109,7 @@ export function scoreRouteAgainstSegments(
   );
 
   let weightSum = 0;
+  let sharedW = 0;
   let daySum = 0;
   let nightSum = 0;
   let accSum = 0;
@@ -141,6 +142,17 @@ export function scoreRouteAgainstSegments(
 
     segmentCount += 1;
     weightSum += w;
+
+    const pathClass =
+      str(props.walk_path_class) ??
+      str(props.path_class) ??
+      str(props.feature_type);
+    if (
+      pathClass === "shared_use" ||
+      pathClass === "Shared Use Path"
+    ) {
+      sharedW += w;
+    }
 
     const day = num(props.day_index_score);
     const night = num(props.night_index_score);
@@ -190,6 +202,7 @@ export function scoreRouteAgainstSegments(
     segment_count: segmentCount,
     matched_length_m: weightSum,
     coverage_ratio: coverage,
+    shared_use_ratio: weightSum > 0 ? sharedW / weightSum : 0,
     source: "client-geojson",
   };
 }
@@ -207,6 +220,7 @@ function emptyScore(_routeLengthM: number): RouteScore {
     segment_count: 0,
     matched_length_m: 0,
     coverage_ratio: 0,
+    shared_use_ratio: 0,
     source: "client-geojson",
   };
 }

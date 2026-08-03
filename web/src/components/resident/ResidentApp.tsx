@@ -24,10 +24,10 @@ import {
   type OverlayState,
 } from "@/lib/overlays";
 import { planScoredRoutes } from "@/lib/routing/planRoute";
+import { OutingDurationSlider } from "@/components/resident/OutingDurationSlider";
 import {
-  OUTING_DURATIONS_MIN,
   OUTING_SHAPES,
-  type OutingDurationMin,
+  clampOutingMinutes,
   type OutingShape,
   planOutingRoutes,
 } from "@/lib/routing/planOuting";
@@ -171,8 +171,7 @@ export function ResidentApp() {
   const [routeError, setRouteError] = useState<string | null>(null);
   const [sheetMode, setSheetMode] = useState<"plan" | "results">("plan");
   const [walkIntent, setWalkIntent] = useState<WalkIntent>("trip");
-  const [outingMinutes, setOutingMinutes] =
-    useState<OutingDurationMin>(25);
+  const [outingMinutes, setOutingMinutes] = useState(25);
   const [outingShape, setOutingShape] = useState<OutingShape>("loop");
   const [overlays, setOverlays] = useState<OverlayState>(DEFAULT_OVERLAYS);
   const [geoBusy, setGeoBusy] = useState(false);
@@ -183,7 +182,17 @@ export function ResidentApp() {
 
   useEffect(() => {
     walkModeRef.current = walkMode;
-    setPrefs(walkMode === "day" ? DEFAULT_PREFS_DAY : DEFAULT_PREFS_NIGHT);
+    setPrefs((prev) => ({
+      ...(walkMode === "day" ? DEFAULT_PREFS_DAY : DEFAULT_PREFS_NIGHT),
+      preferSharedPaths: prev.preferSharedPaths,
+    }));
+    // Day ↔ Night needs a fresh plan (scores / loops differ). Back to edit;
+    // keep start, duration, shape, overlays, shared-path preference.
+    setRoutes([]);
+    setSelectedId(null);
+    setRouteError(null);
+    setSheetMode("plan");
+    setPlanning(false);
   }, [walkMode]);
 
   useEffect(() => {
@@ -450,13 +459,14 @@ export function ResidentApp() {
     syncOverlayLayers(overlays);
   }, [overlays, mapReady, syncOverlayLayers]);
 
+  // Importance sliders only — same geometries, new ranking (not Day/Night flip)
   useEffect(() => {
-    if (!routes.length) return;
+    if (!routes.length || sheetMode !== "results") return;
     const ranked = sortRoutesByPreferences(routes, prefs, walkMode);
     setRoutes(ranked);
     setSelectedId(ranked[0]?.id ?? null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-rank when prefs or mode change
-  }, [prefs, walkMode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-rank in place when prefs change
+  }, [prefs]);
 
   const useMyLocation = useCallback(async () => {
     const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
@@ -741,36 +751,19 @@ export function ResidentApp() {
           {!planning && sheetMode === "plan" ? (
             <>
               <h1
-                className={`mb-1 text-base font-extrabold tracking-tight ${
+                className={`mb-3 text-base font-extrabold tracking-tight ${
                   isNight ? "text-white" : "text-[#292984]"
                 }`}
               >
                 Tell us about your walk
               </h1>
-              <p
-                className={`mb-3 text-[11px] leading-snug ${
-                  isNight ? "text-white/45" : "text-slate-500"
-                }`}
-              >
-                When you walk, how you want to walk, and what to show along the
-                way. Not a safety guarantee.
-              </p>
 
               <p
-                className={`mb-1.5 text-xs font-semibold ${
+                className={`mb-2 text-xs font-semibold ${
                   isNight ? "text-white/50" : "text-slate-500"
                 }`}
               >
-                How important is each to you?
-              </p>
-              <p
-                className={`mb-2 text-[10px] leading-snug ${
-                  isNight ? "text-white/40" : "text-slate-400"
-                }`}
-              >
-                {isNight
-                  ? "Turn both down to favour a quicker walk; turn them up for better after-dark / footpath corridors."
-                  : "Turn both down to favour a quicker walk; turn them up for better shade / footpath corridors."}
+                Set your walking preferences
               </p>
               {isNight ? (
                 <PrefSlider
@@ -792,6 +785,34 @@ export function ResidentApp() {
                   setPrefs((p) => ({ ...p, accessibility }))
                 }
               />
+              <label
+                className={`mb-2 flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-1.5 ${
+                  prefs.preferSharedPaths
+                    ? "border-[#00AAA6]/45 bg-[#00AAA6]/10"
+                    : isNight
+                      ? "border-white/12"
+                      : "border-slate-200"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5 shrink-0 accent-[#00AAA6]"
+                  checked={prefs.preferSharedPaths}
+                  onChange={(e) =>
+                    setPrefs((p) => ({
+                      ...p,
+                      preferSharedPaths: e.target.checked,
+                    }))
+                  }
+                />
+                <span
+                  className={`text-[12px] font-medium ${
+                    isNight ? "text-white/85" : "text-slate-700"
+                  }`}
+                >
+                  Prefer shared paths
+                </span>
+              </label>
               {!isNight ? (
                 <PrefSlider
                   title="Shade & heat comfort"
@@ -927,33 +948,13 @@ export function ResidentApp() {
                   >
                     {geoBusy ? "Getting location…" : "Use my location"}
                   </button>
+                  <OutingDurationSlider
+                    value={outingMinutes}
+                    onChange={(m) => setOutingMinutes(clampOutingMinutes(m))}
+                    isNight={isNight}
+                  />
                   <p
-                    className={`text-[10px] ${
-                      isNight ? "text-white/40" : "text-slate-400"
-                    }`}
-                  >
-                    About how long? (options stay within ~5 min)
-                  </p>
-                  <div className="flex gap-2">
-                    {OUTING_DURATIONS_MIN.map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setOutingMinutes(m)}
-                        className={`flex-1 rounded-lg border py-2 text-xs font-bold ${
-                          outingMinutes === m
-                            ? "border-[#00AAA6] bg-[#00AAA6]/15 text-[#00AAA6]"
-                            : isNight
-                              ? "border-white/15 text-white/70"
-                              : "border-slate-200 text-slate-600"
-                        }`}
-                      >
-                        ~{m} min
-                      </button>
-                    ))}
-                  </div>
-                  <p
-                    className={`text-[10px] ${
+                    className={`mt-3 text-[10px] ${
                       isNight ? "text-white/40" : "text-slate-400"
                     }`}
                   >
@@ -1177,6 +1178,18 @@ export function ResidentApp() {
                               {r.amenity_note}
                             </p>
                           ) : null}
+                          {prefs.preferSharedPaths &&
+                          (r.score.shared_use_ratio ?? 0) >= 0.2 ? (
+                            <p
+                              className={`mt-1 text-[10px] leading-snug ${
+                                isNight ? "text-[#27AAE1]/90" : "text-[#1a7a9e]"
+                              }`}
+                            >
+                              {(r.score.shared_use_ratio ?? 0) >= 0.45
+                                ? "Uses a good share of Casey’s shared path network"
+                                : "Uses some of Casey’s shared path network"}
+                            </p>
+                          ) : null}
                           {r.outing_note ? (
                             <p
                               className={`mt-1 text-[10px] leading-snug ${
@@ -1351,13 +1364,10 @@ function PrefSlider({
     Math.max(PREF_IMPORTANCE_MIN, value),
   );
   return (
-    <label className="mb-2 block">
-      <div className="mb-1 flex justify-between text-xs">
-        <span className={isNight ? "text-white/80" : "text-slate-700"}>
+    <label className="mb-2.5 block">
+      <div className="mb-0.5 text-[12px] font-medium">
+        <span className={isNight ? "text-white/85" : "text-slate-700"}>
           {title}
-        </span>
-        <span className={isNight ? "text-white/40" : "text-slate-400"}>
-          Importance
         </span>
       </div>
       <input
@@ -1366,7 +1376,7 @@ function PrefSlider({
         max={PREF_IMPORTANCE_MAX}
         value={clamped}
         onChange={(e) => onChange(clampImportance(Number(e.target.value)))}
-        className="w-full"
+        className="h-6 w-full"
         style={{ accentColor: accent }}
         aria-valuemin={PREF_IMPORTANCE_MIN}
         aria-valuemax={PREF_IMPORTANCE_MAX}
@@ -1374,12 +1384,12 @@ function PrefSlider({
         aria-label={`${title} importance`}
       />
       <div
-        className={`mt-0.5 flex justify-between text-[10px] ${
+        className={`-mt-0.5 flex justify-between text-[9px] leading-none ${
           isNight ? "text-white/35" : "text-slate-400"
         }`}
       >
-        <span>Less important</span>
-        <span>More important</span>
+        <span>Less</span>
+        <span>More</span>
       </div>
     </label>
   );

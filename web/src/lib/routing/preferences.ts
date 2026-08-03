@@ -20,7 +20,15 @@ export type RoutePreferences = {
   accessibility: number;
   /** Shade & heat comfort → Day Index (day mode only) */
   shadeHeat: number;
+  /**
+   * Soft-prefer Casey shared-use path class when ranking (not index maths).
+   * Soft bias only — never hard-locks to SUP-only.
+   */
+  preferSharedPaths: boolean;
 };
+
+/** Max match points (0–100) for a corridor that is entirely shared-use. */
+export const SHARED_PATH_BONUS_MAX = 12;
 
 /** Slider floor — “not important” is low, never a silent zero that drops ranking. */
 export const PREF_IMPORTANCE_MIN = 10;
@@ -31,25 +39,40 @@ export const METHODOLOGY_FALLBACK_PREFS_DAY: RoutePreferences = {
   afterDark: 0,
   accessibility: 60,
   shadeHeat: 40,
+  preferSharedPaths: false,
 };
 
 export const METHODOLOGY_FALLBACK_PREFS_NIGHT: RoutePreferences = {
   afterDark: 40,
   accessibility: 60,
   shadeHeat: 0,
+  preferSharedPaths: false,
 };
 
 export const DEFAULT_PREFS_DAY: RoutePreferences = {
   afterDark: 0,
   accessibility: 60,
   shadeHeat: 85,
+  preferSharedPaths: false,
 };
 
 export const DEFAULT_PREFS_NIGHT: RoutePreferences = {
   afterDark: 92,
   accessibility: 55,
   shadeHeat: 0,
+  preferSharedPaths: false,
 };
+
+/** Soft match bump when Prefer shared paths is on (0–SHARED_PATH_BONUS_MAX). */
+export function sharedPathBonus(
+  route: ScoredRoute,
+  prefs: RoutePreferences,
+): number {
+  if (!prefs.preferSharedPaths) return 0;
+  const ratio = route.score.shared_use_ratio ?? 0;
+  if (!Number.isFinite(ratio) || ratio <= 0) return 0;
+  return Math.round(Math.min(1, ratio) * SHARED_PATH_BONUS_MAX);
+}
 
 /**
  * Efficiency (time/distance) share of the match score, keyed off how important
@@ -81,20 +104,21 @@ export function effectivePrefsForMode(
   prefs: RoutePreferences,
   mode: WalkMode,
 ): RoutePreferences {
+  const preferSharedPaths = Boolean(prefs.preferSharedPaths);
   if (mode === "day") {
     const accessibility = clampImportance(prefs.accessibility);
     const shadeHeat = clampImportance(prefs.shadeHeat);
     if (accessibility + shadeHeat <= 0) {
-      return { ...METHODOLOGY_FALLBACK_PREFS_DAY };
+      return { ...METHODOLOGY_FALLBACK_PREFS_DAY, preferSharedPaths };
     }
-    return { afterDark: 0, accessibility, shadeHeat };
+    return { afterDark: 0, accessibility, shadeHeat, preferSharedPaths };
   }
   const accessibility = clampImportance(prefs.accessibility);
   const afterDark = clampImportance(prefs.afterDark);
   if (accessibility + afterDark <= 0) {
-    return { ...METHODOLOGY_FALLBACK_PREFS_NIGHT };
+    return { ...METHODOLOGY_FALLBACK_PREFS_NIGHT, preferSharedPaths };
   }
-  return { afterDark, accessibility, shadeHeat: 0 };
+  return { afterDark, accessibility, shadeHeat: 0, preferSharedPaths };
 }
 
 /** Mean importance of sliders active in this walk mode (10–100). */
@@ -181,7 +205,8 @@ export function tripRankScore(
     1,
     Math.max(0, efficiencyWeight ?? efficiencyWeightForPrefs(prefs, mode)),
   );
-  return (1 - w) * pref + w * efficiency;
+  const base = (1 - w) * pref + w * efficiency;
+  return base + sharedPathBonus(route, prefs);
 }
 
 /** Dominant corridor stream for tiebreaks (highest importance slider in mode). */

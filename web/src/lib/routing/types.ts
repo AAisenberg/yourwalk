@@ -12,6 +12,11 @@ export type RouteScore = {
   segment_count: number;
   matched_length_m: number;
   coverage_ratio: number;
+  /**
+   * Share of matched corridor length on Casey shared-use path class (0–1).
+   * Preference bias only — not part of Day/Night index maths.
+   */
+  shared_use_ratio: number;
   source: "client-geojson" | "postgis";
 };
 

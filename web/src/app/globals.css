@@ -36,3 +36,46 @@ body {
   font-size: 12px;
   line-height: 1.4;
 }
+
+/* Around-here duration slider — track is drawn in the component; thumb only */
+.outing-duration-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 1.75rem;
+  background: transparent;
+}
+.outing-duration-range:focus {
+  outline: none;
+}
+.outing-duration-range:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid #27aae1;
+  outline-offset: 2px;
+}
+.outing-duration-range::-webkit-slider-runnable-track {
+  height: 0.5rem;
+  background: transparent;
+}
+.outing-duration-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: -0.32rem;
+  border-radius: 9999px;
+  background: #00aaa6;
+  border: 2px solid var(--outing-thumb-ring, #fff);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+.outing-duration-range::-moz-range-track {
+  height: 0.5rem;
+  background: transparent;
+  border: none;
+}
+.outing-duration-range::-moz-range-thumb {
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 9999px;
+  background: #00aaa6;
+  border: 2px solid var(--outing-thumb-ring, #fff);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}

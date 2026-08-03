@@ -71,6 +71,7 @@ export async function POST(request: Request) {
     segment_count: Number(row.segment_count ?? 0),
     matched_length_m: Number(row.matched_length_m ?? 0),
     coverage_ratio: Number(row.coverage_ratio ?? 0),
+    shared_use_ratio: Number(row.shared_use_ratio ?? 0),
     source: "postgis",
   };
 

@@ -14,6 +14,7 @@ Pilot routing and preference ranking are in good shape. Around-here Loop is test
 | Tell us about your walk shell (A→B / Around here) | Shipped (testing) |
 | Around here Loop / there-and-back / one-way | Shipped (testing) — Loop = circuits only; via sizing tuned |
 | Soft amenity bias on Around here | Shipped (testing) |
+| Prefer shared paths (soft rank bias, not index) | Shipped (testing) |
 | Loop quality lock (spur demote / reject, empty state) | Shipped (testing) |
 | Google-like selected/alternative map chrome | Shipped (testing) — dotted selected, quieter alts, tap path |
 | Backtrack spur snip on loops | Not built — see notes |

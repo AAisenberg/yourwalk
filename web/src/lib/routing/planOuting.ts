@@ -10,6 +10,7 @@ import { pointInCaseyBbox } from "./geo";
 import {
   efficiencyWeightForPrefs,
   preferenceScore,
+  sharedPathBonus,
   type RoutePreferences,
 } from "./preferences";
 import { scoreRouteAgainstSegments } from "./scoreRoute";
@@ -69,10 +70,16 @@ const START_STUB_IGNORE_M = 80;
 /** Slightly larger vias so ~40 min asks land nearer 35–45, not mid‑20s. */
 const LOOP_VIA_STRAIGHT_FACTOR = 0.62;
 /**
- * Resident rule (30 Jul): only show walks within ±5 minutes of the ask.
+ * Resident rule (30 Jul): only show walks within ±N minutes of the ask.
  * No widening the band to fill cards.
  */
-const OUTING_DURATION_SLACK_S = 5 * 60;
+export const OUTING_DURATION_SLACK_MIN = 5;
+const OUTING_DURATION_SLACK_S = OUTING_DURATION_SLACK_MIN * 60;
+
+/** Slider range for Around-here duration (minutes). */
+export const OUTING_MIN_MINUTES = 10;
+export const OUTING_MAX_MINUTES = 60;
+export const OUTING_DURATION_STEP = 5;
 /** Loop cards: prefer two; third only if still in-band and quality holds. */
 const LOOP_PREFER_OPTIONS = 2;
 const LOOP_MAX_OPTIONS = 3;
@@ -345,10 +352,17 @@ function outingMatchScore(
   amenityBonus: number,
 ): number {
   const pref = preferenceScore(route, prefs, mode);
-  if (pref == null) return amenityBonus;
+  if (pref == null) {
+    return amenityBonus + sharedPathBonus(route, prefs);
+  }
   const w = efficiencyWeightForPrefs(prefs, mode);
   const fit = outingDurationFit(route.duration_s, targetDurationS);
-  return (1 - w) * pref + w * fit + amenityBonus;
+  return (
+    (1 - w) * pref +
+    w * fit +
+    amenityBonus +
+    sharedPathBonus(route, prefs)
+  );
 }
 
 /**
@@ -1072,5 +1086,16 @@ export async function planOutingRoutes(
     .map((r, i) => ({ ...r, index: i, id: r.id }));
 }
 
+/** @deprecated Prefer the minutes slider — kept for any old call sites. */
 export const OUTING_DURATIONS_MIN = [15, 25, 40] as const;
-export type OutingDurationMin = (typeof OUTING_DURATIONS_MIN)[number];
+export type OutingDurationMin = number;
+
+export function clampOutingMinutes(v: number): number {
+  if (!Number.isFinite(v)) return 25;
+  const stepped =
+    Math.round(v / OUTING_DURATION_STEP) * OUTING_DURATION_STEP;
+  return Math.min(
+    OUTING_MAX_MINUTES,
+    Math.max(OUTING_MIN_MINUTES, stepped),
+  );
+}
