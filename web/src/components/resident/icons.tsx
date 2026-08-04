@@ -7,6 +7,7 @@ import {
   MdArrowForward,
   MdChair,
   MdLoop,
+  MdMyLocation,
   MdNightlight,
   MdPets,
   MdRoute,
@@ -21,6 +22,7 @@ import type { OutingShape } from "@/lib/routing/planOuting";
 
 export const IconSun = MdWbSunny;
 export const IconMoon = MdNightlight;
+export const IconLocate = MdMyLocation;
 export const IconTrip = MdRoute;
 export const IconOuting = MdLoop;
 export const IconLoop = MdLoop;
@@ -50,8 +52,9 @@ export const ICON_REVIEW: {
   Icon: IconType;
   note: string;
 }[] = [
-  { id: "sun", label: "Day", Icon: IconSun, note: "Day/Night switch" },
-  { id: "moon", label: "Night", Icon: IconMoon, note: "Day/Night switch" },
+  { id: "sun", label: "Day", Icon: IconSun, note: "Day/Night switch (icon-only)" },
+  { id: "moon", label: "Night", Icon: IconMoon, note: "Day/Night switch (icon-only)" },
+  { id: "locate", label: "My location", Icon: IconLocate, note: "Map FAB" },
   { id: "trip", label: "A to B", Icon: IconTrip, note: "Corridor / trip" },
   { id: "outing", label: "Around here", Icon: IconOuting, note: "Circuit / outing" },
   { id: "loop", label: "Loop", Icon: IconLoop, note: "Shape" },

@@ -10,8 +10,8 @@ type Props = {
 };
 
 /**
- * Sliding day ↔ night pill. Shows both options so the control is not
- * confused with a single toggle label that flips meaning on click.
+ * Icon-only day ↔ night pill. Sun / moon carry the meaning; aria-labels
+ * keep the control accessible without crowding the header brand.
  */
 export function WalkModeSwitch({ value, onChange, isNight }: Props) {
   const nightOn = value === "night";
@@ -20,7 +20,7 @@ export function WalkModeSwitch({ value, onChange, isNight }: Props) {
     <div
       role="group"
       aria-label="When are you walking?"
-      className={`relative flex h-11 w-[9.5rem] shrink-0 rounded-full p-1 ${
+      className={`relative flex h-11 w-[5.75rem] shrink-0 rounded-full p-1 ${
         isNight
           ? "bg-yw-night-panel ring-1 ring-white/12"
           : "bg-yw-day-surface ring-1 ring-[#E8ECF2]"
@@ -34,34 +34,34 @@ export function WalkModeSwitch({ value, onChange, isNight }: Props) {
       <button
         type="button"
         onClick={() => onChange("day")}
-        className={`relative z-[1] flex flex-1 items-center justify-center gap-1 rounded-full text-[11px] font-bold ${
+        className={`relative z-[1] flex flex-1 items-center justify-center rounded-full ${
           !nightOn
             ? "text-white"
             : isNight
-              ? "text-white/55"
-              : "text-slate-600"
+              ? "text-white/45"
+              : "text-slate-500"
         }`}
         aria-pressed={!nightOn}
         aria-label="Day walk"
+        title="Day walk"
       >
-        <IconSun className="h-3.5 w-3.5" aria-hidden />
-        Day
+        <IconSun className="h-5 w-5" aria-hidden />
       </button>
       <button
         type="button"
         onClick={() => onChange("night")}
-        className={`relative z-[1] flex flex-1 items-center justify-center gap-1 rounded-full text-[11px] font-bold ${
+        className={`relative z-[1] flex flex-1 items-center justify-center rounded-full ${
           nightOn
             ? "text-white"
             : isNight
-              ? "text-white/55"
-              : "text-slate-600"
+              ? "text-white/45"
+              : "text-slate-500"
         }`}
         aria-pressed={nightOn}
         aria-label="Night walk"
+        title="Night walk"
       >
-        <IconMoon className="h-3.5 w-3.5" aria-hidden />
-        Night
+        <IconMoon className="h-5 w-5" aria-hidden />
       </button>
     </div>
   );

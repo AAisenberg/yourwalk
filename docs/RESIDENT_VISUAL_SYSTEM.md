@@ -65,6 +65,16 @@ Material Design icons via `react-icons/md` (see [`web/src/components/resident/ic
 
 Three heights (Google Maps-style): **peek** (~22%), **half** (~48%), **full** (~72%). Drag the handle, arrow keys, or double-tap to step. Peek shows a short summary so the map stays usable.
 
+## Map data (preview / production)
+
+The previous Supabase Storage host (`muxatxlmpbkrsygmxcje`) no longer resolves. Until a YourWalk Supabase project is recreated:
+
+- Segment + LGA GeoJSON ship as GitHub release `map-data-v1`
+- The app loads same-origin `/api/map-data/*` (proxy) so browsers avoid CORS
+- Set `NEXT_PUBLIC_SEGMENTS_GEOJSON_URL=/api/map-data/segment_scores.geojson` and `NEXT_PUBLIC_LGA_BOUNDARY_URL=/api/map-data/casey_lga_boundary.geojson`
+
+Locally you can keep pointing at `/map-data/*` symlinks under `web/public`.
+
 ## Day / night rules
 
 Night is a **walk mode** (product state), not a designer dark-mode default.

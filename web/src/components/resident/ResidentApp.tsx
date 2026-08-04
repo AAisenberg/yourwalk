@@ -12,6 +12,7 @@ import {
 } from "react";
 
 import {
+  IconLocate,
   IconOuting,
   IconTrip,
   OVERLAY_ICONS,
@@ -150,17 +151,24 @@ function installMapChrome(
 function resolveGeoJsonUrl(): string {
   const explicit = process.env.NEXT_PUBLIC_SEGMENTS_GEOJSON_URL?.trim();
   if (explicit) return explicit;
+  // Same-origin proxy (GitHub release) — avoids dead Supabase + CORS
+  if (typeof window !== "undefined") {
+    return "/api/map-data/segment_scores.geojson";
+  }
   const supabase = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
   if (supabase) return defaultSegmentsGeoJsonUrl(supabase);
-  throw new Error("Missing segments GeoJSON URL");
+  return "/api/map-data/segment_scores.geojson";
 }
 
 function resolveLgaUrl(): string | null {
   const explicit = process.env.NEXT_PUBLIC_LGA_BOUNDARY_URL?.trim();
   if (explicit) return explicit;
+  if (typeof window !== "undefined") {
+    return "/api/map-data/casey_lga_boundary.geojson";
+  }
   const supabase = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
   if (supabase) return defaultLgaBoundaryUrl(supabase);
-  return null;
+  return "/api/map-data/casey_lga_boundary.geojson";
 }
 
 export function ResidentApp() {
@@ -732,6 +740,35 @@ export function ResidentApp() {
           </div>
         ) : null}
 
+        {/* Locate FAB — above sheet, Maps-style (sets start / From) */}
+        <button
+          type="button"
+          disabled={geoBusy || !mapReady}
+          onClick={() => void useMyLocation()}
+          className={`absolute right-3 z-[7] flex h-12 w-12 items-center justify-center rounded-full shadow-lg ring-1 transition disabled:opacity-40 ${
+            sheetSnap === "peek"
+              ? "bottom-[calc(22%+12px)]"
+              : sheetSnap === "half"
+                ? "bottom-[calc(48%+12px)]"
+                : "bottom-[calc(72%+12px)]"
+          } ${
+            isNight
+              ? "bg-yw-night-panel text-yw-blue ring-white/15"
+              : "bg-white text-yw-navy ring-black/10"
+          }`}
+          aria-label={geoBusy ? "Getting location" : "Use my location"}
+          title="Use my location"
+        >
+          {geoBusy ? (
+            <span
+              className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-yw-teal border-t-transparent"
+              aria-hidden
+            />
+          ) : (
+            <IconLocate className="h-6 w-6" aria-hidden />
+          )}
+        </button>
+
         <div
           className={`yw-chrome-transition absolute inset-x-0 bottom-0 z-10 flex flex-col overflow-hidden rounded-t-2xl shadow-2xl sm:bottom-4 sm:left-4 sm:right-auto sm:max-w-md sm:rounded-2xl ${
             SHEET_SNAP_CLASS[sheetSnap]
@@ -1118,18 +1155,6 @@ export function ResidentApp() {
                       });
                     }}
                   />
-                  <button
-                    type="button"
-                    disabled={geoBusy || !mapReady}
-                    onClick={() => void useMyLocation()}
-                    className={`flex min-h-11 w-full items-center justify-center rounded-xl border px-3 text-xs font-semibold disabled:opacity-40 ${
-                      isNight
-                        ? "border-white/20 text-white/85"
-                        : "border-[#E8ECF2] text-slate-700"
-                    }`}
-                  >
-                    {geoBusy ? "Getting location…" : "Use my location"}
-                  </button>
                   <OutingDurationSlider
                     value={outingMinutes}
                     onChange={(m) => setOutingMinutes(clampOutingMinutes(m))}
