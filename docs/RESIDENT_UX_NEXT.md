@@ -18,7 +18,7 @@ Pilot routing and preference ranking are in good shape. Around-here Loop is test
 | Loop quality lock (spur demote / reject, empty state) | Shipped (testing) |
 | Google-like selected/alternative map chrome | Shipped (testing) — dotted selected, quieter alts, tap path |
 | Backtrack spur snip on loops | Not built — see notes |
-| Brand / colour system | Deferred until flow is solid |
+| Brand / colour system | In progress — [`RESIDENT_VISUAL_SYSTEM.md`](RESIDENT_VISUAL_SYSTEM.md) |
 
 Methodology reminder: toilets, dog bags, YourGround = **overlays only**, not in Day/Night index. Fountains + benches sit in the Day (Heat & Shade) stream for scoring; still useful as map overlays for “along the way.”
 
@@ -36,15 +36,15 @@ Loop backtracks + map UX notes (snip feasibility, Google-like chrome, focus orde
 2. **Map route chrome** — selected = stronger / dotted; alternatives quieter; tap path (then chips) to select  
 3. **Backtrack snip spike** — optional geometry cleanup for short reverse spurs (technical; after 1–2)  
 4. Shareable A→B + “Why this walk?”  
-5. Colour / brand polish  
+5. Colour / brand polish — visual system + resident restyle (`feat/resident-ux-ui`)
 
 ## Build sequence
 
 1. ✅ Entry chooser + A→B + overlay show + one-way outing test  
 2. ✅ Around here Loop / there-and-back / one-way (+ circuit sizing fix)  
 3. ✅ Soft amenity bias when outing checkboxes are on  
-4. Loop quality + map chrome (in progress / next)  
-5. Shareable link + “Why this walk?”  
-6. Colour / brand polish  
+4. ✅ Loop quality + map chrome (dotted selected, quieter alts, tap path)  
+5. Colour / brand polish — see [`RESIDENT_VISUAL_SYSTEM.md`](RESIDENT_VISUAL_SYSTEM.md)  
+6. Shareable link + “Why this walk?”  
 
 Sprint framing: [`DELIVERY_PLAN.md`](DELIVERY_PLAN.md) Sprint D+. Backlog: [`BACKLOG.md`](BACKLOG.md) N1b.

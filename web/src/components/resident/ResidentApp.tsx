@@ -2,9 +2,23 @@
 
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 
+import {
+  IconOuting,
+  IconTrip,
+  OVERLAY_ICONS,
+  SHAPE_ICONS,
+} from "@/components/resident/icons";
 import { PlaceField } from "@/components/resident/PlaceField";
+import { WalkModeSwitch } from "@/components/resident/WalkModeSwitch";
 import {
   defaultLgaBoundaryUrl,
   defaultSegmentsGeoJsonUrl,
@@ -51,8 +65,16 @@ import { CASEY_BOUNDS } from "@/lib/scores";
 type PickMode = "idle" | "origin" | "destination";
 /** How are you walking? — trip A→B vs timed outing from a start. */
 type WalkIntent = "trip" | "outing";
+/** Bottom sheet snap — Google Maps-style peek / half / full. */
+type SheetSnap = "peek" | "half" | "full";
 
 const ROUTE_COLORS = ["#00AAA6", "#27AAE1", "#8DC63F"] as const;
+const SHEET_SNAPS: SheetSnap[] = ["peek", "half", "full"];
+const SHEET_SNAP_CLASS: Record<SheetSnap, string> = {
+  peek: "h-[22%] max-h-[22%]",
+  half: "h-[48%] max-h-[48%]",
+  full: "h-[72%] max-h-[72%]",
+};
 
 const DAY_BASEMAP = "mapbox://styles/mapbox/streets-v12";
 const NIGHT_BASEMAP = "mapbox://styles/mapbox/dark-v11";
@@ -170,11 +192,16 @@ export function ResidentApp() {
   const [planning, setPlanning] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
   const [sheetMode, setSheetMode] = useState<"plan" | "results">("plan");
+  const [sheetSnap, setSheetSnap] = useState<SheetSnap>("half");
   const [walkIntent, setWalkIntent] = useState<WalkIntent>("trip");
   const [outingMinutes, setOutingMinutes] = useState(25);
   const [outingShape, setOutingShape] = useState<OutingShape>("loop");
   const [overlays, setOverlays] = useState<OverlayState>(DEFAULT_OVERLAYS);
   const [geoBusy, setGeoBusy] = useState(false);
+  const sheetDragRef = useRef<{
+    startY: number;
+    startSnap: SheetSnap;
+  } | null>(null);
 
   useEffect(() => {
     pickModeRef.current = pickMode;
@@ -192,6 +219,7 @@ export function ResidentApp() {
     setSelectedId(null);
     setRouteError(null);
     setSheetMode("plan");
+    setSheetSnap("half");
     setPlanning(false);
   }, [walkMode]);
 
@@ -520,6 +548,7 @@ export function ResidentApp() {
       return;
     }
     setPlanning(true);
+    setSheetSnap((s) => (s === "peek" ? "half" : s));
     setRouteError(null);
     setRoutes([]);
     setSelectedId(null);
@@ -558,6 +587,7 @@ export function ResidentApp() {
       setRoutes(ranked);
       setSelectedId(ranked[0]?.id ?? null);
       setSheetMode("results");
+      setSheetSnap("half");
 
       const map = mapRef.current;
       if (map && ranked.length) {
@@ -590,45 +620,72 @@ export function ResidentApp() {
   const shortLabel = (s: string) =>
     s ? s.split(",").slice(0, 2).join(",").trim() : "";
 
+  const stepSheetSnap = (from: SheetSnap, delta: number): SheetSnap => {
+    const i = SHEET_SNAPS.indexOf(from);
+    return SHEET_SNAPS[Math.max(0, Math.min(SHEET_SNAPS.length - 1, i + delta))]!;
+  };
+
+  const onSheetHandlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    sheetDragRef.current = { startY: e.clientY, startSnap: sheetSnap };
+  };
+
+  const onSheetHandlePointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = sheetDragRef.current;
+    sheetDragRef.current = null;
+    if (!drag) return;
+    const dy = e.clientY - drag.startY;
+    if (dy > 48) setSheetSnap(stepSheetSnap(drag.startSnap, -1));
+    else if (dy < -48) setSheetSnap(stepSheetSnap(drag.startSnap, 1));
+  };
+
   return (
     <div
-      className={`relative flex h-dvh w-full flex-col ${
-        isNight ? "bg-[#0B0C1A] text-white" : "bg-[#F5F7FA] text-slate-900"
+      className={`yw-chrome-transition relative flex h-dvh w-full flex-col ${
+        isNight
+          ? "bg-yw-night-surface text-white"
+          : "bg-yw-day-surface text-slate-900"
       }`}
     >
       <header
-        className={`flex items-center justify-between border-b px-4 py-3 ${
+        className={`yw-chrome-transition flex items-center justify-between border-b px-4 py-3 ${
           isNight
-            ? "border-white/10 bg-[#0B0C1A]"
-            : "border-slate-200 bg-white"
+            ? "border-white/10 bg-yw-night-surface"
+            : "border-[#E8ECF2] bg-white"
         }`}
       >
-        <div
-          className={`text-lg font-extrabold tracking-tight ${
-            isNight ? "text-white" : "text-[#292984]"
-          }`}
-        >
-          YourWalk
+        <div className="flex min-w-0 items-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand/yourwalk-mark.svg"
+            alt=""
+            width={36}
+            height={28}
+            className="h-8 w-auto shrink-0"
+            aria-hidden
+          />
+          <div className="min-w-0">
+            <p
+              className={`text-xl font-extrabold leading-none tracking-tight ${
+                isNight ? "text-white" : "text-yw-navy"
+              }`}
+            >
+              YourWalk
+            </p>
+            <p
+              className={`mt-0.5 truncate text-[11px] font-medium ${
+                isNight ? "text-white/55" : "text-slate-600"
+              }`}
+            >
+              Connecting Casey walks
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setWalkMode(walkMode === "day" ? "night" : "day")}
-            className={`rounded-full px-3 py-1 text-xs font-semibold ${
-              isNight
-                ? "bg-[#14152A] text-sky-300 ring-1 ring-sky-500/30"
-                : "bg-amber-50 text-amber-800 ring-1 ring-amber-200"
-            }`}
-          >
-            {isNight ? "Night walk" : "Day walk"}
-          </button>
-          <a
-            href="/lab"
-            className={`text-[11px] ${isNight ? "text-slate-500" : "text-slate-400"}`}
-          >
-            Lab
-          </a>
-        </div>
+        <WalkModeSwitch
+          value={walkMode}
+          onChange={setWalkMode}
+          isNight={isNight}
+        />
       </header>
 
       <div className="relative min-h-0 flex-1">
@@ -649,21 +706,23 @@ export function ResidentApp() {
           </div>
         ) : null}
         {planning ? (
-          <div className="pointer-events-none absolute inset-0 z-[6] flex items-center justify-center bg-black/25">
+          <div className="pointer-events-none absolute inset-0 z-[6] flex items-center justify-center bg-black/20">
             <div
-              className={`flex items-center gap-2.5 rounded-2xl px-4 py-3 shadow-lg ${
-                isNight ? "bg-[#14152A]/95 text-white" : "bg-white/95 text-slate-800"
+              className={`flex items-center gap-2.5 rounded-2xl px-4 py-3 shadow-lg backdrop-blur-sm ${
+                isNight
+                  ? "bg-yw-night-panel/95 text-white"
+                  : "bg-white/95 text-slate-800"
               }`}
             >
               <span
-                className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-[#00AAA6] border-t-transparent"
+                className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-yw-teal border-t-transparent"
                 aria-hidden
               />
               <div>
                 <p className="text-sm font-semibold">Calculating your walks…</p>
                 <p
                   className={`text-[11px] ${
-                    isNight ? "text-white/50" : "text-slate-500"
+                    isNight ? "text-white/55" : "text-slate-600"
                   }`}
                 >
                   Finding routes and scoring Casey footpaths
@@ -674,28 +733,112 @@ export function ResidentApp() {
         ) : null}
 
         <div
-          className={`absolute inset-x-0 bottom-0 z-10 max-h-[62%] overflow-y-auto rounded-t-2xl px-4 pb-6 pt-3 shadow-2xl ${
+          className={`yw-chrome-transition absolute inset-x-0 bottom-0 z-10 flex flex-col overflow-hidden rounded-t-2xl shadow-2xl sm:bottom-4 sm:left-4 sm:right-auto sm:max-w-md sm:rounded-2xl ${
+            SHEET_SNAP_CLASS[sheetSnap]
+          } ${
             isNight
-              ? "bg-[#14152A]/95 backdrop-blur"
+              ? "bg-yw-night-panel/95 backdrop-blur"
               : "bg-white/95 backdrop-blur"
           }`}
         >
           <div
-            className={`mx-auto mb-3 h-1 w-10 rounded-full ${
-              isNight ? "bg-white/20" : "bg-slate-300"
-            }`}
-          />
+            className="flex shrink-0 cursor-grab touch-none flex-col items-center px-4 pb-1 pt-2 active:cursor-grabbing"
+            onPointerDown={onSheetHandlePointerDown}
+            onPointerUp={onSheetHandlePointerUp}
+            onPointerCancel={() => {
+              sheetDragRef.current = null;
+            }}
+            onDoubleClick={() =>
+              setSheetSnap((s) => stepSheetSnap(s, s === "full" ? -1 : 1))
+            }
+            role="slider"
+            aria-label="Sheet height"
+            aria-valuetext={
+              sheetSnap === "peek"
+                ? "Collapsed"
+                : sheetSnap === "half"
+                  ? "Half height"
+                  : "Expanded"
+            }
+            aria-valuemin={0}
+            aria-valuemax={2}
+            aria-valuenow={SHEET_SNAPS.indexOf(sheetSnap)}
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setSheetSnap((s) => stepSheetSnap(s, 1));
+              } else if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setSheetSnap((s) => stepSheetSnap(s, -1));
+              }
+            }}
+          >
+            <div
+              className={`h-1 w-10 rounded-full ${
+                isNight ? "bg-white/25" : "bg-slate-300"
+              }`}
+              aria-hidden
+            />
+            <p
+              className={`mt-1 text-[9px] font-medium ${
+                isNight ? "text-white/35" : "text-slate-400"
+              }`}
+            >
+              {sheetSnap === "peek"
+                ? "Swipe up for more"
+                : sheetSnap === "half"
+                  ? "Swipe for map or more"
+                  : "Swipe down to shrink"}
+            </p>
+          </div>
 
-          {planning ? (
-            <div className="mb-4 flex flex-col items-center py-6 text-center">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-1">
+          {sheetSnap === "peek" && !planning ? (
+            <div className="yw-sheet-panel flex items-center justify-between gap-3 py-1">
+              <div className="min-w-0">
+                <p
+                  className={`truncate text-sm font-bold ${
+                    isNight ? "text-white" : "text-yw-navy"
+                  }`}
+                >
+                  {sheetMode === "results" && routes.length > 0
+                    ? shortLabel(originLabel) || "Your walk"
+                    : "Tell us about your walk"}
+                </p>
+                <p
+                  className={`truncate text-[11px] ${
+                    isNight ? "text-white/55" : "text-slate-600"
+                  }`}
+                >
+                  {sheetMode === "results" && routes.length > 0
+                    ? `${routes.length} option${routes.length === 1 ? "" : "s"} · tap to expand`
+                    : "Swipe up to set preferences"}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="flex min-h-11 shrink-0 items-center rounded-xl bg-yw-teal px-3 text-xs font-bold text-white"
+                onClick={() => setSheetSnap("half")}
+              >
+                Expand
+              </button>
+            </div>
+          ) : null}
+
+          {sheetSnap !== "peek" && planning ? (
+            <div
+              key="calculating"
+              className="yw-sheet-panel mb-4 flex flex-col items-center py-6 text-center"
+            >
               <span
-                className="mb-3 inline-block h-8 w-8 animate-spin rounded-full border-[3px] border-[#00AAA6] border-t-transparent"
+                className="mb-3 inline-block h-8 w-8 animate-spin rounded-full border-[3px] border-yw-teal border-t-transparent"
                 aria-hidden
               />
               <p className="text-sm font-semibold">Calculating your walks…</p>
               <p
                 className={`mt-1 max-w-[16rem] text-[11px] leading-snug ${
-                  isNight ? "text-white/45" : "text-slate-500"
+                  isNight ? "text-white/55" : "text-slate-600"
                 }`}
               >
                 Longer trips take a moment — we ask Mapbox, check neighbourhood
@@ -704,8 +847,14 @@ export function ResidentApp() {
             </div>
           ) : null}
 
-          {!planning && sheetMode === "results" && routes.length > 0 ? (
-            <div className="mb-3 flex items-center justify-between gap-2">
+          {sheetSnap !== "peek" &&
+          !planning &&
+          sheetMode === "results" &&
+          routes.length > 0 ? (
+            <div
+              key="results-head"
+              className="yw-sheet-panel mb-3 flex items-center justify-between gap-2"
+            >
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">
                   {walkIntent === "outing"
@@ -720,7 +869,7 @@ export function ResidentApp() {
                 </p>
                 <p
                   className={`text-[11px] ${
-                    isNight ? "text-white/45" : "text-slate-500"
+                    isNight ? "text-white/55" : "text-slate-600"
                   }`}
                 >
                   {walkIntent === "outing"
@@ -736,41 +885,53 @@ export function ResidentApp() {
               </div>
               <button
                 type="button"
-                className={`shrink-0 rounded-lg px-2 py-1 text-xs font-semibold ${
+                className={`flex min-h-11 shrink-0 items-center rounded-xl px-3 text-xs font-semibold ${
                   isNight
-                    ? "bg-white/10 text-white/80"
+                    ? "bg-white/10 text-white/85"
                     : "bg-slate-100 text-slate-700"
                 }`}
-                onClick={() => setSheetMode("plan")}
+                onClick={() => {
+                  setSheetMode("plan");
+                  setSheetSnap("full");
+                }}
               >
-                Edit
+                Edit walk
               </button>
             </div>
           ) : null}
 
-          {!planning && sheetMode === "plan" ? (
-            <>
+          {sheetSnap !== "peek" && !planning && sheetMode === "plan" ? (
+            <div key="plan" className="yw-sheet-panel">
               <h1
-                className={`mb-3 text-base font-extrabold tracking-tight ${
-                  isNight ? "text-white" : "text-[#292984]"
+                className={`mb-1 text-lg font-extrabold tracking-tight ${
+                  isNight ? "text-white" : "text-yw-navy"
                 }`}
               >
                 Tell us about your walk
               </h1>
-
               <p
-                className={`mb-2 text-xs font-semibold ${
-                  isNight ? "text-white/50" : "text-slate-500"
+                className={`mb-4 text-[12px] leading-snug ${
+                  isNight ? "text-white/55" : "text-slate-600"
                 }`}
               >
-                Set your walking preferences
+                When you walk, how you walk, and what helps along the way.
+              </p>
+
+              <p
+                className={`mb-2 text-[11px] font-bold uppercase tracking-wide ${
+                  isNight ? "text-white/45" : "text-slate-500"
+                }`}
+              >
+                When
               </p>
               {isNight ? (
                 <PrefSlider
-                  title="Safety after dark"
+                  title="After dark"
+                  description="Favour better-lit streets and paths"
                   value={prefs.afterDark}
                   isNight={isNight}
-                  accent="#27AAE1"
+                  accent="#FFCB1F"
+                  tone="amber"
                   onChange={(afterDark) =>
                     setPrefs((p) => ({ ...p, afterDark }))
                   }
@@ -778,25 +939,27 @@ export function ResidentApp() {
               ) : null}
               <PrefSlider
                 title="Accessible footpaths"
+                description="Smooth surfaces, continuity, crossings"
                 value={prefs.accessibility}
                 isNight={isNight}
-                accent="#8DC63F"
+                accent="#27AAE1"
+                tone="blue"
                 onChange={(accessibility) =>
                   setPrefs((p) => ({ ...p, accessibility }))
                 }
               />
               <label
-                className={`mb-2 flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-1.5 ${
+                className={`mb-2 flex min-h-11 cursor-pointer items-center gap-2.5 rounded-2xl border px-3 py-2.5 ${
                   prefs.preferSharedPaths
-                    ? "border-[#00AAA6]/45 bg-[#00AAA6]/10"
+                    ? "border-[color-mix(in_srgb,var(--yw-teal)_45%,transparent)] bg-[color-mix(in_srgb,var(--yw-teal)_10%,transparent)]"
                     : isNight
-                      ? "border-white/12"
-                      : "border-slate-200"
+                      ? "border-white/12 bg-white/[0.03]"
+                      : "border-[#E8ECF2] bg-white"
                 }`}
               >
                 <input
                   type="checkbox"
-                  className="h-3.5 w-3.5 shrink-0 accent-[#00AAA6]"
+                  className="h-4 w-4 shrink-0 accent-[var(--yw-teal)]"
                   checked={prefs.preferSharedPaths}
                   onChange={(e) =>
                     setPrefs((p) => ({
@@ -806,8 +969,8 @@ export function ResidentApp() {
                   }
                 />
                 <span
-                  className={`text-[12px] font-medium ${
-                    isNight ? "text-white/85" : "text-slate-700"
+                  className={`text-[13px] font-medium ${
+                    isNight ? "text-white/90" : "text-slate-700"
                   }`}
                 >
                   Prefer shared paths
@@ -816,9 +979,11 @@ export function ResidentApp() {
               {!isNight ? (
                 <PrefSlider
                   title="Shade & heat comfort"
+                  description="Tree cover, cooler surfaces, less sun"
                   value={prefs.shadeHeat}
                   isNight={isNight}
-                  accent="#F6871F"
+                  accent="#8DC63F"
+                  tone="lime"
                   onChange={(shadeHeat) =>
                     setPrefs((p) => ({ ...p, shadeHeat }))
                   }
@@ -826,37 +991,54 @@ export function ResidentApp() {
               ) : null}
 
               <p
-                className={`mb-1.5 mt-3 text-xs font-semibold ${
-                  isNight ? "text-white/50" : "text-slate-500"
+                className={`mb-2 mt-4 text-[11px] font-bold uppercase tracking-wide ${
+                  isNight ? "text-white/45" : "text-slate-500"
                 }`}
               >
-                How are you walking?
+                How
               </p>
               <div className="mb-3 grid grid-cols-2 gap-2">
                 {(
                   [
-                    ["trip", "A to B", "Start and end places"],
-                    ["outing", "Around here", "About N minutes from a start"],
+                    ["trip", "A to B", "Start and end places", IconTrip],
+                    [
+                      "outing",
+                      "Around here",
+                      "About N minutes from a start",
+                      IconOuting,
+                    ],
                   ] as const
-                ).map(([id, title, blurb]) => {
+                ).map(([id, title, blurb, Icon]) => {
                   const on = walkIntent === id;
                   return (
                     <button
                       key={id}
                       type="button"
                       onClick={() => setWalkIntent(id)}
-                      className={`rounded-xl border px-2.5 py-2.5 text-left ${
+                      className={`min-h-11 rounded-2xl border px-3 py-2.5 text-left ${
                         on
-                          ? "border-[#00AAA6] bg-[#00AAA6]/15"
+                          ? "border-yw-teal bg-[color-mix(in_srgb,var(--yw-teal)_15%,transparent)]"
                           : isNight
                             ? "border-white/15 bg-white/[0.03]"
-                            : "border-slate-200 bg-slate-50"
+                            : "border-[#E8ECF2] bg-yw-day-surface"
                       }`}
                     >
-                      <div className="text-[13px] font-bold">{title}</div>
+                      <div className="flex items-center gap-1.5">
+                        <Icon
+                          className={`h-4 w-4 shrink-0 ${
+                            on
+                              ? "text-yw-teal"
+                              : isNight
+                                ? "text-white/55"
+                                : "text-slate-500"
+                          }`}
+                          aria-hidden
+                        />
+                        <span className="text-[13px] font-bold">{title}</span>
+                      </div>
                       <div
                         className={`mt-0.5 text-[10px] leading-snug ${
-                          isNight ? "text-white/45" : "text-slate-500"
+                          isNight ? "text-white/55" : "text-slate-600"
                         }`}
                       >
                         {blurb}
@@ -940,10 +1122,10 @@ export function ResidentApp() {
                     type="button"
                     disabled={geoBusy || !mapReady}
                     onClick={() => void useMyLocation()}
-                    className={`w-full rounded-lg border px-2 py-2 text-xs font-semibold disabled:opacity-40 ${
+                    className={`flex min-h-11 w-full items-center justify-center rounded-xl border px-3 text-xs font-semibold disabled:opacity-40 ${
                       isNight
-                        ? "border-white/20 text-white/80"
-                        : "border-slate-200 text-slate-700"
+                        ? "border-white/20 text-white/85"
+                        : "border-[#E8ECF2] text-slate-700"
                     }`}
                   >
                     {geoBusy ? "Getting location…" : "Use my location"}
@@ -954,8 +1136,8 @@ export function ResidentApp() {
                     isNight={isNight}
                   />
                   <p
-                    className={`mt-3 text-[10px] ${
-                      isNight ? "text-white/40" : "text-slate-400"
+                    className={`mt-3 text-[11px] font-bold uppercase tracking-wide ${
+                      isNight ? "text-white/45" : "text-slate-500"
                     }`}
                   >
                     Shape
@@ -963,20 +1145,22 @@ export function ResidentApp() {
                   <div className="grid grid-cols-3 gap-1.5">
                     {OUTING_SHAPES.map((s) => {
                       const on = outingShape === s.id;
+                      const ShapeIcon = SHAPE_ICONS[s.id];
                       return (
                         <button
                           key={s.id}
                           type="button"
                           title={s.hint}
                           onClick={() => setOutingShape(s.id)}
-                          className={`rounded-lg border px-1.5 py-2 text-center text-[11px] font-bold leading-tight ${
+                          className={`flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-xl border px-1.5 text-center text-[11px] font-bold leading-tight ${
                             on
-                              ? "border-[#00AAA6] bg-[#00AAA6]/15 text-[#00AAA6]"
+                              ? "border-yw-teal bg-[color-mix(in_srgb,var(--yw-teal)_15%,transparent)] text-yw-teal"
                               : isNight
-                                ? "border-white/15 text-white/70"
-                                : "border-slate-200 text-slate-600"
+                                ? "border-white/15 text-white/75"
+                                : "border-[#E8ECF2] text-slate-600"
                           }`}
                         >
+                          <ShapeIcon className="h-4 w-4" aria-hidden />
                           {s.label}
                         </button>
                       );
@@ -984,7 +1168,7 @@ export function ResidentApp() {
                   </div>
                   <p
                     className={`text-[10px] leading-snug ${
-                      isNight ? "text-white/35" : "text-slate-400"
+                      isNight ? "text-white/45" : "text-slate-500"
                     }`}
                   >
                     {
@@ -998,7 +1182,7 @@ export function ResidentApp() {
               )}
 
               {pickMode !== "idle" ? (
-                <p className="mb-2 text-xs text-[#27AAE1]">
+                <p className="mb-2 text-xs font-medium text-yw-blue">
                   Tap the map to set{" "}
                   {pickMode === "origin"
                     ? walkIntent === "outing"
@@ -1009,15 +1193,15 @@ export function ResidentApp() {
               ) : null}
 
               <p
-                className={`mb-1.5 text-xs font-semibold ${
-                  isNight ? "text-white/50" : "text-slate-500"
+                className={`mb-1.5 mt-4 text-[11px] font-bold uppercase tracking-wide ${
+                  isNight ? "text-white/45" : "text-slate-500"
                 }`}
               >
                 Along the way
               </p>
               <p
                 className={`mb-2 text-[10px] leading-snug ${
-                  isNight ? "text-white/40" : "text-slate-400"
+                  isNight ? "text-white/45" : "text-slate-500"
                 }`}
               >
                 {walkIntent === "outing"
@@ -1027,35 +1211,41 @@ export function ResidentApp() {
               <div className="mb-3 grid grid-cols-2 gap-1.5">
                 {OVERLAY_DEFS.map((def) => {
                   const checked = overlays[def.id];
+                  const OverlayIcon = OVERLAY_ICONS[def.id];
                   return (
                     <label
                       key={def.id}
-                      className={`flex cursor-pointer items-start gap-2 rounded-lg border px-2 py-2 text-[11px] ${
+                      className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border px-2.5 py-2 text-[11px] ${
                         !def.available
                           ? isNight
                             ? "border-white/10 opacity-45"
                             : "border-slate-100 opacity-50"
                           : checked
-                            ? "border-[#00AAA6]/50 bg-[#00AAA6]/10"
+                            ? "border-[color-mix(in_srgb,var(--yw-teal)_50%,transparent)] bg-[color-mix(in_srgb,var(--yw-teal)_10%,transparent)]"
                             : isNight
                               ? "border-white/15"
-                              : "border-slate-200"
+                              : "border-[#E8ECF2]"
                       }`}
                       title={def.hint}
                     >
                       <input
                         type="checkbox"
-                        className="mt-0.5"
+                        className="h-4 w-4 shrink-0 accent-[var(--yw-teal)]"
                         disabled={!def.available}
                         checked={checked}
                         onChange={() => toggleOverlay(def.id)}
+                      />
+                      <OverlayIcon
+                        className="h-4 w-4 shrink-0"
+                        style={{ color: def.color }}
+                        aria-hidden
                       />
                       <span>
                         <span className="font-semibold">{def.label}</span>
                         {!def.available ? (
                           <span
                             className={`block text-[9px] ${
-                              isNight ? "text-white/35" : "text-slate-400"
+                              isNight ? "text-white/45" : "text-slate-500"
                             }`}
                           >
                             Coming soon
@@ -1077,7 +1267,9 @@ export function ResidentApp() {
                   (walkIntent === "trip" && !destination)
                 }
                 onClick={() => void onFindWalk()}
-                className="mt-1 w-full rounded-xl bg-[#27AAE1] py-3 text-sm font-bold text-white disabled:opacity-40"
+                className={`mt-1 flex min-h-12 w-full items-center justify-center rounded-2xl text-sm font-bold text-white disabled:opacity-40 ${
+                  isNight ? "bg-yw-blue" : "bg-yw-navy"
+                }`}
               >
                 {planning
                   ? "Finding walks…"
@@ -1090,26 +1282,26 @@ export function ResidentApp() {
               {mapReady ? (
                 <p
                   className={`mt-1.5 text-[10px] ${
-                    isNight ? "text-white/35" : "text-slate-400"
+                    isNight ? "text-white/45" : "text-slate-500"
                   }`}
                 >
                   {networkStatus}
                 </p>
               ) : null}
-            </>
+            </div>
           ) : null}
 
-          {routeError ? (
+          {sheetSnap !== "peek" && routeError ? (
             <div
-              className={`mt-2 rounded-xl border px-3 py-2.5 text-xs leading-snug ${
+              className={`mt-2 rounded-2xl border px-3.5 py-3 text-xs leading-snug ${
                 isNight
-                  ? "border-amber-400/30 bg-amber-400/10 text-amber-200"
-                  : "border-amber-200 bg-amber-50 text-amber-800"
+                  ? "border-[color-mix(in_srgb,var(--yw-amber)_35%,transparent)] bg-[color-mix(in_srgb,var(--yw-amber)_10%,transparent)] text-amber-100"
+                  : "border-amber-200 bg-amber-50 text-amber-950"
               }`}
             >
               <p className="font-semibold">Couldn’t find a walk</p>
               <p className="mt-0.5 opacity-90">{routeError}</p>
-              <p className="mt-1.5 opacity-75">
+              <p className="mt-1.5 opacity-80">
                 Try closer points in Casey, or tap Map to set From/To on the
                 streets.
               </p>
@@ -1119,8 +1311,8 @@ export function ResidentApp() {
             <p className="mt-2 text-xs text-amber-500">{error}</p>
           ) : null}
 
-          {!planning && routes.length > 0 ? (
-            <ul className="mt-3 space-y-2.5">
+          {sheetSnap !== "peek" && !planning && routes.length > 0 ? (
+            <ul key="results-list" className="yw-sheet-panel mt-3 space-y-2.5">
               {routes.map((r, i) => {
                 const active = r.id === selectedId;
                 const shortestDur = Math.min(
@@ -1140,16 +1332,16 @@ export function ResidentApp() {
                     <button
                       type="button"
                       onClick={() => setSelectedId(r.id)}
-                      className={`relative w-full rounded-2xl border px-3.5 py-3 text-left ${
+                      className={`relative w-full rounded-2xl border px-3.5 py-3.5 text-left transition-colors ${
                         active
-                          ? "border-[#00AAA6]/50 bg-[#00AAA6]/10"
+                          ? `yw-card-selected-pulse border-[color-mix(in_srgb,var(--yw-teal)_55%,transparent)] bg-[color-mix(in_srgb,var(--yw-teal)_10%,transparent)]`
                           : isNight
                             ? "border-white/10 bg-white/[0.04]"
-                            : "border-slate-200 bg-slate-50"
+                            : "border-[#E8ECF2] bg-yw-day-surface"
                       }`}
                     >
                       {i === 0 ? (
-                        <span className="absolute right-3 top-0 rounded-b-md bg-[#00AAA6] px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-white">
+                        <span className="absolute right-3 top-0 rounded-b-md bg-yw-teal px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-white">
                           Recommended
                         </span>
                       ) : null}
@@ -1164,7 +1356,7 @@ export function ResidentApp() {
                           </div>
                           <p
                             className={`mt-1 text-[11px] leading-snug ${
-                              isNight ? "text-white/45" : "text-slate-500"
+                              isNight ? "text-white/55" : "text-slate-600"
                             }`}
                           >
                             {routeCardBlurb(r, routes)}
@@ -1172,7 +1364,7 @@ export function ResidentApp() {
                           {r.amenity_note ? (
                             <p
                               className={`mt-1 text-[10px] leading-snug ${
-                                isNight ? "text-[#8DC63F]/90" : "text-[#5a8f1f]"
+                                isNight ? "text-yw-lime" : "text-[#2D6A1A]"
                               }`}
                             >
                               {r.amenity_note}
@@ -1182,7 +1374,7 @@ export function ResidentApp() {
                           (r.score.shared_use_ratio ?? 0) >= 0.2 ? (
                             <p
                               className={`mt-1 text-[10px] leading-snug ${
-                                isNight ? "text-[#27AAE1]/90" : "text-[#1a7a9e]"
+                                isNight ? "text-yw-blue" : "text-[#0B5F8A]"
                               }`}
                             >
                               {(r.score.shared_use_ratio ?? 0) >= 0.45
@@ -1193,7 +1385,7 @@ export function ResidentApp() {
                           {r.outing_note ? (
                             <p
                               className={`mt-1 text-[10px] leading-snug ${
-                                isNight ? "text-amber-300/85" : "text-amber-800"
+                                isNight ? "text-amber-200" : "text-amber-900"
                               }`}
                             >
                               {r.outing_note}
@@ -1246,11 +1438,11 @@ export function ResidentApp() {
                             className={`mt-1.5 text-[10px] leading-snug ${
                               note.tone === "warn"
                                 ? isNight
-                                  ? "text-amber-300/85"
-                                  : "text-amber-800"
+                                  ? "text-amber-200"
+                                  : "text-amber-900"
                                 : isNight
-                                  ? "text-white/45"
-                                  : "text-slate-500"
+                                  ? "text-white/55"
+                                  : "text-slate-600"
                             }`}
                             title={note.detail}
                           >
@@ -1261,12 +1453,12 @@ export function ResidentApp() {
 
                       <div
                         className={`mt-2 flex gap-3 text-xs ${
-                          isNight ? "text-white/55" : "text-slate-600"
+                          isNight ? "text-white/60" : "text-slate-600"
                         }`}
                       >
                         <span>
                           <strong
-                            className={isNight ? "text-white/85" : "text-slate-800"}
+                            className={isNight ? "text-white/90" : "text-slate-800"}
                           >
                             {formatDuration(r.duration_s)}
                           </strong>
@@ -1274,7 +1466,7 @@ export function ResidentApp() {
                         <span className="opacity-30">·</span>
                         <span>
                           <strong
-                            className={isNight ? "text-white/85" : "text-slate-800"}
+                            className={isNight ? "text-white/90" : "text-slate-800"}
                           >
                             {formatDistance(r.distance_m)}
                           </strong>
@@ -1287,10 +1479,13 @@ export function ResidentApp() {
             </ul>
           ) : null}
 
-          {!planning && sheetMode === "results" && routes.length > 0 ? (
+          {sheetSnap !== "peek" &&
+          !planning &&
+          sheetMode === "results" &&
+          routes.length > 0 ? (
             <button
               type="button"
-              className="mt-3 w-full rounded-xl bg-[#00AAA6] py-3 text-sm font-bold text-white"
+              className="mt-3 flex min-h-12 w-full items-center justify-center rounded-2xl bg-yw-teal text-sm font-bold text-white"
               onClick={() => {
                 const r = routes.find((x) => x.id === selectedId);
                 const map = mapRef.current;
@@ -1310,15 +1505,18 @@ export function ResidentApp() {
             </button>
           ) : null}
 
-          <p
-            className={`mt-3 text-[10px] leading-snug ${
-              isNight ? "text-white/35" : "text-slate-400"
-            }`}
-          >
-            Trip mode (pilot): Mapbox walks plus neighbourhood score-aware
-            links, ranked by Casey scores plus time and distance. Not a safety
-            guarantee.
-          </p>
+          {sheetSnap !== "peek" ? (
+            <p
+              className={`mt-3 text-[10px] leading-snug ${
+                isNight ? "text-white/45" : "text-slate-500"
+              }`}
+            >
+              Trip mode (pilot): Mapbox walks plus neighbourhood score-aware
+              links, ranked by Casey scores plus time and distance. Not a safety
+              guarantee.
+            </p>
+          ) : null}
+          </div>
         </div>
       </div>
     </div>
@@ -1377,12 +1575,14 @@ function ScorePill({
 }) {
   const tones = {
     amber: isNight
-      ? "bg-amber-400/10 text-amber-300"
-      : "bg-amber-50 text-amber-700",
-    blue: isNight ? "bg-sky-400/10 text-sky-300" : "bg-sky-50 text-sky-700",
+      ? "bg-[color-mix(in_srgb,var(--yw-amber)_14%,transparent)] text-yw-amber"
+      : "bg-[color-mix(in_srgb,var(--yw-amber)_16%,white)] text-[#92720A]",
+    blue: isNight
+      ? "bg-[color-mix(in_srgb,var(--yw-blue)_14%,transparent)] text-yw-blue"
+      : "bg-[color-mix(in_srgb,var(--yw-blue)_12%,white)] text-[#0B5F8A]",
     lime: isNight
-      ? "bg-lime-400/10 text-lime-300"
-      : "bg-lime-50 text-lime-700",
+      ? "bg-[color-mix(in_srgb,var(--yw-lime)_14%,transparent)] text-yw-lime"
+      : "bg-[color-mix(in_srgb,var(--yw-lime)_14%,white)] text-[#2D6A1A]",
   };
   return (
     <span
@@ -1395,27 +1595,58 @@ function ScorePill({
 
 function PrefSlider({
   title,
+  description,
   value,
   isNight,
   accent,
+  tone,
   onChange,
 }: {
   title: string;
+  description?: string;
   value: number;
   isNight: boolean;
   accent: string;
+  tone: "amber" | "blue" | "lime";
   onChange: (v: number) => void;
 }) {
   const clamped = Math.min(
     PREF_IMPORTANCE_MAX,
     Math.max(PREF_IMPORTANCE_MIN, value),
   );
+  const shells = {
+    amber: isNight
+      ? "border-[color-mix(in_srgb,var(--yw-amber)_22%,transparent)] bg-[color-mix(in_srgb,var(--yw-amber)_8%,transparent)]"
+      : "border-[color-mix(in_srgb,var(--yw-amber)_28%,transparent)] bg-[color-mix(in_srgb,var(--yw-amber)_12%,white)]",
+    blue: isNight
+      ? "border-[color-mix(in_srgb,var(--yw-blue)_20%,transparent)] bg-[color-mix(in_srgb,var(--yw-blue)_7%,transparent)]"
+      : "border-[color-mix(in_srgb,var(--yw-blue)_22%,transparent)] bg-[color-mix(in_srgb,var(--yw-blue)_10%,white)]",
+    lime: isNight
+      ? "border-[color-mix(in_srgb,var(--yw-lime)_20%,transparent)] bg-[color-mix(in_srgb,var(--yw-lime)_7%,transparent)]"
+      : "border-[color-mix(in_srgb,var(--yw-lime)_22%,transparent)] bg-[color-mix(in_srgb,var(--yw-lime)_10%,white)]",
+  };
+  const titles = {
+    amber: isNight ? "text-yw-amber" : "text-[#92720A]",
+    blue: isNight ? "text-yw-blue" : "text-[#0B5F8A]",
+    lime: isNight ? "text-yw-lime" : "text-[#2D6A1A]",
+  };
+  const descs = {
+    amber: isNight ? "text-[color-mix(in_srgb,var(--yw-amber)_70%,transparent)]" : "text-[#A07800]",
+    blue: isNight ? "text-[color-mix(in_srgb,var(--yw-blue)_70%,transparent)]" : "text-[#146B96]",
+    lime: isNight ? "text-[color-mix(in_srgb,var(--yw-lime)_70%,transparent)]" : "text-[#3A7A22]",
+  };
   return (
-    <label className="mb-2.5 block">
-      <div className="mb-0.5 text-[12px] font-medium">
-        <span className={isNight ? "text-white/85" : "text-slate-700"}>
-          {title}
-        </span>
+    <label
+      className={`mb-2.5 block rounded-2xl border px-3.5 py-3 ${shells[tone]}`}
+      style={{ "--yw-pref-accent": accent } as CSSProperties}
+    >
+      <div className="mb-2">
+        <span className={`text-[15px] font-bold ${titles[tone]}`}>{title}</span>
+        {description ? (
+          <p className={`mt-0.5 text-[12px] leading-snug ${descs[tone]}`}>
+            {description}
+          </p>
+        ) : null}
       </div>
       <input
         type="range"
@@ -1423,17 +1654,14 @@ function PrefSlider({
         max={PREF_IMPORTANCE_MAX}
         value={clamped}
         onChange={(e) => onChange(clampImportance(Number(e.target.value)))}
-        className="h-6 w-full"
-        style={{ accentColor: accent }}
+        className="yw-pref-range"
         aria-valuemin={PREF_IMPORTANCE_MIN}
         aria-valuemax={PREF_IMPORTANCE_MAX}
         aria-valuenow={clamped}
         aria-label={`${title} importance`}
       />
       <div
-        className={`-mt-0.5 flex justify-between text-[9px] leading-none ${
-          isNight ? "text-white/35" : "text-slate-400"
-        }`}
+        className={`mt-0.5 flex justify-between text-[10px] font-semibold leading-none ${descs[tone]}`}
       >
         <span>Less</span>
         <span>More</span>
