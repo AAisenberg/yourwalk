@@ -13,9 +13,10 @@ This document defines requirements for route calculation, display, and interacti
 **Acceptance Criteria**:
 - Given a user enters an origin and destination within the pilot area
 - When they request route calculation
-- Then 2-3 route options are calculated
+- Then up to 2-3 route options are calculated (fewer is OK when only one path-safe geometry exists)
 - And routes are displayed on the map within 5 seconds
 - And routes avoid obvious obstacles (rivers, highways without crossings, etc.)
+- And no option draws the walk line down a road carriageway when path/footway geometry is available (see [`ROUTING_OUTPUTS.md`](../ROUTING_OUTPUTS.md))
 
 **Data Needed**:
 - Street network data (OpenStreetMap or Council data)

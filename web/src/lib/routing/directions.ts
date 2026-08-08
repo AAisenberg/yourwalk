@@ -1,3 +1,7 @@
+import {
+  isMostlyOffCarriageway,
+  roadCarriagewayShare,
+} from "./carriageway";
 import type { LngLat } from "./types";
 
 export type MapboxRoute = {
@@ -6,6 +10,8 @@ export type MapboxRoute = {
   geometry: GeoJSON.LineString;
   /** How this candidate was requested (for QA / labels). */
   strategy: string;
+  /** Optional: share of samples on road carriageway (0–1). */
+  carriageway_share?: number;
 };
 
 type MapboxDirectionsResponse = {
@@ -30,9 +36,9 @@ export const MAX_DETOUR_RATIO = 1.3;
 /**
  * Trip mode: generate up to `maxRoutes` sensible walking geometries.
  *
- * Uses Mapbox alternatives + mild walkway_bias only. Does **not** force
- * perpendicular vias (those created backtracking / perimeter loops).
- * Overlong candidates are filtered after collection.
+ * Prefers walkways / paths (high walkway_bias). Does **not** request
+ * walkway_bias &lt; 0 — that produced carriageway centreline options.
+ * Overlong and on-road candidates are filtered after collection.
  */
 export async function fetchWalkingRouteCandidates(
   origin: LngLat,
@@ -42,27 +48,34 @@ export async function fetchWalkingRouteCandidates(
 ): Promise<MapboxRoute[]> {
   const collected: MapboxRoute[] = [];
 
+  // Path-safe diversity:
+  // - alternatives (no bias) often returns a distinct footpath geometry
+  // - walkway_prefer nudges another path-aligned option
+  // Never use walkway_bias < 0 — that favoured road carriageways (Epsom→Arubi).
+  // Carriageway tilequery filter below rejects any residual on-road geometry.
   const queries: QueryOpts[] = [
     { alternatives: true, strategy: "alternatives" },
     { walkwayBias: 0.8, strategy: "walkway_prefer" },
-    { walkwayBias: -0.4, strategy: "walkway_less" },
   ];
 
-  await runQueries(origin, destination, token, queries, collected, maxRoutes + 2);
+  await runQueries(origin, destination, token, queries, collected, maxRoutes + 3);
 
   if (!collected.length) {
     throw new Error("No walking routes found between these points.");
   }
 
   const filtered = filterDetours(collected, MAX_DETOUR_RATIO);
+  const offRoad = await filterCarriageways(filtered, token);
+  const pool = offRoad.length ? offRoad : await keepLeastCarriageway(filtered, token);
+
   const distinct: MapboxRoute[] = [];
-  for (const route of filtered) {
+  for (const route of pool) {
     if (distinct.length >= maxRoutes) break;
     if (!isDistinct(route, distinct)) continue;
     distinct.push(route);
   }
 
-  return distinct.length ? distinct : [collected[0]];
+  return distinct.length ? distinct : [pool[0]!];
 }
 
 /** @deprecated Use fetchWalkingRouteCandidates */
@@ -81,7 +94,43 @@ function filterDetours(
   const shortest = Math.min(...routes.map((r) => r.distance));
   if (!Number.isFinite(shortest) || shortest <= 0) return routes;
   const kept = routes.filter((r) => r.distance <= shortest * maxRatio);
-  return kept.length ? kept : [routes.reduce((a, b) => (a.distance <= b.distance ? a : b))];
+  return kept.length
+    ? kept
+    : [routes.reduce((a, b) => (a.distance <= b.distance ? a : b))];
+}
+
+async function filterCarriageways(
+  routes: MapboxRoute[],
+  token: string,
+): Promise<MapboxRoute[]> {
+  const kept: MapboxRoute[] = [];
+  for (const route of routes) {
+    const share = await roadCarriagewayShare(route.geometry, token);
+    // null = Streets tilequery unavailable — keep candidate (walkway_bias already high)
+    if (share != null && share > 0.28) continue;
+    kept.push({
+      ...route,
+      carriageway_share: share ?? undefined,
+    });
+  }
+  return kept;
+}
+
+/** Last resort: keep the candidate with the lowest carriageway share. */
+async function keepLeastCarriageway(
+  routes: MapboxRoute[],
+  token: string,
+): Promise<MapboxRoute[]> {
+  const scored: MapboxRoute[] = [];
+  for (const route of routes) {
+    const share = await roadCarriagewayShare(route.geometry, token);
+    scored.push({ ...route, carriageway_share: share ?? 1 });
+  }
+  scored.sort(
+    (a, b) => (a.carriageway_share ?? 1) - (b.carriageway_share ?? 1),
+  );
+  const best = scored[0];
+  return best ? [best] : routes.slice(0, 1);
 }
 
 async function runQueries(
@@ -127,9 +176,13 @@ export async function fetchWalkingWaypointRoute(
   const coords = waypoints.map((w) => `${w.lng},${w.lat}`).join(";");
   const routes = await requestWalkingCoords(coords, token, {
     alternatives: false,
+    walkwayBias: 1,
     strategy,
   });
-  return routes[0] ?? null;
+  const route = routes[0];
+  if (!route) return null;
+  const ok = await isMostlyOffCarriageway(route.geometry, token);
+  return ok ? route : null;
 }
 
 async function requestWalkingCoords(
@@ -180,7 +233,7 @@ function isDistinct(candidate: MapboxRoute, existing: MapboxRoute[]): boolean {
     let close = 0;
     let sum = 0;
     for (let i = 0; i < a.length; i++) {
-      const d = Math.hypot(a[i][0] - b[i][0], a[i][1] - b[i][1]);
+      const d = Math.hypot(a[i]![0] - b[i]![0], a[i]![1] - b[i]![1]);
       sum += d;
       if (d < 0.0011) close += 1;
     }
@@ -206,9 +259,9 @@ function samplePoints(
     const lo = Math.floor(idx);
     const hi = Math.min(coords.length - 1, lo + 1);
     const f = idx - lo;
-    const a = coords[lo];
-    const b = coords[hi];
-    out.push([a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f]);
+    const a = coords[lo]!;
+    const b = coords[hi]!;
+    out.push([a[0]! + (b[0]! - a[0]!) * f, a[1]! + (b[1]! - a[1]!) * f]);
   }
   return out;
 }

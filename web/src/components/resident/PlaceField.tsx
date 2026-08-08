@@ -77,12 +77,12 @@ export function PlaceField({
   return (
     <div ref={wrapRef} className="relative">
       <div
-        className={`flex items-center gap-2 rounded-xl px-3 py-2 ring-1 ${
+        className={`flex min-h-12 items-center gap-2.5 rounded-2xl px-3 py-2 ring-1 ${
           pickActive
-            ? "ring-[#27AAE1]"
+            ? "ring-yw-blue"
             : isNight
-              ? "bg-[#0B0C1A] ring-white/10"
-              : "bg-white ring-slate-200"
+              ? "bg-yw-night-surface ring-white/12"
+              : "bg-white ring-[#E8ECF2]"
         }`}
       >
         <span
@@ -92,7 +92,7 @@ export function PlaceField({
         <div className="min-w-0 flex-1">
           <div
             className={`text-[10px] font-semibold uppercase tracking-wide ${
-              isNight ? "text-white/40" : "text-slate-400"
+              isNight ? "text-white/45" : "text-slate-500"
             }`}
           >
             {label}
@@ -112,7 +112,7 @@ export function PlaceField({
             <input
               className={`w-full bg-transparent text-sm font-semibold outline-none placeholder:font-normal ${
                 isNight
-                  ? "placeholder:text-white/30"
+                  ? "placeholder:text-white/35"
                   : "placeholder:text-slate-400"
               }`}
               placeholder={placeholder}
@@ -132,12 +132,12 @@ export function PlaceField({
         <button
           type="button"
           onClick={onPickToggle}
-          className={`shrink-0 rounded-lg px-2 py-1 text-[10px] font-semibold ${
+          className={`flex min-h-9 min-w-11 shrink-0 items-center justify-center rounded-xl px-2.5 text-[11px] font-semibold ${
             pickActive
-              ? "bg-[#27AAE1] text-white"
+              ? "bg-yw-blue text-white"
               : isNight
-                ? "bg-white/10 text-white/70"
-                : "bg-slate-100 text-slate-600"
+                ? "bg-white/10 text-white/80"
+                : "bg-yw-day-surface text-slate-600"
           }`}
           title="Pick on map"
         >
@@ -148,16 +148,16 @@ export function PlaceField({
       {open && editing && (results.length > 0 || loading) ? (
         <ul
           id={listId}
-          className={`absolute left-0 right-0 z-20 mt-1 max-h-48 overflow-y-auto rounded-xl border shadow-lg ${
+          className={`absolute left-0 right-0 z-20 mt-1 max-h-48 overflow-y-auto rounded-2xl border shadow-lg ${
             isNight
-              ? "border-white/10 bg-[#0B0C1A]"
-              : "border-slate-200 bg-white"
+              ? "border-white/10 bg-yw-night-panel"
+              : "border-[#E8ECF2] bg-white"
           }`}
         >
           {loading && results.length === 0 ? (
             <li
-              className={`px-3 py-2 text-xs ${
-                isNight ? "text-white/40" : "text-slate-400"
+              className={`px-3 py-2.5 text-xs ${
+                isNight ? "text-white/45" : "text-slate-500"
               }`}
             >
               Searching…
@@ -167,7 +167,7 @@ export function PlaceField({
             <li key={r.id}>
               <button
                 type="button"
-                className={`w-full px-3 py-2 text-left text-sm hover:bg-[#27AAE1]/15 ${
+                className={`flex min-h-11 w-full items-center px-3 py-2 text-left text-sm hover:bg-[color-mix(in_srgb,var(--yw-blue)_15%,transparent)] ${
                   isNight ? "text-white" : "text-slate-800"
                 }`}
                 onClick={() => {
@@ -177,13 +177,15 @@ export function PlaceField({
                   setQuery("");
                 }}
               >
-                <span className="block font-medium">{r.label}</span>
-                <span
-                  className={`block truncate text-[11px] ${
-                    isNight ? "text-white/40" : "text-slate-500"
-                  }`}
-                >
-                  {r.place_name}
+                <span className="block">
+                  <span className="block font-medium">{r.label}</span>
+                  <span
+                    className={`block truncate text-[11px] ${
+                      isNight ? "text-white/45" : "text-slate-500"
+                    }`}
+                  >
+                    {r.place_name}
+                  </span>
                 </span>
               </button>
             </li>

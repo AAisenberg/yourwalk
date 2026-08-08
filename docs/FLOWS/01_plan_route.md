@@ -39,19 +39,20 @@ Residents planning walking routes (commute, recreation, errands, etc.)
    - Address is geocoded and validated (must be within pilot area)
 
 4. **User clicks "Plan route" or similar action**
-   - System calculates 2-3 route options
+   - System calculates up to 2-3 **path-safe** route options (hybrid Mapbox + optional score-aware challenger)
+   - Candidates that draw down a road carriageway are filtered out before display ([`ROUTING_OUTPUTS.md`](../ROUTING_OUTPUTS.md))
    - Routes are displayed on map with different colours/styles
    - Route calculation progress indicator shows (if calculation takes > 2 seconds)
 
 5. **System displays route options**
    - Each route shows:
-     - Route line on map (different colour per route)
+     - Route line on map (different colour per route) — footpath / path alignment, not mid-carriageway
      - Distance (kilometres)
      - Estimated walking time (minutes)
      - Overall score (0-10 or similar scale)
      - Score breakdown (lighting, accessibility, climate scores)
    - Routes are listed in a panel or sidebar (if space allows)
-   - Default route is highlighted (highest score or shortest distance, TBD)
+   - Default route is highlighted (highest match / Recommended)
 
 6. **User views route details**
    - User can click on a route to see:

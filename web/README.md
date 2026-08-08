@@ -29,7 +29,7 @@ Set `NEXT_PUBLIC_SEGMENTS_GEOJSON_URL` in `.env.local` to the gzip public URL th
 
 ### Local fallback (no Supabase Storage)
 
-If Storage is unavailable, symlink viewer GeoJSON into `web/public/map-data/` and point env at localhost:
+If Storage is unavailable, symlink viewer GeoJSON into `web/public/map-data/` and use **same-origin** paths (any port — avoid hardcoding `localhost:3000`):
 
 ```bash
 mkdir -p public/map-data
@@ -38,9 +38,11 @@ ln -sf ../../pipeline/data/viewer/casey_lga_boundary.geojson public/map-data/cas
 ```
 
 ```env
-NEXT_PUBLIC_SEGMENTS_GEOJSON_URL=http://localhost:3000/map-data/segment_scores.geojson
-NEXT_PUBLIC_LGA_BOUNDARY_URL=http://localhost:3000/map-data/casey_lga_boundary.geojson
+NEXT_PUBLIC_SEGMENTS_GEOJSON_URL=/map-data/segment_scores.geojson
+NEXT_PUBLIC_LGA_BOUNDARY_URL=/map-data/casey_lga_boundary.geojson
 ```
+
+Preview/Production without Storage: `/api/map-data/segment_scores.geojson` (GitHub release proxy).
 
 Restart `npm run dev` after changing `.env.local`.
 

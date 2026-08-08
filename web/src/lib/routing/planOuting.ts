@@ -228,7 +228,7 @@ async function loadAmenitySets(goals: OverlayId[]): Promise<AmenitySet[]> {
       try {
         const res = await fetch(def.url);
         if (!res.ok) {
-          amenityCache.set(id, null);
+          // Do not hard-cache misses — Preview may fix overlay URLs mid-session.
           points = null;
         } else {
           const fc = (await res.json()) as GeoJSON.FeatureCollection;
@@ -243,7 +243,6 @@ async function loadAmenitySets(goals: OverlayId[]): Promise<AmenitySet[]> {
           amenityCache.set(id, points);
         }
       } catch {
-        amenityCache.set(id, null);
         points = null;
       }
     }
