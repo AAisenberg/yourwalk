@@ -42,8 +42,9 @@ Do not invent a new palette. Avoid purple-on-white CTA gradients, warm cream + t
 ## Logo
 
 - Mark: [`web/public/brand/yourwalk-mark.svg`](../web/public/brand/yourwalk-mark.svg) (from `mobile-mockup/logo.svg`)
-- Header: mark (~32px) + **YourWalk** wordmark (navy day / white night) as the hero brand signal; subtitle **Connecting Casey walks**
-- Day/Night: sliding pill with sun / moon icons (both labels always visible). Not a single button that flips its own label.
+- Header: mark (~32px) + **YourWalk** wordmark (navy day / white night) as the hero brand signal; subtitle **Connecting Casey walks**; quiet **Beta** pill (navy / muted, not teal)
+- Day/Night, A to B / Around here, and outing Shape: full-width **segmented pills** (`SegmentedPill`) under When / How. Choosing Night swaps preference streams (After dark vs Shade & heat) and the basemap. Not in the header.
+- Checkboxes: custom `.yw-check` — navy (overlays) or stream blue (Prefer away from roads). Avoid teal ticks on blue preference cards; teal stays for selected route / primary accents.
 - Lab is not linked from the resident app (Lab stays at `/lab` for internal use)
 - Sheet product line: "Tell us about your walk". Do not overpower the brand with a marketing headline
 - Partner marks (Casey / Monash / CrowdLab): footer or about only, not in the walk sheet
@@ -61,9 +62,19 @@ Material Design icons via `react-icons/md` (see [`web/src/components/resident/ic
 | Loop / There and back / One way | `MdLoop` / `MdSwapHoriz` / `MdArrowForward` |
 | Fountains / Benches / Toilets / Dog bags | `MdWaterDrop` / `MdChair` / `MdWc` / `MdPets` |
 
-## Sheet snaps
+## Sheet snaps (mobile)
 
 Three heights (Google Maps-style): **peek** (~22%), **half** (~48%), **full** (~72%). Drag the handle, arrow keys, or double-tap to step. Peek shows a short summary so the map stays usable.
+
+## Desktop (≥ md / 768px)
+
+Map-first split: **left panel** (~26rem) holds the plan / results form with internal scroll; map fills the remaining width. No peek/half snaps on desktop. Locate control sits on the map (bottom-right). Header keeps brand + **Beta** pill (Day/Night lives in the form).
+
+## Beta chrome
+
+- Header: **Beta** pill beside YourWalk; subtitle may show `app {version} · scores {scoring_spec}` from `web/src/lib/beta.ts`
+- Sheet footer repeats app + scores + `map-data` release for provenance
+- Tester brief: [`BETA_TESTER_BRIEF.md`](BETA_TESTER_BRIEF.md)
 
 ## Map data (preview / production)
 

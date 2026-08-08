@@ -13,6 +13,11 @@ const ALLOWED = new Set([
   "segment_scores.geojson",
   "casey_lga_boundary.geojson",
   "segment_scores.meta.json",
+  // Amenity overlays (resident “Along the way”) — same release as map scores
+  "fountains.geojson",
+  "benches.geojson",
+  "toilets.geojson",
+  "dog_bags.geojson",
 ]);
 
 const DEFAULT_BASE =

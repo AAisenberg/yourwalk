@@ -22,6 +22,7 @@ export type RoutePreferences = {
   shadeHeat: number;
   /**
    * Soft-prefer Casey shared-use path class when ranking (not index maths).
+   * Resident copy: “Away from roads” — trails / wider paths vs roadside footpaths.
    * Soft bias only — never hard-locks to SUP-only.
    */
   preferSharedPaths: boolean;

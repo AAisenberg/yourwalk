@@ -32,11 +32,10 @@ Loop backtracks + map UX notes (snip feasibility, Google-like chrome, focus orde
 
 ## Focus next (recommended)
 
-1. **Loop quality lock** — keep Loop = circuits only; prefer rejecting ugly cul-de-sac spurs over showing them as Recommended  
-2. **Map route chrome** — selected = stronger / dotted; alternatives quieter; tap path (then chips) to select  
-3. **Backtrack snip spike** — optional geometry cleanup for short reverse spurs (technical; after 1–2)  
-4. Shareable A→B + “Why this walk?”  
-5. Colour / brand polish — visual system + resident restyle (`feat/resident-ux-ui`)
+1. ~~Desktop panel + Beta chrome~~ — left panel ≥ md; Beta pill + versions; see [`BETA_TESTER_BRIEF.md`](BETA_TESTER_BRIEF.md)  
+2. Shareable A→B + “Why this walk?”  
+3. **Backtrack snip spike** — optional geometry cleanup for short reverse spurs  
+4. Custom domain / production cut when ready for wider Casey testing
 
 ## Build sequence
 
