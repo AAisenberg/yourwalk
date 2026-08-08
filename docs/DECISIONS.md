@@ -31,12 +31,14 @@ Each decision includes:
 
 **Rationale**: OD-11 (7 Fairmead Place → 8 Hopwood Court, verified 30 Jul 2026) proved Mapbox-only post-hoc is not credible for neighbourhood cut-throughs. Mapbox returned a ~486 m road loop; Streets basemap and Google Maps show the mid-block walk; Casey T1EAM already scores that strip (9 segments, mean Acc ~83); OSM+Casey Dijkstra finds ~282 m via cycleway/service links (Night ~8.3). Post-hoc scoring cannot invent missing geometries. Hybrid clears the "match Google's efficient walk when we can see it" bar without switching the whole stack to T1EAM routing yet.
 
-**Trip mode (30 Jul 2026 — hybrid):**  
+**Trip mode (30 Jul 2026 — hybrid; carriageway gate 8 Aug 2026):**  
 Resident flow is **trip**: fixed origin → destination.
 
-Generation: (1) Mapbox `alternatives` + mild `walkway_bias`, (2) dedupe, (3) reject Mapbox candidates longer than **1.3× shortest Mapbox**, (4) **add score-aware challenger** when geometrically distinct (shorter paths are kept — do not apply the 1.3× Mapbox cap to the challenger), (5) ensure challenger is retained in the top cards when distinct. Cap ~3 cards. **No perpendicular vias**.
+Generation: (1) Mapbox `alternatives` (**no** negative `walkway_bias`) plus a separate `walkway_bias=0.8` prefer request for path-safe diversity, (2) dedupe, (3) reject Mapbox candidates longer than **1.3× shortest Mapbox**, (4) **carriageway gate** — reject candidates whose Mapbox Streets tilequery samples are mostly road class, not footway/path/cycleway/sidewalk (product rule: never draw the walk line down the trafficked carriageway), (5) **add score-aware challenger** when geometrically distinct **and** off-carriageway (shorter paths are kept — do not apply the 1.3× Mapbox cap to the challenger), (6) retain challenger in the top cards when distinct. Cap ~3 cards. **No perpendicular vias**. Fewer cards is OK when only one path-safe geometry exists.
 
 Score-aware graph: NetworkX Dijkstra on OSM walkable ways joined to Casey scores (`pipeline/bakeoff/`; served via `serve_challenger.py` + `/api/challenger-route`). Soft 1.15× cap vs graph-shortest distance path (OD-05). Reduced confidence when T1EAM coverage along the corridor is thin — never impute missing as zero.
+
+**Routing outputs methodology (authoritative detail):** [`ROUTING_OUTPUTS.md`](ROUTING_OUTPUTS.md) — includes OD-CARRIAGE-01 (Epsom → Arubi) regression.
 
 **Product north star:**  
 Preference-weighted score-aware pathfinding (and T1EAM-native edges where OSM cannot connect scored cut-throughs). Mapbox remains map/geocode + useful candidate source, not the sole geometry authority.
@@ -50,6 +52,7 @@ Preference-weighted score-aware pathfinding (and T1EAM-native edges where OSM ca
 - Resident `/` and lab plan-route require the challenger service (or graceful Mapbox-only fallback with a quiet log)
 - Route scores remain aggregations of segment scores, not a third scoring model
 - Alternatives that leave scored footpaths show reduced confidence
+- On-carriageway Mapbox (or challenger) geometries are filtered before UI cards — see [`ROUTING_OUTPUTS.md`](ROUTING_OUTPUTS.md)
 - Community app at `/`; scored-network workbench at `/lab`
 - Full switch away from Mapbox candidates is not required for pilot credibility
 
@@ -60,6 +63,7 @@ Preference-weighted score-aware pathfinding (and T1EAM-native edges where OSM ca
 - Material after-dark overlap for Night Index trigger (civil twilight)
 - T1EAM-native edges for true Casey-only links (OSM has no walkable way) — see [`SCORE_AWARE_ROUTING_BAKEOFF.md`](SCORE_AWARE_ROUTING_BAKEOFF.md)
 - Preference weights inside edge costs (sliders affect pathfinding, not only ranking)
+- Whether carriageway detection should move from Streets tilequery to a local OSM class join for offline / rate-limit resilience
 
 ---
 

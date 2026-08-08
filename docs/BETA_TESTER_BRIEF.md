@@ -26,6 +26,12 @@ If the map or footpath network looks blank: **hard-refresh** (Cmd+Shift+R). Larg
 - Recommended = best match to your importance sliders plus time/distance trade-offs.
 - **Not a safety guarantee.** Graffiti is an environmental-order proxy, not crime data. No crime prediction.
 
+## Routing honesty (beta)
+
+Trip options must not draw down the **road carriageway**. Generation + filter rules: [`ROUTING_OUTPUTS.md`](ROUTING_OUTPUTS.md). Soft “Prefer away from roads” only ranks shared-use paths; it does not replace that gate.
+
+Regression OD: 16 Epsom Lane, Cranbourne North → 16 Arubi Avenue, Clyde North (expect path-safe option(s), no mid-road alternative).
+
 ## Known gaps (expected in this beta)
 
 | Gap | Notes |
