@@ -1,3 +1,4 @@
+import { isMostlyOffCarriageway } from "./carriageway";
 import { fetchChallengerRoute } from "./challenger";
 import {
   fetchWalkingRouteCandidates,
@@ -142,7 +143,8 @@ export async function planScoredRoutes(
         geometry: r.geometry,
         distance_m: r.distance_m,
       })),
-    )
+    ) &&
+    (await isMostlyOffCarriageway(challenger.geometry, token))
   ) {
     const sa = toScored(
       {
