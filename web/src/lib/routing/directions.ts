@@ -48,10 +48,14 @@ export async function fetchWalkingRouteCandidates(
 ): Promise<MapboxRoute[]> {
   const collected: MapboxRoute[] = [];
 
-  // Only path-preferring strategies — never bias toward roads.
+  // Path-safe diversity:
+  // - alternatives (no bias) often returns a distinct footpath geometry
+  // - walkway_prefer nudges another path-aligned option
+  // Never use walkway_bias < 0 — that favoured road carriageways (Epsom→Arubi).
+  // Carriageway tilequery filter below rejects any residual on-road geometry.
   const queries: QueryOpts[] = [
-    { alternatives: true, walkwayBias: 1, strategy: "alternatives_walkway" },
-    { walkwayBias: 0.85, strategy: "walkway_prefer" },
+    { alternatives: true, strategy: "alternatives" },
+    { walkwayBias: 0.8, strategy: "walkway_prefer" },
   ];
 
   await runQueries(origin, destination, token, queries, collected, maxRoutes + 3);
