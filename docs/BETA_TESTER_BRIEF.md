@@ -7,13 +7,16 @@
 
 ## Link
 
-Use the current Vercel Preview for branch `feat/resident-ux-ui` (or Production once merged).
+**Preview (branch `feat/resident-ux-ui`):**  
+https://yourwalk-git-feat-resident-ux-ui-anthony-3110s-projects.vercel.app
 
 If the map or footpath network looks blank: **hard-refresh** (Cmd+Shift+R). Large GeoJSON can take a short moment on first load.
 
+**Access:** Preview is currently behind Vercel Authentication. Before external testing, either turn off Deployment Protection for Previews, share a bypass link, or invite the tester to the Vercel team. Confirm the URL opens in a private/incognito window without a Vercel login.
+
 ## What to try
 
-1. **Day / Night** — header sun/moon. Night switches basemap and preference streams (After dark vs Shade & heat).
+1. **Day / Night** — under **When** in the plan form. Night switches basemap and preference streams (Lighting after dark vs Shade & heat).
 2. **A to B** — set From / To inside Casey (search or tap Map), then Find my route.
 3. **Around here** — start point, duration, Loop / There and back / One way.
 4. **Along the way** — toggle fountains, benches, toilets, dog bags. Points should appear on the map. On Around here they also soft-bias route ranking; they do **not** change corridor score pills.
