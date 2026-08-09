@@ -28,13 +28,13 @@ Anonymous **device-local** helpers (e.g. last start point) are allowed if clearl
 
 ## Mental model (three questions)
 
-| Step | Question | Resident meaning |
-|------|----------|------------------|
-| 1 | **When are you walking?** | Day or Night — which index and which importance sliders |
-| 2 | **How are you walking?** | Purpose / pattern: **A to B** vs **Around here** (timed outing) |
-| 3 | **Along the way?** | Contextual amenities on the map — not part of the Day/Night index maths |
+| Step | Label | Resident meaning |
+|------|-------|------------------|
+| 1 | **When** | Day or Night — which index and which importance sliders |
+| 2 | **Type of walk** | Pattern: **A to B** vs **Around here** (timed outing) |
+| 3 | **Along the way** | Contextual amenities on the map — not part of the Day/Night index maths |
 
-“What matters?” (importance of accessible footpaths / shade / after dark) sits under step 1 and already ships.
+“What matters most” (importance of accessible footpaths / shade / after dark) sits under step 1. Section labels do not use question marks.
 
 ---
 
@@ -52,9 +52,9 @@ Anonymous **device-local** helpers (e.g. last start point) are allowed if clearl
 - Importance sliders for the active mode (existing; dynamic efficiency)
 - Optional soft prompt: “Heading out after dark? Try Night walk” when local evening (non-blocking)
 
-### 2. How are you walking? (purpose)
+### 2. Type of walk
 
-Two clear choices (cards or segmented control):
+Two clear choices (segmented control):
 
 #### 2A — A to B (trip)
 
@@ -72,7 +72,7 @@ Two clear choices (cards or segmented control):
 - **Shape** (segmented, under Around here — not a buried checkbox):
   - **Loop** (default) — a **circuit**: leave and return near start on a *different* path (not the same street reverse / opposite kerb). Generator uses two vias + reverse-overlap filter; if true circuits are scarce, may fall back to same-path home with an honest card note
   - **There and back** — out along a good corridor, **same way home** (explicit choice, also engineering fallback)
-  - **One way** — explore in a direction for ~N min (advanced / testing only; not the default story)
+  - **One way** — not shown in resident beta UI (planner retained for Lab/QA only)
 - **Find my walk** → 1–3 geometries near that duration, scored and ranked with importance + efficiency
 - Cards: same Recommended / Neighbourhood links language; outing copy should say “about N min loop” when Loop is selected
 
@@ -154,9 +154,9 @@ Rules:
 |--------|------|
 | **A. Loop (default)** | Product default for Around here |
 | **B. There and back** | Ship-first engineering fallback if true loops slip |
-| **C. One way** | Secondary / testing only |
+| **C. One way** | Lab/QA only — hidden from resident beta UI (9 Aug 2026) |
 
-**Decision:** Default UI = Loop. Implement there-and-back first if needed to hit duration, then true loops. Do not present reachability-style one-way as the default story.
+**Decision:** Resident UI = Loop (default) + There and back only. One way stays in `planOuting` for Lab/QA; do not present reachability-style one-way as a resident choice.
 
 **Loop backtracking (30 Jul investigation):** Mapbox multi-waypoint routes can still reverse streets or spur into cul-de-sacs. Mitigation in `planOuting.ts`: (1) triangle vias start→A→B→start, not single turnaround; (2) half-vs-half reverse-overlap reject; (3) full-path **revisit ratio** (samples every ~28 m; ignore inevitable mid-block stub at the start pin); hard reject above ~20% revisit, soft-accept to ~32% with card note; (4) rank remaining circuits by low revisit. Residual shared path near the pin is expected; mid-loop backtracking should be rare. Deeper fix later: score-aware graph circuits on T1EAM (challenger), not Mapbox alone.
 

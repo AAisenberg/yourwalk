@@ -51,7 +51,7 @@ import {
 import { planScoredRoutes } from "@/lib/routing/planRoute";
 import { OutingDurationSlider } from "@/components/resident/OutingDurationSlider";
 import {
-  OUTING_SHAPES,
+  RESIDENT_OUTING_SHAPES,
   clampOutingMinutes,
   type OutingShape,
   planOutingRoutes,
@@ -74,7 +74,7 @@ import type { LngLat, ScoredRoute } from "@/lib/routing/types";
 import { CASEY_BOUNDS } from "@/lib/scores";
 
 type PickMode = "idle" | "origin" | "destination";
-/** How are you walking? — trip A→B vs timed outing from a start. */
+/** Type of walk — trip A→B vs timed outing from a start. */
 type WalkIntent = "trip" | "outing";
 /** Bottom sheet snap — Google Maps-style peek / half / full. */
 type SheetSnap = "peek" | "half" | "full";
@@ -990,11 +990,9 @@ export function ResidentApp() {
                 <p className="truncate text-sm font-semibold">
                   {walkIntent === "outing"
                     ? `${shortLabel(originLabel) || "Start"} · ~${outingMinutes} min ${
-                        outingShape === "loop"
-                          ? "loop"
-                          : outingShape === "out_and_back"
-                            ? "there and back"
-                            : "one way"
+                        outingShape === "out_and_back"
+                          ? "there and back"
+                          : "loop"
                       }`
                     : `${shortLabel(originLabel) || "Origin"} → ${shortLabel(destLabel) || "Destination"}`}
                 </p>
@@ -1153,13 +1151,13 @@ export function ResidentApp() {
                     isNight ? "text-white/70" : "text-slate-700"
                   }`}
                 >
-                  How
+                  Type of walk
                 </p>
                 <SegmentedPill
                   value={walkIntent}
                   onChange={setWalkIntent}
                   isNight={isNight}
-                  ariaLabel="How are you walking?"
+                  ariaLabel="Type of walk"
                   className="mb-1.5"
                   options={[
                     {
@@ -1183,7 +1181,7 @@ export function ResidentApp() {
                 >
                   {walkIntent === "trip"
                     ? "Set a start and end in Casey."
-                    : "Timed walk from a start — loop, there and back, or one way."}
+                    : "Timed walk from a start — loop or there and back."}
                 </p>
 
               {walkIntent === "trip" ? (
@@ -1269,18 +1267,14 @@ export function ResidentApp() {
                     Shape
                   </p>
                   <SegmentedPill
-                    value={outingShape}
+                    value={outingShape === "one_way" ? "loop" : outingShape}
                     onChange={setOutingShape}
                     isNight={isNight}
                     ariaLabel="Outing shape"
-                    options={OUTING_SHAPES.map((s) => ({
+                    options={RESIDENT_OUTING_SHAPES.map((s) => ({
                       id: s.id,
                       label:
-                        s.id === "out_and_back"
-                          ? "There & back"
-                          : s.id === "one_way"
-                            ? "One way"
-                            : "Loop",
+                        s.id === "out_and_back" ? "There & back" : "Loop",
                       Icon: SHAPE_ICONS[s.id],
                       title: s.hint,
                     }))}
@@ -1291,7 +1285,8 @@ export function ResidentApp() {
                     }`}
                   >
                     {
-                      OUTING_SHAPES.find((s) => s.id === outingShape)?.hint
+                      RESIDENT_OUTING_SHAPES.find((s) => s.id === outingShape)
+                        ?.hint
                     }
                     {outingShape === "loop"
                       ? " We’ll offer a few different circuits when we can — not there-and-backs mixed in."

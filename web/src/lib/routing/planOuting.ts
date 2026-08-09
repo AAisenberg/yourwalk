@@ -49,6 +49,11 @@ export const OUTING_SHAPES: {
   },
 ];
 
+/** Resident beta UI: Loop + There and back only. One way stays in the planner for Lab/QA. */
+export const RESIDENT_OUTING_SHAPES = OUTING_SHAPES.filter(
+  (s) => s.id === "loop" || s.id === "out_and_back",
+);
+
 /**
  * Loop filters — kept loose enough to accept real suburban circuits.
  * (Too-strict revisit + oversized vias made every loop fail duration checks,
