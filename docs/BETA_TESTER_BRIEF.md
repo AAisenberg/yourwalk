@@ -19,7 +19,7 @@ If the map or footpath network looks blank: **hard-refresh** (Cmd+Shift+R). Larg
 1. **Day / Night** — under **When** in the plan form. Night switches basemap and preference streams (Lighting after dark vs Shade & heat).
 2. **A to B** — set From / To inside Casey (search or tap Map), then Find my route.
 3. **Around here** — start point, duration, Loop / There and back.
-4. **Along the way** — toggle fountains, benches, toilets, dog bags. Points should appear on the map. On Around here they also soft-bias route ranking; they do **not** change corridor score pills.
+4. **Along the way** — toggle drinking fountains, benches, toilets, dog bags. Points should appear on the map. On Around here they also soft-bias route ranking; they do **not** change corridor score pills.
 5. **Results** — tap a path or card to select; **Use this route** focuses the map on that walk.
 6. **Desktop** — widen the window: plan form becomes a left panel; map fills the rest. Phone layout keeps the bottom sheet.
 

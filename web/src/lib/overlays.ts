@@ -26,7 +26,7 @@ function overlayUrl(file: string): string {
 export const OVERLAY_DEFS: OverlayDef[] = [
   {
     id: "fountains",
-    label: "Fountains",
+    label: "Drinking fountains",
     url: overlayUrl("fountains.geojson"),
     color: "#27AAE1",
     available: true,
