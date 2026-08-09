@@ -64,7 +64,6 @@ export const ICON_REVIEW: {
     Icon: IconOutAndBack,
     note: "Shape",
   },
-  { id: "one_way", label: "One way", Icon: IconOneWay, note: "Shape" },
   {
     id: "fountains",
     label: "Drinking fountains",

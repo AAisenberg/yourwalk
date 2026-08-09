@@ -191,9 +191,9 @@ Full column list: [`SCORING_SPEC_v1.1.md`](SCORING_SPEC_v1.1.md) §9.
 
 **Entry flow (proposed):**
 1. **Tell us about your walk** — Day / Night + what matters (importance sliders)
-2. **How are you walking?**
+2. **Type of walk**
    - **A to B** — start + end (search / pin / geolocate) → hybrid ranked options (current)
-   - **Around here** — start (geolocate / address / pin) + duration (~15 / 25 / 40 min) → outing options (L2b)
+   - **Around here** — start (geolocate / address / pin) + duration + Loop / There and back → outing options (L2b)
 3. **Along the way (overlays)** — optional checkboxes: toilets, dog bags, benches, drinking fountains (index overlays only — not in Day/Night score per methodology)
 4. Results cards → Use this route (polish / colour later)
 

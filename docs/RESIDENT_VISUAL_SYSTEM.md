@@ -59,7 +59,7 @@ Material Design icons via `react-icons/md` (see [`web/src/components/resident/ic
 | Night | `MdNightlight` |
 | A to B | `MdRoute` (corridor) |
 | Around here | `MdLoop` (circuit) |
-| Loop / There and back / One way | `MdLoop` / `MdSwapHoriz` / `MdArrowForward` |
+| Loop / There and back | `MdLoop` / `MdSwapHoriz` (One way icon retained in code for Lab only) |
 | Fountains / Benches / Toilets / Dog bags | `MdWaterDrop` / `MdChair` / `MdWc` / `MdPets` |
 
 ## Sheet snaps (mobile)
