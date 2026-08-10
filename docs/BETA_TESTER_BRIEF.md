@@ -16,17 +16,17 @@ If the map or footpath network looks blank: **hard-refresh** (Cmd+Shift+R). Larg
 
 ## What to try
 
-1. **Day / Night** — under **When** in the plan form. Night switches basemap and preference streams (Lighting after dark vs Shade & heat).
+1. **Day / Night** — under **When** in the plan form. Night switches basemap and preference streams (Lighting after dark vs Heat & Shade).
 2. **A to B** — set From / To inside Casey (search or tap Map), then Find my route.
-3. **Around here** — start point, duration, Loop / There and back.
+3. **Around here** — start point, duration, Loop / There and back. Loops aim to avoid walking the **same footpath** twice (opposite kerb OK); 1–2 clean options is fine.
 4. **Along the way** — toggle drinking fountains, benches, toilets, dog bags. Points should appear on the map. On Around here they also soft-bias route ranking; they do **not** change corridor score pills.
-5. **Results** — tap a path or card to select; **Use this route** focuses the map on that walk.
+5. **Results** — pills are **Footpaths** then **Heat & Shade** (or Lighting at night). **Match** is mostly those streams from your importance ratings; Around here only gently uses time inside the ±5 min band.
 6. **Desktop** — widen the window: plan form becomes a left panel; map fills the rest. Phone layout keeps the bottom sheet.
 
 ## How to read scores
 
 - Higher score = better walking conditions for the selected Day or Night index (lower vulnerability).
-- Recommended = best match to your importance sliders plus time/distance trade-offs.
+- Recommended = best match to your importance sliders among options about the length you asked (time is a soft nudge on Around here).
 - **Not a safety guarantee.** Graffiti is an environmental-order proxy, not crime data. No crime prediction.
 
 ## Routing honesty (beta)

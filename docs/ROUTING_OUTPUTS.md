@@ -87,7 +87,7 @@ After the card set is fixed:
 
 ## Outing mode (Around here)
 
-Waypoint walks use Mapbox with **positive** `walkway_bias` and the same off-carriageway check on returned geometry (`fetchWalkingWaypointRoute`). Loop quality rules (circuit-only, spur demote) remain in `planOuting.ts` and are separate from this carriageway gate.
+Waypoint walks use Mapbox with **positive** `walkway_bias`. The **hard carriageway gate is trip A→B only** — not applied to Loop / There and back. Suburban circuits necessarily use street-adjacent footpaths; treating them like mid-road trip options rejected nearly all Montpelier / Berwick loops (`no_route` after tilequery). Loop quality rules (circuit revisit, reverse-overlap, spur demote, ±5 min band) remain in `planOuting.ts`.
 
 ## QA OD (regression)
 
@@ -118,5 +118,6 @@ Re-check after any change to Mapbox query params, dedupe thresholds, or carriage
 
 | Date | Change |
 |------|--------|
+| **10 Aug 2026** | Outing waypoint routes: disable hard carriageway gate (trip-only). Restores Loop finds in street-grid suburbs. |
 | **8 Aug 2026** | Carriageway product rule; remove negative `walkway_bias`; Streets tilequery gate (share &gt; 0.28); restore unbiased `alternatives` + `walkway_prefer` for path-safe diversity (OD-CARRIAGE-01) |
 | 30 Jul 2026 | Hybrid trip mode + challenger (ADR-001) |

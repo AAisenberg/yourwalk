@@ -59,13 +59,33 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Empty score result" }, { status: 502 });
   }
 
+  const day = row.day_index_score ?? null;
+  const acc = row.accessibility_score ?? null;
+  const heat =
+    row.heat_shade_score ??
+    (day != null && acc != null
+      ? (Number(day) - 0.6 * Number(acc)) / 0.4
+      : null);
+  const lighting = row.lighting_after_dark_score ?? null;
+
   const score: RouteScore = {
-    day_index_score: row.day_index_score ?? null,
+    day_index_score: day,
     night_index_score: row.night_index_score ?? null,
-    accessibility_score: row.accessibility_score ?? null,
-    day_display: toDisplayScore(row.day_index_score),
+    accessibility_score: acc,
+    heat_shade_score:
+      heat != null && Number.isFinite(Number(heat))
+        ? Math.min(100, Math.max(0, Number(heat)))
+        : null,
+    lighting_after_dark_score: lighting,
+    day_display: toDisplayScore(day),
     night_display: toDisplayScore(row.night_index_score),
-    accessibility_display: toDisplayScore(row.accessibility_score),
+    accessibility_display: toDisplayScore(acc),
+    heat_shade_display: toDisplayScore(
+      heat != null && Number.isFinite(Number(heat))
+        ? Math.min(100, Math.max(0, Number(heat)))
+        : null,
+    ),
+    lighting_display: toDisplayScore(lighting),
     confidence_day: row.confidence_day ?? "reduced",
     confidence_night: row.confidence_night ?? "reduced",
     segment_count: Number(row.segment_count ?? 0),

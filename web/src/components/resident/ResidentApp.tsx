@@ -1128,7 +1128,7 @@ export function ResidentApp() {
                   />
                 ) : (
                   <PrefSlider
-                    title="Shade & heat comfort"
+                    title="Heat & Shade"
                     description="Tree cover, cooler surfaces, less sun"
                     value={prefs.shadeHeat}
                     isNight={isNight}
@@ -1406,8 +1406,9 @@ export function ResidentApp() {
               <p className="font-semibold">Couldn’t find a walk</p>
               <p className="mt-0.5 opacity-90">{routeError}</p>
               <p className="mt-1.5 opacity-80">
-                Try closer points in Casey, or tap Map to set From/To on the
-                streets.
+                {walkIntent === "outing"
+                  ? "Try another start on the map, There and back, or a different duration."
+                  : "Try closer points in Casey, or tap Map to set From/To on the streets."}
               </p>
             </div>
           ) : null}
@@ -1498,7 +1499,7 @@ export function ResidentApp() {
                         <div
                           className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-full border-2"
                           style={{ borderColor: color, color }}
-                          title="Match score used for Recommended. Pills are Casey corridor scores; tiebreaks use your highest importance (e.g. Lighting after dark)."
+                          title="Match is mostly Footpaths + Heat & Shade (or Lighting) from your importance ratings. Around here, time only gently ranks options already within about 5 minutes of your ask. Pills are corridor stream scores (/10)."
                         >
                           <span className="text-base font-extrabold leading-none">
                             {display == null ? "—" : display.toFixed(1)}
@@ -1510,27 +1511,31 @@ export function ResidentApp() {
                       </div>
 
                       <div className="mt-2.5 flex flex-wrap gap-1.5">
-                        {isNight ? (
-                          <ScorePill
-                            label="Lighting"
-                            value={r.score.night_display}
-                            tone="amber"
-                            isNight={isNight}
-                          />
-                        ) : (
-                          <ScorePill
-                            label="Shade"
-                            value={r.score.day_display}
-                            tone="lime"
-                            isNight={isNight}
-                          />
-                        )}
                         <ScorePill
                           label="Footpaths"
                           value={r.score.accessibility_display}
                           tone="blue"
                           isNight={isNight}
                         />
+                        {isNight ? (
+                          <ScorePill
+                            label="Lighting"
+                            value={
+                              r.score.lighting_display ?? r.score.night_display
+                            }
+                            tone="amber"
+                            isNight={isNight}
+                          />
+                        ) : (
+                          <ScorePill
+                            label="Heat & Shade"
+                            value={
+                              r.score.heat_shade_display ?? r.score.day_display
+                            }
+                            tone="lime"
+                            isNight={isNight}
+                          />
+                        )}
                       </div>
 
                       {(() => {

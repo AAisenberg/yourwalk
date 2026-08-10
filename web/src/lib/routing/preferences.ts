@@ -86,6 +86,13 @@ export function sharedPathBonus(
 export const EFFICIENCY_WEIGHT_AT_LOW_IMPORTANCE = 0.78;
 export const EFFICIENCY_WEIGHT_AT_HIGH_IMPORTANCE = 0.15;
 
+/**
+ * Around here (outing): walks are already gated to ±5 min of the ask.
+ * Time is only a soft nudge inside that band — corridor prefs dominate.
+ */
+export const OUTING_EFFICIENCY_WEIGHT_AT_LOW_IMPORTANCE = 0.12;
+export const OUTING_EFFICIENCY_WEIGHT_AT_HIGH_IMPORTANCE = 0.05;
+
 /** @deprecated Use efficiencyWeightForPrefs — kept for call sites / docs. */
 export const TRIP_EFFICIENCY_WEIGHT = EFFICIENCY_WEIGHT_AT_HIGH_IMPORTANCE;
 
@@ -153,6 +160,25 @@ export function efficiencyWeightForPrefs(
   );
 }
 
+/**
+ * Outing match: same importance curve as trips, but a much smaller time share
+ * (≈5–12%). ±5 min is the hard band; inside it, Footpaths / Heat & Shade win.
+ */
+export function outingEfficiencyWeightForPrefs(
+  prefs: RoutePreferences,
+  mode: WalkMode,
+): number {
+  const mean = meanActiveImportance(prefs, mode);
+  const t =
+    (mean - PREF_IMPORTANCE_MIN) /
+    Math.max(1, PREF_IMPORTANCE_MAX - PREF_IMPORTANCE_MIN);
+  const clamped = Math.min(1, Math.max(0, t));
+  return (
+    OUTING_EFFICIENCY_WEIGHT_AT_LOW_IMPORTANCE * (1 - clamped) +
+    OUTING_EFFICIENCY_WEIGHT_AT_HIGH_IMPORTANCE * clamped
+  );
+}
+
 /** Preference-weighted quality 0–100 (higher = better for this user). */
 export function preferenceScore(
   route: ScoredRoute,
@@ -170,11 +196,28 @@ export function preferenceScore(
   }
 
   if (mode === "day") {
-    if (route.score.day_index_score != null && wprefs.shadeHeat > 0) {
-      parts.push({ score: route.score.day_index_score, w: wprefs.shadeHeat });
+    // Prefer Heat & Shade stream (40% of Day Index). Falling back to day_index
+    // would double-count accessibility already in the Acc slider.
+    const heat =
+      route.score.heat_shade_score ??
+      (route.score.day_index_score != null &&
+      route.score.accessibility_score != null
+        ? (route.score.day_index_score -
+            0.6 * route.score.accessibility_score) /
+          0.4
+        : null);
+    if (heat != null && Number.isFinite(heat) && wprefs.shadeHeat > 0) {
+      parts.push({
+        score: Math.min(100, Math.max(0, heat)),
+        w: wprefs.shadeHeat,
+      });
     }
-  } else if (route.score.night_index_score != null && wprefs.afterDark > 0) {
-    parts.push({ score: route.score.night_index_score, w: wprefs.afterDark });
+  } else {
+    const lighting =
+      route.score.lighting_after_dark_score ?? route.score.night_index_score;
+    if (lighting != null && wprefs.afterDark > 0) {
+      parts.push({ score: lighting, w: wprefs.afterDark });
+    }
   }
 
   if (!parts.length) return null;
@@ -219,12 +262,22 @@ function primaryStreamScore(
   const w = effectivePrefsForMode(prefs, mode);
   if (mode === "night") {
     if (w.afterDark >= w.accessibility) {
-      return route.score.night_index_score;
+      return (
+        route.score.lighting_after_dark_score ?? route.score.night_index_score
+      );
     }
     return route.score.accessibility_score;
   }
   if (w.shadeHeat >= w.accessibility) {
-    return route.score.day_index_score;
+    return (
+      route.score.heat_shade_score ??
+      (route.score.day_index_score != null &&
+      route.score.accessibility_score != null
+        ? (route.score.day_index_score -
+            0.6 * route.score.accessibility_score) /
+          0.4
+        : route.score.day_index_score)
+    );
   }
   return route.score.accessibility_score;
 }
@@ -314,7 +367,7 @@ export function routeCardBlurb(
   ranked: ScoredRoute[],
 ): string {
   if (ranked[0]?.id === route.id) {
-    return "Best match for your importance ratings and how quick the walk is";
+    return "Best match for your importance ratings among walks about this long";
   }
   if (isScoreAwareStrategy(route.strategy)) {
     return "Uses local paths and cut-throughs scored from Casey footpaths";

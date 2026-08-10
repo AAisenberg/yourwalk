@@ -385,16 +385,118 @@ python scripts/score_segments.py
 
 ---
 
-## 13. Related documents
+## 13. From segment index to resident card (presentation flow)
+
+Use this section when explaining scores to Council / Monash / funders. It connects locked methodology to what testers see in the beta app.
+
+### 13.1 Locked index maths (per segment)
+
+```mermaid
+flowchart TB
+  subgraph acc["Accessibility stream 0 to 100"]
+    W[Width 30 percent]
+    S[Surface 25 percent]
+    Sp[Speed exposure 25 percent]
+    G[Graffiti proxy 15 percent]
+    Sc[School crossing bonus]
+    W --> A[accessibility_score]
+    S --> A
+    Sp --> A
+    G --> A
+    Sc --> A
+  end
+
+  subgraph heat["Heat and Shade stream 0 to 100"]
+    H[Heat UHI]
+    C[Canopy]
+    Co[Comfort fountains and benches]
+    H --> HS[heat_shade_score]
+    C --> HS
+    Co --> HS
+  end
+
+  subgraph light["Lighting After Dark 0 to 100"]
+    L[Street and park light density]
+    Cr[Night pedestrian crashes]
+    L --> LAD[lighting_after_dark_score]
+    Cr --> LAD
+  end
+
+  A -->|60 percent| Day[day_index_score]
+  HS -->|40 percent| Day
+  A -->|60 percent| Night[night_index_score]
+  LAD -->|40 percent| Night
+```
+
+**Direction:** higher = better walking conditions (lower vulnerability).  
+**Scale:** store 0–100; resident pills show ÷ 10 (one decimal).
+
+### 13.2 Corridor aggregation (route / outing geometry)
+
+Mapbox (or challenger) returns a line. YourWalk length-weights Casey T1EAM segments that intersect a ~20 m buffer:
+
+```
+route_accessibility = Σ (accessibility_score × overlap_m) / Σ overlap_m
+route_heat_shade    = Σ (heat_shade_score × overlap_m) / Σ overlap_m
+route_day_index     = Σ (day_index_score × overlap_m) / Σ overlap_m
+```
+
+Same pattern for night / lighting. Coverage ratio and confidence flag when the line sits poorly on the scored network.
+
+If the lean map GeoJSON omits `heat_shade_score`, the app recovers it from the locked blend:
+
+`heat_shade ≈ (day_index − 0.6 × accessibility) / 0.4` (clamped 0–100).
+
+### 13.3 What the resident UI shows
+
+| UI element | Number | Not |
+|------------|--------|-----|
+| **Footpaths** pill (left) | Accessibility stream / 10 | Full Day Index |
+| **Heat & Shade** pill (day, right) | Heat & Shade stream / 10 | Full Day Index |
+| **Lighting** pill (night, right) | Lighting / After Dark stream / 10 | Full Night Index |
+| **Match** ring | Mostly preference-weighted streams; Around here adds only a **soft** time nudge inside ±5 min (+ soft “away from roads” bonus) | Average of the pills alone; hard “closest minute wins” |
+
+**Around here time policy (10 Aug 2026):**  
+1. Hard gate: only walks within **±5 minutes** of the ask are shown.  
+2. Inside the band, duration fit is flat: `100 − 3 × minutes_off` (exact → 100; 5 min off → **85**).  
+3. Outing efficiency share `w` is only about **5–12%** (trips stay higher). Corridor quality leads; 1–2 minutes do not beat a better Heat & Shade / Footpaths blend.
+
+**Montpelier (Around here, ~30 min ask):** Footpaths 7.9 / Heat & Shade **2.9** at 26 min should rank above 7.9 / **2.6** at 27 min. Match ≈ `(1 − w)×preferenceScore + w×durationFit` (+ bonuses) with small `w`.
+
+Form sliders (**Accessible footpaths**, **Heat & Shade** / **Lighting after dark**) set **importance weights** for ranking. They do not change the Casey corridor scores in the pills.
+
+```mermaid
+flowchart LR
+  AccPill[Footpaths pill] --> Pref[preferenceScore]
+  HeatPill[Heat and Shade or Lighting] --> Pref
+  Pref --> Match[match Recommended]
+  Time[Soft duration nudge in band] --> Match
+  Shared[Prefer away from roads soft bonus] --> Match
+```
+
+**Example (Day):** Accessibility 78, Heat & Shade 60 → Day Index = 0.6×78 + 0.4×60 = **70.8** (would display **7.1** as Day Index). Resident pills show **7.8** and **6.0**.
+
+### 13.4 What match is not
+
+- Not a safety guarantee or crime prediction  
+- Not graffiti-as-crime (environmental order proxy only)  
+- Not a hard lock onto off-road trails (“Prefer away from roads” re-ranks; it does not invent Mapbox geometry)
+
+Geometry rules: [`ROUTING_OUTPUTS.md`](ROUTING_OUTPUTS.md). Methodology gate: [`VULNERABILITY_INDEX.md`](VULNERABILITY_INDEX.md) v1.1.
+
+---
+
+## 14. Related documents
 
 - [`VULNERABILITY_INDEX.md`](VULNERABILITY_INDEX.md) — methodology gate v1.1
 - [`SEGMENT_HARMONISATION.md`](SEGMENT_HARMONISATION.md) — join rules and input columns
 - [`DATA_SET_REGISTER.md`](DATA_SET_REGISTER.md) — dataset inventory
 - [`DECISIONS.md`](DECISIONS.md) — ADR-008, ADR-009, ADR-005 (confidence TBD)
+- [`ROUTING_OUTPUTS.md`](ROUTING_OUTPUTS.md) — path-safe geometries and ranking vs scores
 
 ---
 
-## 14. Version history
+## 15. Version history
 
 | Version | Date | Changes |
 |---------|------|---------|
@@ -402,3 +504,4 @@ python scripts/score_segments.py
 | **1.1.2 Accepted** | **15 Jul 2026** | Status → Accepted; Phase C (PostGIS + app) unlocked |
 | **1.1.2** | **3 Jul 2026** | Nikki sign-off: Moderate bucket → 50 (brick paving, crushed rock, timber); supersedes draft 65 |
 | **1.1** | **3 Jun 2026** | Initial scoring spec — width class split, speed renormalisation, merged lighting rule, graffiti log+recency, council trees excluded from canopy |
+| **doc** | **10 Aug 2026** | §13 resident numerical flow (segment → corridor → pills / match) for presentations |

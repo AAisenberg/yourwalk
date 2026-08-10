@@ -8,7 +8,7 @@ import {
 } from "./directions";
 import { pointInCaseyBbox } from "./geo";
 import {
-  efficiencyWeightForPrefs,
+  outingEfficiencyWeightForPrefs,
   preferenceScore,
   sharedPathBonus,
   type RoutePreferences,
@@ -55,15 +55,21 @@ export const RESIDENT_OUTING_SHAPES = OUTING_SHAPES.filter(
 );
 
 /**
- * Loop filters — kept loose enough to accept real suburban circuits.
- * (Too-strict revisit + oversized vias made every loop fail duration checks,
- * then there-and-back fallback looked like “lines going out”.)
+ * Loop filters — approach A (10 Aug 2026 local test):
+ * Reject **same-path** backtracking (true reverse on the same footpath).
+ * Opposite kerb of the same road (~25–40 m) is allowed.
+ * Start-pin leave/return stub is still ignored.
+ * Prefer fewer clean cards over high-revisit circuits.
  */
-const MAX_LOOP_REVISIT = 0.32;
-const SOFT_LOOP_REVISIT = 0.55;
-const MAX_LOOP_REVERSE_OVERLAP = 0.78;
-const SAME_PATH_NEAR_M = 45;
-const REVISIT_NEAR_M = 36;
+/** Hard reject when this share of samples re-cover the same footpath. */
+const MAX_LOOP_REVISIT = 0.2;
+/** “Clean circuit” note threshold (no honesty banner). */
+const CLEAN_LOOP_REVISIT = 0.12;
+/** Half-vs-half there-and-back on the same footpath. */
+const MAX_LOOP_REVERSE_OVERLAP = 0.55;
+/** Metres: same footpath / same side — not opposite kerb. */
+const SAME_PATH_NEAR_M = 15;
+const REVISIT_NEAR_M = 15;
 const REVISIT_SAMPLE_STEP_M = 28;
 const REVISIT_MIN_ALONG_SEP_M = 95;
 const START_STUB_IGNORE_M = 80;
@@ -92,14 +98,11 @@ const LOOP_THIRD_MIN_QUALITY = 48;
 /** Cul-de-sac spur one-way length band (metres). Skip short corner noise. */
 const SPUR_MIN_M = 60;
 const SPUR_MAX_M = 160;
-/**
- * Only reject extreme spur farms — mild cul-de-sac notches are OK on suburban
- * loops (resident feedback 30 Jul). Prefer demotion over dropping options.
- */
-const SPUR_REJECT_WORST_M = 200;
-const SPUR_REJECT_TOTAL_M = 420;
+/** Cul-de-sac reverse notches — tighter with same-path revisit lock. */
+const SPUR_REJECT_WORST_M = 150;
+const SPUR_REJECT_TOTAL_M = 320;
 /** Soft note when worst spur exceeds this (still keep the card). */
-const SPUR_NOTE_M = 90;
+const SPUR_NOTE_M = 80;
 /** Path overlap above this ⇒ treat as the same loop option. */
 const LOOP_SIMILAR_OVERLAP = 0.78;
 
@@ -336,16 +339,15 @@ function withinAskedDuration(durationS: number, targetS: number): boolean {
 }
 
 /**
- * How close duration is to the asked outing length (100 = exact).
- * In-band ±5 still applies for inclusion; fit at the edge floors at 40 so a
- * 35 min walk for a 40 ask isn’t crushed to ~4.8 while corridor pills look fine.
+ * Soft closeness to the asked outing length (100 = exact).
+ * Inclusion is still hard ±5 min elsewhere. Inside the band, fit only nudges:
+ * 0 min off → 100; 5 min off → 85 (was 40 — that let 1–2 min beat better corridors).
  */
 function outingDurationFit(durationS: number, targetS: number): number {
   if (!Number.isFinite(targetS) || targetS <= 0) return 50;
   const errMin = Math.abs(durationS - targetS) / 60;
   if (errMin > 5) return 0;
-  // 0 min off → 100; 5 min off → 40
-  return 100 - 12 * errMin;
+  return 100 - 3 * errMin;
 }
 
 function outingMatchScore(
@@ -359,7 +361,7 @@ function outingMatchScore(
   if (pref == null) {
     return amenityBonus + sharedPathBonus(route, prefs);
   }
-  const w = efficiencyWeightForPrefs(prefs, mode);
+  const w = outingEfficiencyWeightForPrefs(prefs, mode);
   const fit = outingDurationFit(route.duration_s, targetDurationS);
   return (
     (1 - w) * pref +
@@ -614,9 +616,9 @@ function reverseOverlapRatio(geometry: GeoJSON.LineString): number {
 }
 
 /**
- * Fraction of path samples that re-cover corridor already walked earlier.
- * Catches mid-loop cul-de-sac spurs that half-vs-half misses. Start-pin stubs
- * (leave and return on the same mid-block footpath) are ignored.
+ * Fraction of path samples that re-cover the **same footpath** already walked
+ * (REVISIT_NEAR_M ≈ 15 m). Opposite kerb (~road width) does not count.
+ * Start-pin leave/return stubs are ignored.
  */
 function pathRevisitRatio(
   geometry: GeoJSON.LineString,
@@ -842,14 +844,14 @@ function selectDiverseLoops(
   maxCount: number,
 ): ScoredRoute[] {
   const ranked = [...pool].sort((a, b) => {
-    // Closest to asked duration first (all already within ±5)
-    if (a.durErr !== b.durErr) return a.durErr - b.durErr;
+    // Prefer low same-path revisit, then cleaner spurs, then duration fit
+    if (a.revisit !== b.revisit) return a.revisit - b.revisit;
     if (a.hard !== b.hard) return a.hard ? -1 : 1;
     if (a.quality !== b.quality) return b.quality - a.quality;
     if (a.spur.worstSpurM !== b.spur.worstSpurM) {
       return a.spur.worstSpurM - b.spur.worstSpurM;
     }
-    return a.revisit - b.revisit;
+    return a.durErr - b.durErr;
   });
 
   const out: ScoredRoute[] = [];
@@ -870,6 +872,13 @@ function selectDiverseLoops(
  * Circuit walks: Mapbox start→A→B→start. Returns several distinct loops when possible.
  * Does not add there-and-backs. Applies spur reject/demote (LQ-1…3).
  */
+/** Optional reject tallies when YOURWALK_DEBUG_LOOPS=1 (CLI diagnostics). */
+const loopRejectDebug: Record<string, number> = {};
+function bumpLoopReject(reason: string) {
+  if (process.env.YOURWALK_DEBUG_LOOPS !== "1") return;
+  loopRejectDebug[reason] = (loopRejectDebug[reason] ?? 0) + 1;
+}
+
 async function collectLoop(
   start: LngLat,
   viaM: number,
@@ -891,26 +900,45 @@ async function collectLoop(
         token,
         strategy,
       );
-      if (!r) continue;
+      if (!r) {
+        bumpLoopReject("no_route");
+        continue;
+      }
 
       const geometry = closeLoopGeometry(r.geometry, start);
       const end = geometry.coordinates.at(-1);
-      if (!end) continue;
-      if (haversineM(start, { lng: end[0], lat: end[1] }) > 40) continue;
+      if (!end) {
+        bumpLoopReject("no_end");
+        continue;
+      }
+      if (haversineM(start, { lng: end[0], lat: end[1] }) > 40) {
+        bumpLoopReject("not_closed");
+        continue;
+      }
 
-      if (!withinAskedDuration(r.duration, targetDurationS)) continue;
+      if (!withinAskedDuration(r.duration, targetDurationS)) {
+        bumpLoopReject("duration");
+        continue;
+      }
 
       const overlap = reverseOverlapRatio(geometry);
-      if (overlap > MAX_LOOP_REVERSE_OVERLAP) continue;
+      if (overlap > MAX_LOOP_REVERSE_OVERLAP) {
+        bumpLoopReject("reverse_overlap");
+        continue;
+      }
 
       const { ratio: revisit } = pathRevisitRatio(geometry, start);
-      if (revisit > SOFT_LOOP_REVISIT) continue;
+      if (revisit > MAX_LOOP_REVISIT) {
+        bumpLoopReject("revisit");
+        continue;
+      }
 
       const spur = measureCulDeSacSpurs(geometry, start);
       if (
         spur.worstSpurM > SPUR_REJECT_WORST_M ||
         spur.totalSpurM > SPUR_REJECT_TOTAL_M
       ) {
+        bumpLoopReject("spur");
         continue;
       }
 
@@ -923,13 +951,16 @@ async function collectLoop(
           haversineM(start, { lng: c[0], lat: c[1] }),
         );
       }
-      if (maxAway < viaM * 0.35) continue;
+      if (maxAway < viaM * 0.35) {
+        bumpLoopReject("too_small");
+        continue;
+      }
 
       const soft = amenitySoftScore(geometry, amenitySets);
       const quality = circuitQualityScore(revisit, spur);
-      const hard =
-        revisit <= MAX_LOOP_REVISIT &&
-        overlap <= 0.55 &&
+      const clean =
+        revisit <= CLEAN_LOOP_REVISIT &&
+        overlap <= 0.4 &&
         spur.worstSpurM <= SPUR_NOTE_M;
 
       const scored: ScoredRoute = {
@@ -940,7 +971,7 @@ async function collectLoop(
         geometry,
         strategy: `${r.strategy}_rev${revisit.toFixed(2)}_sp${Math.round(spur.worstSpurM)}`,
         amenity_note: soft.note,
-        outing_note: hard
+        outing_note: clean
           ? undefined
           : "A little shared path on this circuit — still mostly new streets.",
         score: scoreRouteAgainstSegments(geometry, segments, r.distance),
@@ -948,13 +979,14 @@ async function collectLoop(
       pool.push({
         scored,
         revisit,
-        hard,
+        hard: clean,
         durErr: Math.abs(r.duration - targetDurationS),
         spur,
         quality,
       });
+      bumpLoopReject("accepted");
     } catch {
-      // skip
+      bumpLoopReject("exception");
     }
     await yieldToUi();
     if (
@@ -1053,6 +1085,10 @@ export async function planOutingRoutes(
   );
 
   if (!inBand.length) {
+    if (process.env.YOURWALK_DEBUG_LOOPS === "1") {
+      console.log("[yourwalk loops] reject tallies", { ...loopRejectDebug });
+      for (const k of Object.keys(loopRejectDebug)) delete loopRejectDebug[k];
+    }
     if (shape === "loop") {
       throw new Error(
         "Couldn’t find a loop within about 5 minutes of that length from this start. Try a start further inside Casey, There and back, or another duration.",
@@ -1061,6 +1097,10 @@ export async function planOutingRoutes(
     throw new Error(
       "Couldn’t find a walk within about 5 minutes of that length from this start. Try another spot, shape, or duration.",
     );
+  }
+  if (process.env.YOURWALK_DEBUG_LOOPS === "1") {
+    console.log("[yourwalk loops] reject tallies", { ...loopRejectDebug });
+    for (const k of Object.keys(loopRejectDebug)) delete loopRejectDebug[k];
   }
 
   const amenityBonus = new Map<string, number>();

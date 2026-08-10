@@ -3,7 +3,7 @@ import { buffer } from "@turf/buffer";
 import { feature as turfFeature, lineString } from "@turf/helpers";
 import { length } from "@turf/length";
 
-import { toDisplayScore } from "./geo";
+import { deriveHeatShadeScore, toDisplayScore } from "./geo";
 import type { RouteScore } from "./types";
 
 const BUFFER_KM = 0.02; // 20 m — matches Sprint C / PostGIS default
@@ -113,9 +113,13 @@ export function scoreRouteAgainstSegments(
   let daySum = 0;
   let nightSum = 0;
   let accSum = 0;
+  let heatSum = 0;
+  let lightingSum = 0;
   let dayW = 0;
   let nightW = 0;
   let accW = 0;
+  let heatW = 0;
+  let lightingW = 0;
   const confDay: string[] = [];
   const confNight: string[] = [];
   let segmentCount = 0;
@@ -157,6 +161,10 @@ export function scoreRouteAgainstSegments(
     const day = num(props.day_index_score);
     const night = num(props.night_index_score);
     const acc = num(props.accessibility_score);
+    const heat =
+      num(props.heat_shade_score) ?? deriveHeatShadeScore(day, acc);
+    const lighting =
+      num(props.lighting_after_dark_score) ?? num(props.lighting_score);
     if (day != null) {
       daySum += day * w;
       dayW += w;
@@ -168,6 +176,14 @@ export function scoreRouteAgainstSegments(
     if (acc != null) {
       accSum += acc * w;
       accW += w;
+    }
+    if (heat != null) {
+      heatSum += heat * w;
+      heatW += w;
+    }
+    if (lighting != null) {
+      lightingSum += lighting * w;
+      lightingW += w;
     }
 
     const cd = str(props.confidence_day);
@@ -189,14 +205,24 @@ export function scoreRouteAgainstSegments(
   const day_index_score = dayW > 0 ? daySum / dayW : null;
   const night_index_score = nightW > 0 ? nightSum / nightW : null;
   const accessibility_score = accW > 0 ? accSum / accW : null;
+  const heat_shade_score =
+    heatW > 0
+      ? heatSum / heatW
+      : deriveHeatShadeScore(day_index_score, accessibility_score);
+  const lighting_after_dark_score =
+    lightingW > 0 ? lightingSum / lightingW : null;
 
   return {
     day_index_score,
     night_index_score,
     accessibility_score,
+    heat_shade_score,
+    lighting_after_dark_score,
     day_display: toDisplayScore(day_index_score),
     night_display: toDisplayScore(night_index_score),
     accessibility_display: toDisplayScore(accessibility_score),
+    heat_shade_display: toDisplayScore(heat_shade_score),
+    lighting_display: toDisplayScore(lighting_after_dark_score),
     confidence_day: confidenceDay,
     confidence_night: confidenceNight,
     segment_count: segmentCount,
@@ -212,9 +238,13 @@ function emptyScore(_routeLengthM: number): RouteScore {
     day_index_score: null,
     night_index_score: null,
     accessibility_score: null,
+    heat_shade_score: null,
+    lighting_after_dark_score: null,
     day_display: null,
     night_display: null,
     accessibility_display: null,
+    heat_shade_display: null,
+    lighting_display: null,
     confidence_day: "reduced",
     confidence_night: "reduced",
     segment_count: 0,

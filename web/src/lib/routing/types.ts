@@ -4,9 +4,19 @@ export type RouteScore = {
   day_index_score: number | null;
   night_index_score: number | null;
   accessibility_score: number | null;
+  /** Heat & Shade stream (Day Index 40%). May be derived from day + accessibility. */
+  heat_shade_score: number | null;
+  /** Lighting / After Dark stream (Night Index 40%). */
+  lighting_after_dark_score: number | null;
+  /** Day Index / 10 — full 60/40 blend (not a stream pill). */
   day_display: number | null;
+  /** Night Index / 10 — full 60/40 blend (not a stream pill). */
   night_display: number | null;
   accessibility_display: number | null;
+  /** Heat & Shade stream / 10 — resident “Heat & Shade” pill. */
+  heat_shade_display: number | null;
+  /** Lighting stream / 10 — resident “Lighting” pill. */
+  lighting_display: number | null;
   confidence_day: string;
   confidence_night: string;
   segment_count: number;

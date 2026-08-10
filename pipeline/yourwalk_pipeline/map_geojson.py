@@ -20,6 +20,7 @@ MAP_COLUMNS = [
     "day_index_score",
     "night_index_score",
     "accessibility_score",
+    "heat_shade_score",
     "lighting_after_dark_score",
     "score_lighting",
     "lighting_density_per_100m",

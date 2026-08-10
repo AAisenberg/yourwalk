@@ -164,13 +164,25 @@ async function requestWalking(
   return requestWalkingCoords(coords, token, opts);
 }
 
+export type WaypointRouteOpts = {
+  /**
+   * Hard-reject geometries that sit on road carriageways (trip A→B gate).
+   * Default **false** for outings: suburban loops must use street-adjacent
+   * footpaths; the 0.28 carriageway share test wiped almost all Loop options
+   * in places like Montpelier / Berwick (diagnosed 10 Aug 2026).
+   */
+  carriagewayGate?: boolean;
+};
+
 /**
- * Walking route through an ordered waypoint list (e.g. start → via → start for loops).
+ * Walking route through an ordered waypoint list (e.g. start → A → B → start).
+ * Used by Around-here outings — not the trip A→B candidate pool.
  */
 export async function fetchWalkingWaypointRoute(
   waypoints: LngLat[],
   token: string,
   strategy: string,
+  opts: WaypointRouteOpts = {},
 ): Promise<MapboxRoute | null> {
   if (waypoints.length < 2) return null;
   const coords = waypoints.map((w) => `${w.lng},${w.lat}`).join(";");
@@ -181,8 +193,11 @@ export async function fetchWalkingWaypointRoute(
   });
   const route = routes[0];
   if (!route) return null;
-  const ok = await isMostlyOffCarriageway(route.geometry, token);
-  return ok ? route : null;
+  if (opts.carriagewayGate) {
+    const ok = await isMostlyOffCarriageway(route.geometry, token);
+    if (!ok) return null;
+  }
+  return route;
 }
 
 async function requestWalkingCoords(

@@ -158,7 +158,7 @@ Rules:
 
 **Decision:** Resident UI = Loop (default) + There and back only. One way stays in `planOuting` for Lab/QA; do not present reachability-style one-way as a resident choice.
 
-**Loop backtracking (30 Jul investigation):** Mapbox multi-waypoint routes can still reverse streets or spur into cul-de-sacs. Mitigation in `planOuting.ts`: (1) triangle vias start→A→B→start, not single turnaround; (2) half-vs-half reverse-overlap reject; (3) full-path **revisit ratio** (samples every ~28 m; ignore inevitable mid-block stub at the start pin); hard reject above ~20% revisit, soft-accept to ~32% with card note; (4) rank remaining circuits by low revisit. Residual shared path near the pin is expected; mid-loop backtracking should be rare. Deeper fix later: score-aware graph circuits on T1EAM (challenger), not Mapbox alone.
+**Loop backtracking:** Mapbox multi-waypoint routes can still reverse streets or spur into cul-de-sacs. Mitigation in `planOuting.ts` (approach A, 10 Aug 2026): (1) triangle vias start→A→B→start; (2) half-vs-half reverse-overlap on the **same footpath** (~15 m — opposite kerb allowed); (3) full-path revisit ratio at ~15 m (ignore start-pin stub); **hard reject** above ~20% same-path revisit; (4) rank lowest revisit first; fewer clean cards OK. Outing waypoint routes do **not** use the trip carriageway hard gate. Deeper fix later: score-aware graph circuits on T1EAM + optional spur snip ([`LOOP_BACKTRACK_AND_MAP_UX.md`](../LOOP_BACKTRACK_AND_MAP_UX.md)).
 
 ### OQ-2: Geolocate failure
 

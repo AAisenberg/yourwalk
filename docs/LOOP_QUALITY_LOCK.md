@@ -63,7 +63,7 @@ Parent notes: [`LOOP_BACKTRACK_AND_MAP_UX.md`](LOOP_BACKTRACK_AND_MAP_UX.md) · 
 | Lever | Action |
 |-------|--------|
 | Via sizing | Keep `LOOP_VIA_STRAIGHT_FACTOR`; retry smaller vias if pool empty |
-| Reverse / revisit | Keep filters; add **spur score** (length of reverse notches) as demotion tiebreak |
+| Reverse / revisit | **Approach A (10 Aug 2026):** same-path = **15 m** (not opposite kerb); hard reject revisit &gt; **20%**; rank lowest revisit first |
 | Ranking | `outingMatchScore` (prefs + fit-to-N); circuit quality / spur score as tiebreak only — never inflate match above Shortest falsely |
 | Fallback | Empty state under Loop; user switches shape deliberately |
 | QA | Manual: Hampton Park ~15 & ~40; Waratah South / creek loop; one mid-block start |
@@ -75,17 +75,18 @@ Parent notes: [`LOOP_BACKTRACK_AND_MAP_UX.md`](LOOP_BACKTRACK_AND_MAP_UX.md) · 
 ## Done when
 
 - [x] Implement spur measure + reject/demote + Loop-only empty error (30 Jul)  
-- [ ] LQ-1…LQ-5 pass on two Casey starts × 15 and 40 min (**manual review**)  
+- [x] Approach A same-path revisit lock (~15 m / hard &gt;20%) + outing carriageway gate off (10 Aug 2026)  
+- [ ] LQ-1…LQ-5 pass on two Casey starts × 15 and 40 min (**manual review** — smoke OK on four starts)  
 - [x] No Loop result set mixes there-and-backs  
 - [ ] Stocktake in [`RESIDENT_UX_NEXT.md`](RESIDENT_UX_NEXT.md) marks loop quality lock ✅ after review  
 - [ ] Then start **map selected / alternative styling**
 
-**Sanity:** `cd web && node scripts/check-spur-measure.mjs`
+**Sanity:** `cd web && npx tsx scripts/smoke-outing-qa.ts` (needs `npm run dev` on :3001 + Mapbox token)
 
 ---
 
 ## Session handoff
 
-**Implemented:** spur measure (gentle demotion; only extreme spurs rejected), duration band ~0.6–1.55×, Loop empty copy, diversity softened so **2–3 circuits** are likelier; retry extra via radii when the pool is thin. Edge-of-Casey starts may still fail honestly.  
+**Implemented (10 Aug 2026):** Heat & Shade / Lighting stream pills; soft outing time match inside ±5; outing waypoint routes skip trip carriageway hard gate; Loop approach A (same-path 15 m, hard revisit &gt;20%, rank cleanest first). Edge-of-Casey / sparse grids may still empty honestly → There and back.  
 
-**After review:** map chrome slice.
+**After review:** map chrome slice; optional spur snip (Idea B in backtrack note).

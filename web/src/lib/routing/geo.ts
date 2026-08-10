@@ -17,6 +17,27 @@ export function toDisplayScore(score: number | null | undefined): number | null 
   return Math.round(score) / 10;
 }
 
+/**
+ * Recover Heat & Shade stream (0–100) from Day Index + Accessibility when the
+ * map GeoJSON omits `heat_shade_score`. Locked model: Day = 0.6×Acc + 0.4×Heat.
+ */
+export function deriveHeatShadeScore(
+  dayIndex: number | null | undefined,
+  accessibility: number | null | undefined,
+): number | null {
+  if (
+    dayIndex == null ||
+    accessibility == null ||
+    Number.isNaN(dayIndex) ||
+    Number.isNaN(accessibility)
+  ) {
+    return null;
+  }
+  const heat = (dayIndex - 0.6 * accessibility) / 0.4;
+  if (!Number.isFinite(heat)) return null;
+  return Math.min(100, Math.max(0, heat));
+}
+
 export function formatDistance(m: number): string {
   if (m < 1000) return `${Math.round(m)} m`;
   return `${(m / 1000).toFixed(1)} km`;
