@@ -8,6 +8,10 @@ export type ChallengerRoute = {
   geometry: GeoJSON.LineString;
   detour_vs_graph_shortest?: number | null;
   capped_from_detour?: number | null;
+  /** Length-weighted OSM highway metres along the graph path (no pin stubs). */
+  osm_highway_m?: Record<string, number>;
+  /** Share of graph length on pathish OSM classes (footway, cycleway, service, …). */
+  osm_pathish_share?: number | null;
 };
 
 type ChallengerResponse = {

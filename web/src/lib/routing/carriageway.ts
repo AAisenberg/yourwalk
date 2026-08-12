@@ -119,3 +119,40 @@ export async function isMostlyOffCarriageway(
   if (share == null) return true;
   return share <= maxShare;
 }
+
+/**
+ * Challenger paths carry length-weighted OSM highway mix from the graph.
+ * Prefer that over Streets tilequery: service/cycleway cut-throughs (OD-11)
+ * are walkable in OSM but often nearest-neighbour to a road class in Streets.
+ *
+ * Pass when pathish share ≥ 1 − MAX_CARRIAGEWAY_SHARE (same 0.28 road budget).
+ * Returns null when OSM stats are missing — caller should fall back to Streets.
+ */
+export function challengerOsmPathishOk(
+  osmPathishShare: number | null | undefined,
+  maxRoadShare = MAX_CARRIAGEWAY_SHARE,
+): boolean | null {
+  if (osmPathishShare == null || !Number.isFinite(osmPathishShare)) {
+    return null;
+  }
+  return osmPathishShare >= 1 - maxRoadShare;
+}
+
+/**
+ * Path-safe check for score-aware merge.
+ * Pass if either signal says walkable:
+ * - OSM pathish share (rescues service/cycleway cut-throughs Streets mislabels — OD-11)
+ * - Streets tilequery (rescues footway corridors with short road connectors — OD-12)
+ * Mapbox candidates still use Streets-only (`isMostlyOffCarriageway`).
+ */
+export async function isChallengerPathSafe(
+  route: {
+    geometry: GeoJSON.LineString;
+    osm_pathish_share?: number | null;
+  },
+  token: string,
+): Promise<boolean> {
+  const osm = challengerOsmPathishOk(route.osm_pathish_share);
+  if (osm === true) return true;
+  return isMostlyOffCarriageway(route.geometry, token);
+}

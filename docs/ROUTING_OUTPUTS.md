@@ -113,15 +113,17 @@ North star fork: [`PREFS_IN_PATHFINDING.md`](PREFS_IN_PATHFINDING.md).
 
 ### Challenger up (localhost `serve_challenger.py` :8790)
 
+**P1 gate (12 Aug evening):** challenger merge uses **OSM pathish share OR Streets tilequery**. Rescues OD-11 service/cycleway cut-throughs Streets mislabels; keeps OD-12 footway corridors with short connectors. Mapbox candidates remain Streets-only.
+
 | OD | Challenger | Final cards |
 |----|------------|-------------|
+| **OD-11** | **kept** (~313 m, osm_pathish ≈ 0.96) | **2** |
 | OD-12 | **kept** | **2** |
 | OD-CARRIAGE-01 | not distinct | 2 (Mapbox only) |
 | OD-01, OD-03 | not distinct | 1 |
-| OD-08, Montpelier | failed carriageway gate | 1 |
-| **OD-11** | graph finds ~313 m cut-through, then **failed carriageway gate** | **1** (Mapbox road last-resort) |
+| OD-08, Montpelier | failed both gates | 1 |
 
-Implication: challenger process is necessary but not enough. OD-11 proves the score-aware path exists and is then dropped by the Streets gate — fix that before prefs-in-pathfinding demos. Sliders still cannot invent geometry until preference-weighted costs land.
+Implication: with challenger up + P1, hybrid dual cards work on the bake-off gold ODs. Sliders still cannot invent geometry until preference-weighted costs (P2) land — see [`PREFS_IN_PATHFINDING.md`](PREFS_IN_PATHFINDING.md).
 
 Replay: start challenger, then `cd web && npx tsx scripts/smoke-trip-funnel.ts`.
 
@@ -147,7 +149,7 @@ Replay: start challenger, then `cd web && npx tsx scripts/smoke-trip-funnel.ts`.
 
 | Date | Change |
 |------|--------|
-| **12 Aug 2026** | Trip funnel: challenger down vs up. Up unlocks OD-12 second card; OD-11 challenger ~313 m still fails carriageway gate. Prefs-in-pathfinding spec opened. |
+| **12 Aug 2026** | Trip funnel + P1: challenger OSM pathish OR Streets gate. OD-11 and OD-12 keep dual cards; prefs-in-pathfinding spec opened for P2. |
 | **10 Aug 2026** | Outing waypoint routes: disable hard carriageway gate (trip-only). Restores Loop finds in street-grid suburbs. |
 | **8 Aug 2026** | Carriageway product rule; remove negative `walkway_bias`; Streets tilequery gate (share &gt; 0.28); restore unbiased `alternatives` + `walkway_prefer` for path-safe diversity (OD-CARRIAGE-01) |
 | 30 Jul 2026 | Hybrid trip mode + challenger (ADR-001) |

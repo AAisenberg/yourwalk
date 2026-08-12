@@ -184,7 +184,7 @@ Do not promise prefs-in-pathfinding on Vercel until the challenger is reachable 
 | Phase | Scope | Exit criteria |
 |-------|--------|----------------|
 | **P0 — Ops** | Challenger process + env docs; funnel smoke in CI-ish script | Local funnel `challenger health: OK`; prod plan documented |
-| **P1 — Gate fix** | Challenger pathish classification so OD-11 can merge | OD-11 final ≥2 when graph path exists; OD-CARRIAGE-01 unchanged |
+| **P1 — Gate fix** | Challenger pathish classification so OD-11 can merge | ✅ Done 12 Aug 2026 — OSM pathish OR Streets; OD-11 + OD-12 dual cards; OD-CARRIAGE-01 unchanged |
 | **P2 — Pref costs (trip)** | Join streams; `/route` accepts prefs; one blended challenger | Same OD, shade-high vs footpaths-high → distinct challenger geometries **or** documented network-impossibility |
 | **P3 — Dual challenger (trip)** | Shade-max + footpaths-max variants when distinct | Demo script: slider flip changes Recommended **line**, not only match |
 | **P4 — Outing bias** | Via selection uses blended stream | Montpelier-class loop: Find again after shade max changes circuit when network allows |

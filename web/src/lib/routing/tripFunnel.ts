@@ -4,7 +4,8 @@
  */
 import { fetchChallengerRoute } from "./challenger";
 import {
-  isMostlyOffCarriageway,
+  challengerOsmPathishOk,
+  isChallengerPathSafe,
   roadCarriagewayShare,
 } from "./carriageway";
 import {
@@ -287,9 +288,13 @@ export async function diagnoseTripRouteFunnel(opts: {
         strategy: challenger.strategy,
       };
     } else {
-      const offRoad = await isMostlyOffCarriageway(challenger.geometry, token);
+      const osmOk = challengerOsmPathishOk(challenger.osm_pathish_share);
+      const offRoad = await isChallengerPathSafe(challenger, token);
       if (!offRoad) {
-        challengerReason = "failed_carriageway_gate";
+        challengerReason =
+          osmOk === false
+            ? "failed_osm_and_streets_gates"
+            : "failed_carriageway_gate";
         challengerSummary = {
           available: true,
           kept: false,

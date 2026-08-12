@@ -17,6 +17,32 @@ from paths import GRAPH_PICKLE
 
 _GRAPH: nx.Graph | None = None
 
+# Length-weighted OSM classes treated as walkable / not mid-carriageway for
+# challenger merge (P1). Includes service + cycleway cut-throughs (OD-11).
+# Mapbox Streets tilequery often labels these as "road" and false-rejects.
+OSM_PATHISH_HIGHWAYS = frozenset(
+    {
+        "footway",
+        "path",
+        "pedestrian",
+        "steps",
+        "corridor",
+        "bridleway",
+        "track",
+        "cycleway",
+        "service",
+        "living_street",
+    }
+)
+
+
+def _norm_highway(hw: Any) -> str:
+    if hw is None:
+        return "unknown"
+    if isinstance(hw, (list, tuple)):
+        hw = hw[0] if hw else "unknown"
+    return str(hw).split(";")[0].strip().lower() or "unknown"
+
 
 def load_graph(*, force: bool = False) -> nx.Graph:
     global _GRAPH
@@ -60,9 +86,13 @@ def path_to_route(
     """
     coords: list[tuple[float, float]] = []
     length_m = 0.0
+    highway_m: dict[str, float] = {}
     for a, b in zip(path, path[1:]):
         data = g.edges[a, b]
-        length_m += float(data.get("length_m") or 0)
+        seg_m = float(data.get("length_m") or 0)
+        length_m += seg_m
+        hw = _norm_highway(data.get("highway"))
+        highway_m[hw] = highway_m.get(hw, 0.0) + seg_m
         geom = data.get("geometry")
         if geom is None:
             seg: list[tuple[float, float]] = [a, b]
@@ -91,6 +121,7 @@ def path_to_route(
         "duration_s": length_m / 1.3,
         "strategy": strategy,
         "engine": "osm_casey_dijkstra",
+        "osm_highway_m": highway_m,
     }
 
 
@@ -193,6 +224,15 @@ def challenger_route(
 def route_to_json(route: dict[str, Any]) -> dict[str, Any]:
     """Serialize a challenger route for HTTP / Next.js."""
     geom = route["geometry"]
+    highway_m = {
+        str(k): round(float(v), 1)
+        for k, v in (route.get("osm_highway_m") or {}).items()
+    }
+    total = sum(highway_m.values())
+    pathish = sum(
+        v for k, v in highway_m.items() if k in OSM_PATHISH_HIGHWAYS
+    )
+    pathish_share = round(pathish / total, 3) if total > 0 else None
     return {
         "engine": route.get("engine", "osm_casey_dijkstra"),
         "strategy": route.get("strategy", "score_aware"),
@@ -202,6 +242,8 @@ def route_to_json(route: dict[str, Any]) -> dict[str, Any]:
         "detour_vs_graph_shortest": route.get("detour_vs_graph_shortest"),
         "capped_from_detour": route.get("capped_from_detour"),
         "pin_stub_m": route.get("pin_stub_m"),
+        "osm_highway_m": highway_m,
+        "osm_pathish_share": pathish_share,
     }
 
 
