@@ -97,6 +97,34 @@ Waypoint walks use Mapbox with **positive** `walkway_bias`. The **hard carriagew
 
 Re-check after any change to Mapbox query params, dedupe thresholds, or carriageway share cutoff.
 
+## Funnel assessment (12 Aug 2026)
+
+Diagnostic: `web/scripts/smoke-trip-funnel.ts` → `diagnoseTripRouteFunnel` in `web/src/lib/routing/tripFunnel.ts`.  
+North star fork: [`PREFS_IN_PATHFINDING.md`](PREFS_IN_PATHFINDING.md).
+
+### Challenger down (local + production 503)
+
+| Finding | Evidence |
+|---------|----------|
+| Hybrid second geometry unavailable | `/api/challenger-route` → 503 |
+| Mapbox usually returns one raw candidate | `mapbox_raw=1` on 6/7 ODs |
+| Carriageway gate often rejects the only Mapbox line, then last-resort keeps it | OD-11 share 1.0; Montpelier share 1.0 |
+| Path-safe diversity still works when Mapbox returns two footpath alts | OD-CARRIAGE-01 → 2 cards |
+
+### Challenger up (localhost `serve_challenger.py` :8790)
+
+| OD | Challenger | Final cards |
+|----|------------|-------------|
+| OD-12 | **kept** | **2** |
+| OD-CARRIAGE-01 | not distinct | 2 (Mapbox only) |
+| OD-01, OD-03 | not distinct | 1 |
+| OD-08, Montpelier | failed carriageway gate | 1 |
+| **OD-11** | graph finds ~313 m cut-through, then **failed carriageway gate** | **1** (Mapbox road last-resort) |
+
+Implication: challenger process is necessary but not enough. OD-11 proves the score-aware path exists and is then dropped by the Streets gate — fix that before prefs-in-pathfinding demos. Sliders still cannot invent geometry until preference-weighted costs land.
+
+Replay: start challenger, then `cd web && npx tsx scripts/smoke-trip-funnel.ts`.
+
 ## Honest limits
 
 - Mapbox + OSM path mapping can still be wrong locally; the gate reduces obvious centreline walks, it does not certify legal footpaths.
@@ -112,12 +140,14 @@ Re-check after any change to Mapbox query params, dedupe thresholds, or carriage
 | Carriageway share / pathish classes | `web/src/lib/routing/carriageway.ts` |
 | Hybrid merge + challenger gate | `web/src/lib/routing/planRoute.ts` |
 | Preference ranking / shared-use soft bias | `web/src/lib/routing/preferences.ts` |
+| A→B funnel diagnostics | `web/src/lib/routing/tripFunnel.ts` · `web/scripts/smoke-trip-funnel.ts` |
 | Challenger service | `pipeline/bakeoff/serve_challenger.py` |
 
 ## Changelog
 
 | Date | Change |
 |------|--------|
+| **12 Aug 2026** | Trip funnel: challenger down vs up. Up unlocks OD-12 second card; OD-11 challenger ~313 m still fails carriageway gate. Prefs-in-pathfinding spec opened. |
 | **10 Aug 2026** | Outing waypoint routes: disable hard carriageway gate (trip-only). Restores Loop finds in street-grid suburbs. |
 | **8 Aug 2026** | Carriageway product rule; remove negative `walkway_bias`; Streets tilequery gate (share &gt; 0.28); restore unbiased `alternatives` + `walkway_prefer` for path-safe diversity (OD-CARRIAGE-01) |
 | 30 Jul 2026 | Hybrid trip mode + challenger (ADR-001) |

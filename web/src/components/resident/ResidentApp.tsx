@@ -61,12 +61,15 @@ import {
   DEFAULT_PREFS_NIGHT,
   PREF_IMPORTANCE_MAX,
   PREF_IMPORTANCE_MIN,
+  RESULTS_PREF_RERANK_NOTE,
   type RoutePreferences,
   type WalkMode,
   clampImportance,
   preferenceScore,
+  prefSliderDescription,
   routeCardLabel,
   routeCardBlurb,
+  routeMatchExplain,
   sortRoutesByPreferences,
   tripRankScore,
 } from "@/lib/routing/preferences";
@@ -78,6 +81,8 @@ type PickMode = "idle" | "origin" | "destination";
 type WalkIntent = "trip" | "outing";
 /** Bottom sheet snap — Google Maps-style peek / half / full. */
 type SheetSnap = "peek" | "half" | "full";
+
+const WELCOME_STORAGE_KEY = "yw-resident-welcome-v1";
 
 const ROUTE_COLORS = ["#00AAA6", "#27AAE1", "#8DC63F"] as const;
 const SHEET_SNAPS: SheetSnap[] = ["peek", "half", "full"];
@@ -219,10 +224,30 @@ export function ResidentApp() {
   /** True after “Use this route” — map focused on the selected walk. */
   const [routeLocked, setRouteLocked] = useState(false);
   const [geoBusy, setGeoBusy] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
   const sheetDragRef = useRef<{
     startY: number;
     startSnap: SheetSnap;
   } | null>(null);
+
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(WELCOME_STORAGE_KEY) !== "1") {
+        setShowWelcome(true);
+      }
+    } catch {
+      setShowWelcome(true);
+    }
+  }, []);
+
+  const dismissWelcome = useCallback(() => {
+    setShowWelcome(false);
+    try {
+      window.localStorage.setItem(WELCOME_STORAGE_KEY, "1");
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }, []);
 
   useEffect(() => {
     pickModeRef.current = pickMode;
@@ -1030,6 +1055,21 @@ export function ResidentApp() {
             </div>
           ) : null}
 
+          {sheetExpanded &&
+          !planning &&
+          sheetMode === "results" &&
+          routes.length > 0 ? (
+            <p
+              className={`mb-3 rounded-xl px-3 py-2 text-[11px] leading-snug ${
+                isNight
+                  ? "bg-white/[0.06] text-white/70"
+                  : "bg-slate-100 text-slate-700"
+              }`}
+            >
+              {RESULTS_PREF_RERANK_NOTE}
+            </p>
+          ) : null}
+
           {sheetExpanded && !planning && sheetMode === "plan" ? (
             <div key="plan" className="yw-sheet-panel">
               <h1
@@ -1039,6 +1079,43 @@ export function ResidentApp() {
               >
                 Tell us about your walk
               </h1>
+
+              {showWelcome ? (
+                <div
+                  className={`mb-4 rounded-2xl border px-3.5 py-3 ${
+                    isNight
+                      ? "border-white/15 bg-white/[0.06]"
+                      : "border-yw-teal/30 bg-[color-mix(in_srgb,var(--yw-teal)_8%,white)]"
+                  }`}
+                >
+                  <p
+                    className={`text-[12px] font-semibold leading-snug ${
+                      isNight ? "text-white" : "text-yw-navy"
+                    }`}
+                  >
+                    YourWalk finds routes that suit you, not just the shortest
+                    one.
+                  </p>
+                  <p
+                    className={`mt-1.5 text-[11px] leading-snug ${
+                      isNight ? "text-white/65" : "text-slate-700"
+                    }`}
+                  >
+                    Mark what matters — smoother paths, shade, or lighting after
+                    dark — and we rank the best options we can find. This pilot
+                    plans walks; it does not give turn-by-turn navigation yet.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={dismissWelcome}
+                    className={`mt-2.5 text-[11px] font-bold ${
+                      isNight ? "text-yw-teal" : "text-yw-teal"
+                    }`}
+                  >
+                    Got it
+                  </button>
+                </div>
+              ) : null}
 
               <section>
                 <p
@@ -1054,15 +1131,26 @@ export function ResidentApp() {
                   isNight={isNight}
                 />
                 <p
-                  className={`mb-2 text-[12px] font-semibold ${
+                  className={`mb-1 text-[12px] font-semibold ${
                     isNight ? "text-white/55" : "text-slate-600"
                   }`}
                 >
                   What matters most
                 </p>
+                <p
+                  className={`mb-2 text-[10px] leading-snug ${
+                    isNight ? "text-white/45" : "text-slate-500"
+                  }`}
+                >
+                  Sliders set how important each factor is when we rank options
+                  — not whether you want worse paths.
+                </p>
                 <PrefSlider
                   title="Accessible footpaths"
-                  description="Smooth surfaces, continuity, crossings"
+                  description={prefSliderDescription(
+                    "accessibility",
+                    prefs.accessibility,
+                  )}
                   value={prefs.accessibility}
                   isNight={isNight}
                   accent="#27AAE1"
@@ -1117,7 +1205,10 @@ export function ResidentApp() {
                 {isNight ? (
                   <PrefSlider
                     title="Lighting after dark"
-                    description="Favour streets and paths with better lighting"
+                    description={prefSliderDescription(
+                      "afterDark",
+                      prefs.afterDark,
+                    )}
                     value={prefs.afterDark}
                     isNight={isNight}
                     accent="#FFCB1F"
@@ -1129,7 +1220,10 @@ export function ResidentApp() {
                 ) : (
                   <PrefSlider
                     title="Heat & Shade"
-                    description="Tree cover, cooler surfaces, less sun"
+                    description={prefSliderDescription(
+                      "shadeHeat",
+                      prefs.shadeHeat,
+                    )}
                     value={prefs.shadeHeat}
                     isNight={isNight}
                     accent="#8DC63F"
@@ -1465,6 +1559,23 @@ export function ResidentApp() {
                           >
                             {routeCardBlurb(r, routes)}
                           </p>
+                          {(() => {
+                            const matchNote = routeMatchExplain(
+                              display,
+                              r,
+                              routes,
+                            );
+                            if (!matchNote) return null;
+                            return (
+                              <p
+                                className={`mt-1 text-[10px] leading-snug ${
+                                  isNight ? "text-amber-200" : "text-amber-900"
+                                }`}
+                              >
+                                {matchNote}
+                              </p>
+                            );
+                          })()}
                           {r.amenity_note ? (
                             <p
                               className={`mt-1 text-[10px] leading-snug ${
@@ -1691,7 +1802,7 @@ function scoreCoverageNote(score: {
 
   if (segs === 0 || score.coverage_ratio <= 0) {
     return {
-      text: "No Casey scored footpath under this path — index pills unavailable",
+      text: "No Casey scored footpath under this path — Footpaths and comfort scores unavailable",
       detail,
       tone: "warn",
     };
@@ -1821,8 +1932,8 @@ function PrefSlider({
       <div
         className={`mt-0.5 flex justify-between text-[10px] font-semibold leading-none ${descs[tone]}`}
       >
-        <span>Less</span>
-        <span>More</span>
+        <span>Less important</span>
+        <span>More important</span>
       </div>
     </div>
   );

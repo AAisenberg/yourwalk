@@ -130,7 +130,27 @@ Before a backlog item is considered complete, it must meet all of the following:
 
 **Dependencies**: N1 hybrid trip stable; amenity GeoJSON available in pipeline
 
-**Status**: Next (Sprint D+)
+**Status**: Next (Sprint D+) — UX copy deferred while N1c pathfinding trust lands
+
+---
+
+### N1c: Preference-weighted pathfinding (north star)
+**Links**: [`PREFS_IN_PATHFINDING.md`](PREFS_IN_PATHFINDING.md), [`ROUTING_OUTPUTS.md`](ROUTING_OUTPUTS.md) funnel assessment, ADR-001
+
+**Description**: Importance sliders change **which geometries are proposed**, not only Recommended among a fixed Mapbox set. Sequence: challenger ops → OD-11 carriageway gate fix for score-aware paths → stream costs on graph → blended challenger (then dual variant / outing via bias).
+
+**Acceptance Criteria**:
+- Given the challenger service is reachable from the app under test
+- When Fairmead → Hopwood (OD-11) is planned
+- Then a distinct cut-through card can merge (not only the road last-resort)
+- Given an OD with dual corridors (e.g. OD-12)
+- When the resident finds with Heat & Shade max vs Footpaths max
+- Then score-aware geometry differs **or** the UI states only one path-safe walk exists
+- And Day/Night index maths and overlay-not-in-index rules are unchanged
+
+**Dependencies**: Local/hosted `serve_challenger.py`; graph rebuild with stream scores
+
+**Status**: Now — spec locked 12 Aug 2026; implement P1 then P2 per prefs doc
 
 ---
 
@@ -367,7 +387,7 @@ Before a backlog item is considered complete, it must meet all of the following:
 
 **Dependencies**: Stable segment scores; trip mode baseline; Casey OSM extract; GraphHopper local
 
-**Status**: ✅ Hybrid shipped into resident trip mode (30 Jul 2026) — see ADR-001, [`HYBRID_ROUTING_AUDIT_2026-07-30.md`](HYBRID_ROUTING_AUDIT_2026-07-30.md). Remaining: T1EAM-native edges for Casey-only gaps; preference-weighted edge costs inside pathfinding.
+**Status**: ✅ Hybrid shipped into resident trip mode (30 Jul 2026) — see ADR-001, [`HYBRID_ROUTING_AUDIT_2026-07-30.md`](HYBRID_ROUTING_AUDIT_2026-07-30.md). Remaining: T1EAM-native edges for Casey-only gaps. Preference-weighted pathfinding promoted to **N1c**.
 
 ---
 

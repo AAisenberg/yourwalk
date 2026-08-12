@@ -18,14 +18,22 @@ type ChallengerResponse = {
 /**
  * Fetch OSM+Casey score-aware path via Next proxy → local serve_challenger.py.
  * Returns null if the service is down (Mapbox-only fallback).
+ *
+ * `apiBase` is for Node diagnostics (e.g. http://localhost:3000). In the
+ * browser, omit it so the relative `/api/challenger-route` path is used.
  */
 export async function fetchChallengerRoute(
   origin: LngLat,
   destination: LngLat,
   mode: "day" | "night" = "day",
+  opts?: { apiBase?: string },
 ): Promise<ChallengerRoute | null> {
+  const path = "/api/challenger-route";
+  const url = opts?.apiBase
+    ? `${opts.apiBase.replace(/\/$/, "")}${path}`
+    : path;
   try {
-    const res = await fetch("/api/challenger-route", {
+    const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

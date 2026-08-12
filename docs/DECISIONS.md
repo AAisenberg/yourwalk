@@ -41,7 +41,8 @@ Score-aware graph: NetworkX Dijkstra on OSM walkable ways joined to Casey scores
 **Routing outputs methodology (authoritative detail):** [`ROUTING_OUTPUTS.md`](ROUTING_OUTPUTS.md) — includes OD-CARRIAGE-01 (Epsom → Arubi) regression.
 
 **Product north star:**  
-Preference-weighted score-aware pathfinding (and T1EAM-native edges where OSM cannot connect scored cut-throughs). Mapbox remains map/geocode + useful candidate source, not the sole geometry authority.
+Preference-weighted score-aware pathfinding (and T1EAM-native edges where OSM cannot connect scored cut-throughs). Mapbox remains map/geocode + useful candidate source, not the sole geometry authority.  
+**Spec (12 Aug 2026):** [`PREFS_IN_PATHFINDING.md`](PREFS_IN_PATHFINDING.md) — fork accepted as implementation contract (P0 ops → P1 OD-11 gate → P2 pref costs). Sliders today still rank only; geometry follow-through is the next epic.
 
 **Bake-off note (17 Jul 2026):** First full-sample run (`docs/BAKEOFF_RESULTS_2026-07-17.md`) leaned hybrid. **OD-11 (30 Jul 2026) upgrades that lean to shipping requirement** for credible trip options.
 
@@ -62,8 +63,8 @@ Preference-weighted score-aware pathfinding (and T1EAM-native edges where OSM ca
 - Aggregation rule (length-weighted mean vs median vs worst segment)
 - Material after-dark overlap for Night Index trigger (civil twilight)
 - T1EAM-native edges for true Casey-only links (OSM has no walkable way) — see [`SCORE_AWARE_ROUTING_BAKEOFF.md`](SCORE_AWARE_ROUTING_BAKEOFF.md)
-- Preference weights inside edge costs (sliders affect pathfinding, not only ranking)
-- Whether carriageway detection should move from Streets tilequery to a local OSM class join for offline / rate-limit resilience
+- Preference weights inside edge costs — **specified** in [`PREFS_IN_PATHFINDING.md`](PREFS_IN_PATHFINDING.md); implementation pending P2
+- Whether carriageway detection should move from Streets tilequery to a local OSM class join for offline / rate-limit resilience (also blocks OD-11 challenger merge — prefs spec P1)
 
 ---
 

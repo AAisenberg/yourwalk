@@ -367,7 +367,7 @@ export function routeCardBlurb(
   ranked: ScoredRoute[],
 ): string {
   if (ranked[0]?.id === route.id) {
-    return "Best match for your importance ratings among walks about this long";
+    return "Best fit for what you marked as important among the walks we found";
   }
   if (isScoreAwareStrategy(route.strategy)) {
     return "Uses local paths and cut-throughs scored from Casey footpaths";
@@ -377,3 +377,77 @@ export function routeCardBlurb(
   }
   return "Another walking option between your places";
 }
+
+export type PrefSliderKind = "accessibility" | "shadeHeat" | "afterDark";
+
+/** Resident-facing importance band for slider helper copy. */
+export function importanceTier(value: number): "low" | "mid" | "high" {
+  const v = clampImportance(value);
+  if (v <= 35) return "low";
+  if (v <= 70) return "mid";
+  return "high";
+}
+
+/**
+ * Plain-language helper under preference sliders.
+ * Sliders are importance when ranking — not “want worse paths”.
+ */
+export function prefSliderDescription(
+  kind: PrefSliderKind,
+  value: number,
+): string {
+  const tier = importanceTier(value);
+  if (kind === "accessibility") {
+    if (tier === "low") {
+      return "Path quality ranks lower — quicker options can win.";
+    }
+    if (tier === "mid") {
+      return "Balance smoother paths with time when ranking.";
+    }
+    return "Prioritise smoother surfaces, continuity, and crossings when ranking.";
+  }
+  if (kind === "shadeHeat") {
+    if (tier === "low") {
+      return "Shade ranks lower among the options we find.";
+    }
+    if (tier === "mid") {
+      return "Balance tree cover and cooler paths with other priorities.";
+    }
+    return "Prioritise more shade and cooler paths when ranking options.";
+  }
+  if (tier === "low") {
+    return "Lighting ranks lower among the options we find.";
+  }
+  if (tier === "mid") {
+    return "Balance better-lit paths with other priorities.";
+  }
+  return "Prioritise better-lit streets and paths when ranking options.";
+}
+
+/**
+ * Extra honesty when the match ring is ~0 or corridor scores are missing.
+ * Null when the default card blurb is enough.
+ */
+export function routeMatchExplain(
+  displayMatch: number | null,
+  route: ScoredRoute,
+  ranked: ScoredRoute[],
+): string | null {
+  const noCoverage =
+    route.score.segment_count <= 0 || route.score.coverage_ratio <= 0;
+  const veryLow = displayMatch != null && displayMatch <= 0.05;
+
+  if (veryLow && noCoverage) {
+    return ranked[0]?.id === route.id
+      ? "0.0 match means we could not score this path on Casey footpaths. It is still Recommended as the best fit among the options we found."
+      : "0.0 match means we could not score this path on Casey footpaths. Use the time and distance, or try Edit walk.";
+  }
+  if (veryLow) {
+    return "A very low match usually means these options are similar, or corridor data is thin along the path. Check the Footpaths and Heat & Shade (or Lighting) pills.";
+  }
+  return null;
+}
+
+/** Shown above result cards when prefs can re-rank without re-searching. */
+export const RESULTS_PREF_RERANK_NOTE =
+  "Moving the sliders re-orders these walks. It does not draw a new path until you tap Edit walk and search again.";
