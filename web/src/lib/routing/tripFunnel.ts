@@ -136,6 +136,12 @@ export async function diagnoseTripRouteFunnel(opts: {
   maxRoutes?: number;
   /** Absolute app origin for Node scripts (challenger proxy). */
   apiBase?: string;
+  /** Preference blend for score-aware pathfinding (P2). */
+  prefs?: {
+    accessibility?: number;
+    shadeHeat?: number;
+    afterDark?: number;
+  };
 }): Promise<TripFunnelReport> {
   const {
     id,
@@ -146,6 +152,7 @@ export async function diagnoseTripRouteFunnel(opts: {
     mode = "day",
     maxRoutes = 3,
     apiBase,
+    prefs,
   } = opts;
 
   const queries: QueryOpts[] = [
@@ -170,7 +177,10 @@ export async function diagnoseTripRouteFunnel(opts: {
       origin,
       destination,
       mode,
-      apiBase ? { apiBase } : undefined,
+      {
+        ...(apiBase ? { apiBase } : {}),
+        ...(prefs ? { prefs } : {}),
+      },
     );
     return {
       id,
@@ -254,7 +264,10 @@ export async function diagnoseTripRouteFunnel(opts: {
     origin,
     destination,
     mode,
-    apiBase ? { apiBase } : undefined,
+    {
+      ...(apiBase ? { apiBase } : {}),
+      ...(prefs ? { prefs } : {}),
+    },
   );
   let challengerKept = false;
   let challengerReason: string | undefined;

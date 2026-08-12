@@ -629,6 +629,7 @@ export function ResidentApp() {
           token,
           3,
           walkMode,
+          prefs,
         );
         ranked = sortRoutesByPreferences(scored, prefs, walkMode);
       }

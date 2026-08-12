@@ -56,11 +56,39 @@ def edge_cost(
     return max(1.0, length_m) * mult
 
 
+def derive_heat_shade(
+    day: float | None,
+    acc: float | None,
+) -> float | None:
+    """Heat & Shade stream from Day Index = 0.6×Acc + 0.4×Heat (v1.1)."""
+    if day is None or acc is None:
+        return None
+    heat = (float(day) - 0.6 * float(acc)) / 0.4
+    if heat != heat:
+        return None
+    return float(max(0.0, min(100.0, heat)))
+
+
+def _finite(val: object) -> float | None:
+    if val is None:
+        return None
+    try:
+        f = float(val)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    if f != f:
+        return None
+    return f
+
+
 def build_graph(edges: gpd.GeoDataFrame) -> nx.Graph:
     """Build walk graph from OSM ways.
 
     Consecutive vertices become nodes so junctions in the middle of a way
     connect to other ways (endpoint-only graphs leave suburbs disconnected).
+
+    Stores Accessibility + Heat & Shade (+ lighting proxy) for preference-weighted
+    Dijkstra at request time (PREFS_IN_PATHFINDING P2).
     """
     g = nx.Graph()
     edges_m = edges.to_crs(7855) if edges.crs and edges.crs.to_epsg() != 7855 else edges
@@ -69,9 +97,36 @@ def build_graph(edges: gpd.GeoDataFrame) -> nx.Graph:
     night_s = edges["night_index_score"].dropna()
     day_p10, day_p90 = float(day_s.quantile(0.10)), float(day_s.quantile(0.90))
     night_p10, night_p90 = float(night_s.quantile(0.10)), float(night_s.quantile(0.90))
+
+    # Stream percentiles for preference blend (derive heat when column absent)
+    if "heat_shade_score" in edges.columns:
+        heat_series = edges["heat_shade_score"]
+    else:
+        heat_series = (
+            (edges["day_index_score"] - 0.6 * edges["accessibility_score"]) / 0.4
+        ).clip(lower=0.0, upper=100.0)
+    acc_s = (
+        edges["accessibility_score"].dropna()
+        if "accessibility_score" in edges.columns
+        else day_s
+    )
+    heat_s = heat_series.dropna()
+    # Lighting stream: prefer explicit column; else Night Index as interim proxy
+    if "lighting_after_dark_score" in edges.columns:
+        light_series = edges["lighting_after_dark_score"]
+    else:
+        light_series = edges["night_index_score"]
+    light_s = light_series.dropna()
+
+    acc_p10, acc_p90 = float(acc_s.quantile(0.10)), float(acc_s.quantile(0.90))
+    heat_p10, heat_p90 = float(heat_s.quantile(0.10)), float(heat_s.quantile(0.90))
+    light_p10, light_p90 = float(light_s.quantile(0.10)), float(light_s.quantile(0.90))
     print(
-        f"Cost percentiles: day p10/p90={day_p10:.1f}/{day_p90:.1f} "
-        f"night p10/p90={night_p10:.1f}/{night_p90:.1f}"
+        f"Cost percentiles: day {day_p10:.1f}/{day_p90:.1f} "
+        f"night {night_p10:.1f}/{night_p90:.1f} "
+        f"acc {acc_p10:.1f}/{acc_p90:.1f} "
+        f"heat {heat_p10:.1f}/{heat_p90:.1f} "
+        f"light {light_p10:.1f}/{light_p90:.1f}"
     )
 
     for idx, row in edges.iterrows():
@@ -84,10 +139,15 @@ def build_graph(edges: gpd.GeoDataFrame) -> nx.Graph:
         if len(coords) < 2:
             continue
 
-        day = row.get("day_index_score")
-        night = row.get("night_index_score")
-        day_f = float(day) if day is not None and day == day else None
-        night_f = float(night) if night is not None and night == night else None
+        day_f = _finite(row.get("day_index_score"))
+        night_f = _finite(row.get("night_index_score"))
+        acc_f = _finite(row.get("accessibility_score"))
+        heat_f = _finite(row.get("heat_shade_score"))
+        if heat_f is None:
+            heat_f = derive_heat_shade(day_f, acc_f)
+        light_f = _finite(row.get("lighting_after_dark_score"))
+        if light_f is None:
+            light_f = night_f  # interim until joined lighting stream
         cov = float(row.get("score_coverage") or 0)
         osm_id = int(row["osm_id"]) if row.get("osm_id") == row.get("osm_id") else None
 
@@ -104,6 +164,9 @@ def build_graph(edges: gpd.GeoDataFrame) -> nx.Graph:
                 "length_m": length_m,
                 "day_index_score": day_f,
                 "night_index_score": night_f,
+                "accessibility_score": acc_f,
+                "heat_shade_score": heat_f,
+                "lighting_after_dark_score": light_f,
                 "score_coverage": cov,
                 "osm_id": osm_id,
                 "highway": row.get("highway"),
@@ -124,7 +187,14 @@ def build_graph(edges: gpd.GeoDataFrame) -> nx.Graph:
     g.graph["day_p90"] = day_p90
     g.graph["night_p10"] = night_p10
     g.graph["night_p90"] = night_p90
+    g.graph["acc_p10"] = acc_p10
+    g.graph["acc_p90"] = acc_p90
+    g.graph["heat_p10"] = heat_p10
+    g.graph["heat_p90"] = heat_p90
+    g.graph["light_p10"] = light_p10
+    g.graph["light_p90"] = light_p90
     g.graph["max_detour"] = MAX_DETOUR
+    g.graph["prefs_pathfinding"] = True
     return g
 
 

@@ -5,6 +5,7 @@ import {
   type MapboxRoute,
 } from "./directions";
 import { pointInCaseyBbox } from "./geo";
+import type { RoutePreferences } from "./preferences";
 import { scoreRouteAgainstSegments } from "./scoreRoute";
 import type { LngLat, RankMode, ScoredRoute } from "./types";
 
@@ -102,14 +103,25 @@ export async function planScoredRoutes(
   token: string,
   maxRoutes = 3,
   mode: "day" | "night" = "day",
+  prefs?: RoutePreferences,
 ): Promise<ScoredRoute[]> {
   if (!pointInCaseyBbox(origin) || !pointInCaseyBbox(destination)) {
     throw new Error("Origin and destination must be inside the Casey pilot area.");
   }
 
+  const challengerPrefs = prefs
+    ? {
+        accessibility: prefs.accessibility,
+        shadeHeat: prefs.shadeHeat,
+        afterDark: prefs.afterDark,
+      }
+    : undefined;
+
   const [mapboxRaw, challenger] = await Promise.all([
     fetchWalkingRouteCandidates(origin, destination, token, maxRoutes),
-    fetchChallengerRoute(origin, destination, mode),
+    fetchChallengerRoute(origin, destination, mode, {
+      prefs: challengerPrefs,
+    }),
   ]);
 
   await yieldToUi();

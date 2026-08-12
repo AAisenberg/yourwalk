@@ -82,7 +82,7 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 return
             mode = (qs.get("mode") or ["day"])[0]
-            self._handle_route(olng, olat, dlng, dlat, mode)
+            self._handle_route(olng, olat, dlng, dlat, mode, None)
             return
         self._json(404, {"error": "Not found"})
 
@@ -114,7 +114,8 @@ class Handler(BaseHTTPRequestHandler):
             )
             return
         mode = str(body.get("mode") or "day")
-        self._handle_route(olng, olat, dlng, dlat, mode)
+        prefs = body.get("prefs") if isinstance(body.get("prefs"), dict) else None
+        self._handle_route(olng, olat, dlng, dlat, mode, prefs)
 
     def _handle_route(
         self,
@@ -123,9 +124,12 @@ class Handler(BaseHTTPRequestHandler):
         dlng: float,
         dlat: float,
         mode: str,
+        prefs: dict | None = None,
     ) -> None:
         try:
-            route = plan_challenger(olng, olat, dlng, dlat, mode=mode)
+            route = plan_challenger(
+                olng, olat, dlng, dlat, mode=mode, prefs=prefs
+            )
         except FileNotFoundError as exc:
             self._json(503, {"error": str(exc)})
             return

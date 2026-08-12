@@ -4,6 +4,11 @@ type Body = {
   origin?: { lng: number; lat: number } | [number, number];
   destination?: { lng: number; lat: number } | [number, number];
   mode?: string;
+  prefs?: {
+    accessibility?: number;
+    shadeHeat?: number;
+    afterDark?: number;
+  };
 };
 
 function point(
@@ -42,6 +47,8 @@ export async function POST(request: Request) {
   }
 
   const mode = body.mode === "night" ? "night" : "day";
+  const prefs =
+    body.prefs && typeof body.prefs === "object" ? body.prefs : undefined;
   const base =
     process.env.CHALLENGER_URL?.trim() || "http://127.0.0.1:8790";
 
@@ -49,7 +56,12 @@ export async function POST(request: Request) {
     const res = await fetch(`${base.replace(/\/$/, "")}/route`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ origin, destination, mode }),
+      body: JSON.stringify({
+        origin,
+        destination,
+        mode,
+        ...(prefs ? { prefs } : {}),
+      }),
       cache: "no-store",
     });
     const text = await res.text();

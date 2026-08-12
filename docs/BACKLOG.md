@@ -150,7 +150,7 @@ Before a backlog item is considered complete, it must meet all of the following:
 
 **Dependencies**: Local/hosted `serve_challenger.py`; graph rebuild with stream scores
 
-**Status**: Now — P1 done 12 Aug 2026 (OD-11/OD-12 dual cards with challenger up); next **P2** preference-weighted edge costs per prefs doc
+**Status**: Now — P1 + P2 done 12 Aug 2026 (pref-weighted challenger; shade vs footpaths changes geometry on OD-01/OD-12). Next **P3** dual challenger / **P4** outing via bias; prod challenger host still open
 
 ---
 

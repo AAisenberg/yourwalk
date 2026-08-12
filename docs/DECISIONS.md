@@ -42,7 +42,7 @@ Score-aware graph: NetworkX Dijkstra on OSM walkable ways joined to Casey scores
 
 **Product north star:**  
 Preference-weighted score-aware pathfinding (and T1EAM-native edges where OSM cannot connect scored cut-throughs). Mapbox remains map/geocode + useful candidate source, not the sole geometry authority.  
-**Spec (12 Aug 2026):** [`PREFS_IN_PATHFINDING.md`](PREFS_IN_PATHFINDING.md) — fork accepted as implementation contract (P0 ops → P1 OD-11 gate → P2 pref costs). Sliders today still rank only; geometry follow-through is the next epic.
+**Spec (12 Aug 2026):** [`PREFS_IN_PATHFINDING.md`](PREFS_IN_PATHFINDING.md) — P1 gate + P2 preference-weighted challenger costs shipped locally. Sliders at Find time change score-aware geometry when the network allows; Mapbox pool + ranking remain. P3 dual challenger / prod host still open.
 
 **Bake-off note (17 Jul 2026):** First full-sample run (`docs/BAKEOFF_RESULTS_2026-07-17.md`) leaned hybrid. **OD-11 (30 Jul 2026) upgrades that lean to shipping requirement** for credible trip options.
 

@@ -1,5 +1,11 @@
 import type { LngLat } from "./types";
 
+export type ChallengerPrefs = {
+  accessibility?: number;
+  shadeHeat?: number;
+  afterDark?: number;
+};
+
 export type ChallengerRoute = {
   engine: string;
   strategy: string;
@@ -12,6 +18,7 @@ export type ChallengerRoute = {
   osm_highway_m?: Record<string, number>;
   /** Share of graph length on pathish OSM classes (footway, cycleway, service, …). */
   osm_pathish_share?: number | null;
+  prefs?: ChallengerPrefs | null;
 };
 
 type ChallengerResponse = {
@@ -30,7 +37,7 @@ export async function fetchChallengerRoute(
   origin: LngLat,
   destination: LngLat,
   mode: "day" | "night" = "day",
-  opts?: { apiBase?: string },
+  opts?: { apiBase?: string; prefs?: ChallengerPrefs },
 ): Promise<ChallengerRoute | null> {
   const path = "/api/challenger-route";
   const url = opts?.apiBase
@@ -44,6 +51,7 @@ export async function fetchChallengerRoute(
         origin: { lng: origin.lng, lat: origin.lat },
         destination: { lng: destination.lng, lat: destination.lat },
         mode,
+        ...(opts?.prefs ? { prefs: opts.prefs } : {}),
       }),
     });
     if (!res.ok) {

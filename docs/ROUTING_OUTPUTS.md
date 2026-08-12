@@ -143,13 +143,14 @@ Replay: start challenger, then `cd web && npx tsx scripts/smoke-trip-funnel.ts`.
 | Hybrid merge + challenger gate | `web/src/lib/routing/planRoute.ts` |
 | Preference ranking / shared-use soft bias | `web/src/lib/routing/preferences.ts` |
 | A→B funnel diagnostics | `web/src/lib/routing/tripFunnel.ts` · `web/scripts/smoke-trip-funnel.ts` |
+| Prefs-in-pathfinding smoke | `web/scripts/smoke-prefs-pathfinding.ts` |
 | Challenger service | `pipeline/bakeoff/serve_challenger.py` |
 
 ## Changelog
 
 | Date | Change |
 |------|--------|
-| **12 Aug 2026** | Trip funnel + P1: challenger OSM pathish OR Streets gate. OD-11 and OD-12 keep dual cards; prefs-in-pathfinding spec opened for P2. |
+| **12 Aug 2026** | P1 gate + P2 pref costs: challenger Dijkstra blends Acc/Heat&Shade (or Lighting); resident Find passes prefs. OD-01/OD-12 shade≠footpaths geometries. |
 | **10 Aug 2026** | Outing waypoint routes: disable hard carriageway gate (trip-only). Restores Loop finds in street-grid suburbs. |
 | **8 Aug 2026** | Carriageway product rule; remove negative `walkway_bias`; Streets tilequery gate (share &gt; 0.28); restore unbiased `alternatives` + `walkway_prefer` for path-safe diversity (OD-CARRIAGE-01) |
 | 30 Jul 2026 | Hybrid trip mode + challenger (ADR-001) |

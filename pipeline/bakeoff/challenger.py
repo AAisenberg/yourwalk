@@ -12,10 +12,84 @@ from typing import Any
 import networkx as nx
 from shapely.geometry import LineString, mapping
 
-from build_graph import MAX_DETOUR, nearest_node, reset_node_index
+from build_graph import (  # noqa: E402
+    MAX_DETOUR,
+    _norm_score,
+    nearest_node,
+    reset_node_index,
+)
 from paths import GRAPH_PICKLE
 
 _GRAPH: nx.Graph | None = None
+
+PREF_IMPORTANCE_MIN = 10
+PREF_IMPORTANCE_MAX = 100
+
+
+def clamp_importance(v: object) -> int:
+    try:
+        n = int(round(float(v)))  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return PREF_IMPORTANCE_MIN
+    return max(PREF_IMPORTANCE_MIN, min(PREF_IMPORTANCE_MAX, n))
+
+
+def preference_edge_weight(
+    g: nx.Graph,
+    mode: str,
+    prefs: dict[str, Any],
+):
+    """NetworkX weight callable: preference-blended Casey streams → edge cost."""
+    meta = g.graph
+    acc_p10 = float(meta.get("acc_p10", meta.get("day_p10", 40)))
+    acc_p90 = float(meta.get("acc_p90", meta.get("day_p90", 80)))
+    heat_p10 = float(meta.get("heat_p10", meta.get("day_p10", 40)))
+    heat_p90 = float(meta.get("heat_p90", meta.get("day_p90", 80)))
+    light_p10 = float(meta.get("light_p10", meta.get("night_p10", 50)))
+    light_p90 = float(meta.get("light_p90", meta.get("night_p90", 90)))
+
+    if mode == "night":
+        w_acc = clamp_importance(prefs.get("accessibility", 60))
+        w_light = clamp_importance(prefs.get("afterDark", 40))
+
+        def weight_night(_u: Any, _v: Any, data: dict[str, Any]) -> float:
+            length = max(1.0, float(data.get("length_m") or 1.0))
+            parts: list[tuple[float, int]] = []
+            acc = data.get("accessibility_score")
+            light = data.get("lighting_after_dark_score")
+            if light is None:
+                light = data.get("night_index_score")
+            if acc is not None and acc == acc:
+                parts.append((_norm_score(float(acc), acc_p10, acc_p90), w_acc))
+            if light is not None and light == light:
+                parts.append(
+                    (_norm_score(float(light), light_p10, light_p90), w_light)
+                )
+            if not parts:
+                return length
+            s_norm = sum(n * w for n, w in parts) / sum(w for _, w in parts)
+            return length * (1.0 + (0.5 - s_norm))
+
+        return weight_night
+
+    w_acc = clamp_importance(prefs.get("accessibility", 60))
+    w_shade = clamp_importance(prefs.get("shadeHeat", 40))
+
+    def weight_day(_u: Any, _v: Any, data: dict[str, Any]) -> float:
+        length = max(1.0, float(data.get("length_m") or 1.0))
+        parts: list[tuple[float, int]] = []
+        acc = data.get("accessibility_score")
+        heat = data.get("heat_shade_score")
+        if acc is not None and acc == acc:
+            parts.append((_norm_score(float(acc), acc_p10, acc_p90), w_acc))
+        if heat is not None and heat == heat:
+            parts.append((_norm_score(float(heat), heat_p10, heat_p90), w_shade))
+        if not parts:
+            return length
+        s_norm = sum(n * w for n, w in parts) / sum(w for _, w in parts)
+        return length * (1.0 + (0.5 - s_norm))
+
+    return weight_day
 
 # Length-weighted OSM classes treated as walkable / not mid-carriageway for
 # challenger merge (P1). Includes service + cycleway cut-throughs (OD-11).
@@ -182,9 +256,22 @@ def challenger_route(
     dest: list[float],
     *,
     mode: str = "day",
+    prefs: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
-    """Score-aware path with soft detour cap vs pure distance (OD-05)."""
-    weight = "cost_day" if mode == "day" else "cost_night"
+    """Score-aware path with soft detour cap vs pure distance (OD-05).
+
+    When ``prefs`` is set and the graph has stream attributes, Dijkstra uses
+    preference-blended Accessibility + Heat & Shade (day) or Lighting (night).
+    """
+    use_prefs = bool(prefs) and bool(g.graph.get("prefs_pathfinding"))
+    if use_prefs:
+        assert prefs is not None
+        weight: Any = preference_edge_weight(g, mode, prefs)
+        strategy = f"score_aware_{mode}_prefs"
+    else:
+        weight = "cost_day" if mode == "day" else "cost_night"
+        strategy = f"score_aware_{mode}"
+
     u = nearest_node(g, origin[0], origin[1])
     v = nearest_node(g, dest[0], dest[1])
     try:
@@ -194,7 +281,7 @@ def challenger_route(
         return None
 
     scored = attach_pins(
-        path_to_route(g, path_score, strategy=f"score_aware_{mode}"),
+        path_to_route(g, path_score, strategy=strategy),
         origin,
         dest,
     )
@@ -214,10 +301,22 @@ def challenger_route(
     detour = scored["distance_m"] / max(shortest["distance_m"], 1.0)
     max_detour = float(g.graph.get("max_detour", MAX_DETOUR))
     if detour > max_detour:
-        shortest["strategy"] = f"score_aware_{mode}_capped"
+        shortest["strategy"] = f"{strategy}_capped"
         shortest["capped_from_detour"] = round(detour, 3)
+        if use_prefs and prefs is not None:
+            shortest["prefs"] = {
+                "accessibility": clamp_importance(prefs.get("accessibility", 60)),
+                "shadeHeat": clamp_importance(prefs.get("shadeHeat", 40)),
+                "afterDark": clamp_importance(prefs.get("afterDark", 40)),
+            }
         return shortest
     scored["detour_vs_graph_shortest"] = round(detour, 3)
+    if use_prefs and prefs is not None:
+        scored["prefs"] = {
+            "accessibility": clamp_importance(prefs.get("accessibility", 60)),
+            "shadeHeat": clamp_importance(prefs.get("shadeHeat", 40)),
+            "afterDark": clamp_importance(prefs.get("afterDark", 40)),
+        }
     return scored
 
 
@@ -244,6 +343,7 @@ def route_to_json(route: dict[str, Any]) -> dict[str, Any]:
         "pin_stub_m": route.get("pin_stub_m"),
         "osm_highway_m": highway_m,
         "osm_pathish_share": pathish_share,
+        "prefs": route.get("prefs"),
     }
 
 
@@ -254,6 +354,7 @@ def plan_challenger(
     dest_lat: float,
     *,
     mode: str = "day",
+    prefs: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     g = load_graph()
     route = challenger_route(
@@ -261,6 +362,7 @@ def plan_challenger(
         [origin_lng, origin_lat],
         [dest_lng, dest_lat],
         mode=mode if mode in ("day", "night") else "day",
+        prefs=prefs,
     )
     if route is None:
         return None
