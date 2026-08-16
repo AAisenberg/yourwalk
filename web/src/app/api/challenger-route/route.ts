@@ -4,6 +4,13 @@ type Body = {
   origin?: { lng: number; lat: number } | [number, number];
   destination?: { lng: number; lat: number } | [number, number];
   mode?: string;
+  prefs?: {
+    accessibility?: number;
+    shadeHeat?: number;
+    afterDark?: number;
+    preferSharedPaths?: boolean;
+    complement?: boolean;
+  };
 };
 
 function point(
@@ -21,9 +28,23 @@ function point(
 }
 
 /**
- * Proxy to local score-aware challenger (pipeline/bakeoff/serve_challenger.py).
- * Default: http://127.0.0.1:8790 — override with CHALLENGER_URL.
+ * Proxy to the score-aware challenger (pipeline/bakeoff/serve_challenger.py).
+ * Local default: http://127.0.0.1:8790. Production: CHALLENGER_URL (Fly).
+ * Optional CHALLENGER_SHARED_SECRET is sent as Bearer when set.
  */
+export const maxDuration = 30;
+
+function challengerHeaders(): HeadersInit {
+  const secret = process.env.CHALLENGER_SHARED_SECRET?.trim();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (secret) {
+    headers.Authorization = `Bearer ${secret}`;
+  }
+  return headers;
+}
+
 export async function POST(request: Request) {
   let body: Body;
   try {
@@ -42,14 +63,21 @@ export async function POST(request: Request) {
   }
 
   const mode = body.mode === "night" ? "night" : "day";
+  const prefs =
+    body.prefs && typeof body.prefs === "object" ? body.prefs : undefined;
   const base =
     process.env.CHALLENGER_URL?.trim() || "http://127.0.0.1:8790";
 
   try {
     const res = await fetch(`${base.replace(/\/$/, "")}/route`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ origin, destination, mode }),
+      headers: challengerHeaders(),
+      body: JSON.stringify({
+        origin,
+        destination,
+        mode,
+        ...(prefs ? { prefs } : {}),
+      }),
       cache: "no-store",
     });
     const text = await res.text();

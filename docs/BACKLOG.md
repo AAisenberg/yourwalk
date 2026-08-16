@@ -118,19 +118,42 @@ Before a backlog item is considered complete, it must meet all of the following:
 ### N1b: Tell us about your walk — entry flow + overlays
 **Links**: [`FLOWS/02_tell_us_about_your_walk.md`](FLOWS/02_tell_us_about_your_walk.md), [`DELIVERY_PLAN.md`](DELIVERY_PLAN.md) Sprint D+, methodology overlays in [`VULNERABILITY_INDEX.md`](VULNERABILITY_INDEX.md)
 
-**Description**: User-first entry: choose trip (A→B) or outing (~N minutes from here); set importance; optionally show amenity overlays (toilets, dog bags, benches, fountains) that are **not** in the index.
+**Description**: Walk planner on `/`. Route-first form (type → places → When → amenities → standing prefs). Auto Day/Night from Casey civil twilight. Selected walk discloses detail. Geolocate on From / Start. No live route tracking. Overlays (toilets, dog bags, benches, fountains) are **not** in the index.
 
 **Acceptance Criteria**:
 - Given a resident opens `/`
 - When they choose how they want to walk
 - Then they can pick **A to B** or **Around here** (duration + start via geolocate / search / pin)
+- And Use my location sits on From or Start and captures one in-session coordinate only
+- And When preselects from Casey civil twilight and can be overridden
 - And they can toggle overlay checkboxes for toilets, dog bags, benches, drinking fountains on the map
 - And overlays do not change Day/Night index maths
 - And A→B continues to use hybrid ranked routes
+- And result cards stay compact until a walk is selected, then that walk shows why / pills / coverage
 
 **Dependencies**: N1 hybrid trip stable; amenity GeoJSON available in pipeline
 
-**Status**: Next (Sprint D+)
+**Status**: Next (Sprint D+) — shell shipped (testing); planner UX slice (order, auto When, disclosure, form geolocate) specified 16 Aug 2026 in the flow. Iterate after testing.
+
+---
+
+### N1c: Preference-weighted pathfinding (north star)
+**Links**: [`PREFS_IN_PATHFINDING.md`](PREFS_IN_PATHFINDING.md), [`ROUTING_OUTPUTS.md`](ROUTING_OUTPUTS.md) funnel assessment, ADR-001
+
+**Description**: Importance sliders change **which geometries are proposed**, not only Recommended among a fixed Mapbox set. Sequence: challenger ops → OD-11 carriageway gate fix for score-aware paths → stream costs on graph → blended challenger (then dual variant / outing via bias).
+
+**Acceptance Criteria**:
+- Given the challenger service is reachable from the app under test
+- When Fairmead → Hopwood (OD-11) is planned
+- Then a distinct cut-through card can merge (not only the road last-resort)
+- Given an OD with dual corridors (e.g. OD-12)
+- When the resident finds with Heat & Shade max vs Footpaths max
+- Then score-aware geometry differs **or** the UI states only one path-safe walk exists
+- And Day/Night index maths and overlay-not-in-index rules are unchanged
+
+**Dependencies**: Local/hosted `serve_challenger.py`; graph rebuild with stream scores
+
+**Status**: Now — P1 + P2 + P3 done 16 Aug 2026 (preference-best + other pathish corridor + optional away-from-roads; no-junk detour fallback). Dual Casey on 5/13 bake-off ODs; one honest card when the network has one corridor. **Hosted challenger (ADR-010):** repo ready (`fly.toml`, [`HOSTING_CHALLENGER.md`](HOSTING_CHALLENGER.md)); Fly account + Vercel env still to do before Nikki phone test. Next after host: side-of-street / heading-continuity; **P4** outing via bias; T1EAM-native geometry. Recap for XYX: [`ROUTING_NOTE_NIKKI_2026-08-16.md`](ROUTING_NOTE_NIKKI_2026-08-16.md)
 
 ---
 
@@ -367,7 +390,7 @@ Before a backlog item is considered complete, it must meet all of the following:
 
 **Dependencies**: Stable segment scores; trip mode baseline; Casey OSM extract; GraphHopper local
 
-**Status**: ✅ Hybrid shipped into resident trip mode (30 Jul 2026) — see ADR-001, [`HYBRID_ROUTING_AUDIT_2026-07-30.md`](HYBRID_ROUTING_AUDIT_2026-07-30.md). Remaining: T1EAM-native edges for Casey-only gaps; preference-weighted edge costs inside pathfinding.
+**Status**: ✅ Hybrid shipped into resident trip mode (30 Jul 2026) — see ADR-001, [`HYBRID_ROUTING_AUDIT_2026-07-30.md`](HYBRID_ROUTING_AUDIT_2026-07-30.md). Remaining: T1EAM-native edges for Casey-only gaps. Preference-weighted pathfinding promoted to **N1c**.
 
 ---
 

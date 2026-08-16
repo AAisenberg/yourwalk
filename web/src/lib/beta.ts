@@ -4,7 +4,7 @@
  */
 
 export const APP_VERSION =
-  process.env.NEXT_PUBLIC_APP_VERSION?.trim() || "0.1.0";
+  process.env.NEXT_PUBLIC_APP_VERSION?.trim() || "0.2.0";
 
 /** Locked scoring spec for the Casey pilot (see docs/SCORING_SPEC_v1.1.md). */
 export const SCORING_SPEC_VERSION = "1.1.3";

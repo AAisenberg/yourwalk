@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 BAKEOFF_ROOT = Path(__file__).resolve().parent
@@ -16,8 +17,12 @@ OD_FIXTURE = REPO_ROOT / "docs" / "fixtures" / "bakeoff_od_sample.json"
 
 SCORES_EXPORT = BAKEOFF_DATA / "casey_scores_lean.geojson"
 OSM_WAYS = BAKEOFF_DATA / "casey_osm_footways.geojson"
+OSM_CROSSINGS = BAKEOFF_DATA / "casey_osm_crossing_nodes.geojson"
 OSM_JOINED = BAKEOFF_DATA / "casey_osm_scored_edges.geojson"
-GRAPH_PICKLE = BAKEOFF_DATA / "score_aware_graph.gpickle"
+_graph_override = os.environ.get("YOURWALK_GRAPH_PICKLE", "").strip()
+GRAPH_PICKLE = (
+    Path(_graph_override) if _graph_override else BAKEOFF_DATA / "score_aware_graph.gpickle"
+)
 RESULTS_DIR = BAKEOFF_DATA / "results"
 
 

@@ -41,7 +41,12 @@ Score-aware graph: NetworkX Dijkstra on OSM walkable ways joined to Casey scores
 **Routing outputs methodology (authoritative detail):** [`ROUTING_OUTPUTS.md`](ROUTING_OUTPUTS.md) — includes OD-CARRIAGE-01 (Epsom → Arubi) regression.
 
 **Product north star:**  
-Preference-weighted score-aware pathfinding (and T1EAM-native edges where OSM cannot connect scored cut-throughs). Mapbox remains map/geocode + useful candidate source, not the sole geometry authority.
+Preference-weighted score-aware pathfinding (and T1EAM-native edges where OSM cannot connect scored cut-throughs). Mapbox remains map/geocode + useful candidate source, not the sole geometry authority.  
+**Spec (12 Aug 2026):** [`PREFS_IN_PATHFINDING.md`](PREFS_IN_PATHFINDING.md) — P1 gate + P2 preference-weighted challenger costs shipped locally. Sliders at Find time change score-aware geometry when the network allows; Mapbox pool + ranking remain. **P3 dual Casey (16 Aug 2026):** preference-best + the other pathish corridor (invert stream, no prefix penalty, 1.20×); Prefer away from roads remains an optional third card. **Prod host:** Fly.io (ADR-010, [`HOSTING_CHALLENGER.md`](HOSTING_CHALLENGER.md)).
+
+**Carriageway truth / Track 0 (16 Aug 2026):** Mapbox walking geometry can still **look** mid-road on the basemap (OD-12 Liara Blvd) while Streets tilequery reports pathish / low road share — Google draws the same walk on the carriageway edge. Hybrid now **sidewalk-nudges** Mapbox paint when a mapped sidewalk (or short synthetic edge offset) is available, prefers the score-aware challenger when Mapbox needed that nudge, and applies a soft match penalty for residual centreline look. An **on-path guard** leaves points already on a genuinely offset footway untouched (only centreline-coincident "footway" mislabels get pushed), so real footpath alignments like east Homestead Rd keep their true geometry. The **challenger geometry gets the same paint nudge** after its path-safe gate (OSM road ways without separate sidewalk geometry otherwise draw at the centreline — OD-12 Homestead Rd), and score-aware cards are exempt from the centreline-look match penalty since their path safety is proven by OSM evidence. **Side-certainty guard (product rule, 16 Aug 2026):** paint only moves off-centre when contiguous evidence agrees ≥80% on which side; when the side is unknown the line draws on the honest centreline — a squiggle weaving across the road (Fordholm Rd) is worse than an honest centreline. Detail: [`ROUTING_OUTPUTS.md`](ROUTING_OUTPUTS.md) §4b.
+
+**Track 0 follow-on (16 Aug 2026, same day):** Challenger **road-class edges cost 1.5–2× per metre** so a parallel footpath always beats the road way; **node-tagged OSM crossings** are synthesised as short crossing edges at graph build (routing connectivity, not a scoring input). **Prefer away from roads** is generation-time: 1.6× detour cap plus an off-road-biased challenger variant, with honest card copy on the extra time. **Hide Mapbox** that still looks mid-carriageway when a path-safe Casey card is already on the footpath (OD-12 Homestead). OD-12 default is the north-side Homestead path via the Liara roundabout crossings. **Dual Casey cards:** preference-best plus the other pathish corridor (invert stream, no prefix penalty, 1.20×) when distinct; pathish pref paths may keep up to 1.20×. Detail: [`ROUTING_OUTPUTS.md`](ROUTING_OUTPUTS.md) §4c–4d. **T1EAM-native geometry (draw challenger lines from Casey's own footpath segments) remains the accepted next step** for paint and side-of-street truth. OSM already maps both Ashfield Drive footways; heading-continuity at crossings is the cheaper follow-on if a card still hops east after Homestead.
 
 **Bake-off note (17 Jul 2026):** First full-sample run (`docs/BAKEOFF_RESULTS_2026-07-17.md`) leaned hybrid. **OD-11 (30 Jul 2026) upgrades that lean to shipping requirement** for credible trip options.
 
@@ -62,8 +67,8 @@ Preference-weighted score-aware pathfinding (and T1EAM-native edges where OSM ca
 - Aggregation rule (length-weighted mean vs median vs worst segment)
 - Material after-dark overlap for Night Index trigger (civil twilight)
 - T1EAM-native edges for true Casey-only links (OSM has no walkable way) — see [`SCORE_AWARE_ROUTING_BAKEOFF.md`](SCORE_AWARE_ROUTING_BAKEOFF.md)
-- Preference weights inside edge costs (sliders affect pathfinding, not only ranking)
-- Whether carriageway detection should move from Streets tilequery to a local OSM class join for offline / rate-limit resilience
+- Preference weights inside edge costs — **specified** in [`PREFS_IN_PATHFINDING.md`](PREFS_IN_PATHFINDING.md); implementation pending P2
+- Whether carriageway detection should move from Streets tilequery to a local OSM class join for offline / rate-limit resilience (also blocks OD-11 challenger merge — prefs spec P1)
 
 ---
 
@@ -89,8 +94,10 @@ Preference-weighted score-aware pathfinding (and T1EAM-native edges where OSM ca
 - Production UI must not use MapLibre unless explicitly overridden
 - Requires Mapbox access token in app env
 - 2D map is sufficient for MVP; no 3D requirement
+- Resident basemap today: classic `streets-v12` (Day) and `dark-v11` (Night)
+- Planned: one custom YourWalk style based on Mapbox Standard, with `lightPreset` `dawn` / `day` / `dusk` / `night` timed to Casey sun or the planned When. Four looks, two index states. Detail: [`RESIDENT_VISUAL_SYSTEM.md`](RESIDENT_VISUAL_SYSTEM.md), [`FLOWS/02_tell_us_about_your_walk.md`](FLOWS/02_tell_us_about_your_walk.md)
 
-**Open Questions**: None blocking Sprint A.
+**Open Questions**: None blocking Sprint A. Studio style URL and Standard slot placement for route lines are implementation detail for the planner UX / brand slice.
 
 ---
 
@@ -137,6 +144,8 @@ Preference-weighted score-aware pathfinding (and T1EAM-native edges where OSM ca
 3. **Hybrid with progressive enhancement**: Start anonymous, prompt for account when value is clear (e.g., after first contribution)
 
 **Decision**: TBD (leaning towards Option 1 based on privacy principles)
+
+**Pilot location lean (16 Aug 2026, does not close this ADR):** one-shot geolocate to fill From / Start, in session only. No start-to-finish walk tracking, no breadcrumb upload. Prefs may persist on the device. Detail: [`FLOWS/02_tell_us_about_your_walk.md`](FLOWS/02_tell_us_about_your_walk.md) § Location and privacy.
 
 **Rationale**: TBD (to be filled when decision made)
 
@@ -311,6 +320,7 @@ For v1 dusk / mixed routes, use the Night Index if any material part of the walk
 - The data pipeline must output at least two segment-level scores: `day_index_score` and `night_index_score`.
 - Route ranking must choose the correct score based on expected walk time.
 - Civil twilight should be used as the default after-dark boundary rather than a fixed clock time.
+- Product When (16 Aug 2026): auto-select Day / Night from Casey civil twilight; always overridable. Basemap may show four Mapbox looks (`dawn` / `day` / `dusk` / `night`). Index stays two states. Evening twilight → Night (this ADR). Morning twilight → Day is a product lean pending methodology check (flow OQ-5).
 - Heat/shade datasets feed only the Day Index by default.
 - Lighting, night crash history, and carefully evidenced after-dark proxies feed only the Night Index by default.
 - Graffiti and cellular datasets require evidence/methodology review before being used as weighted scoring inputs.
@@ -323,6 +333,32 @@ For v1 dusk / mixed routes, use the Night Index if any material part of the walk
 - Should dusk blending be added after v1, and if so should it be time-weighted or segment-weighted?
 
 **Resolved at v1.1 sign-off (3 Jul 2026):** Graffiti stays in shared Accessibility (not Night-only). Day pedestrian crashes not in Accessibility. Cellular not in index.
+
+---
+
+### ADR-010: Hosted score-aware challenger
+
+**Status**: Accepted (pilot lean) — 16 Aug 2026
+
+**Decision Question**: Where does the Casey OSM+score graph run so production / phone testers get dual Casey cards?
+
+**Options Considered**:
+
+1. **Vercel serverless Python** — cold start loads a ~102 MB pickle into NetworkX; first Find would miss the graph
+2. **Cloud Run / scale-to-zero** — same cold-start problem unless min instances = 1
+3. **Fly.io always-on 1 GB VM (Sydney)** — one warm process, Next proxies via `CHALLENGER_URL`
+4. **Railway / Render** — same shape as Fly; extra vendor if Fly is already the choice
+
+**Decision**: Host `serve_challenger.py` on **Fly.io** (`yourwalk-challenger`, region `syd`, 1 GB, `min_machines_running = 1`). Vercel Next stays the public app. Server-only `CHALLENGER_URL` + `CHALLENGER_SHARED_SECRET`. Browser never calls Fly.
+
+**Rationale**: App 0.2.0 dual Casey is the baseline Nikki will test. The graph is ~280 MB RAM and must stay warm. Vercel is the wrong runtime. Sydney keeps latency low for AU testers.
+
+**Consequences**:
+
+- Production without Fly (or a mismatched secret) is Mapbox-only
+- Graph pickle stays gitignored; `fly deploy` from a machine that has `score_aware_graph.gpickle`
+- Shared secret required on `/route`; `/health` stays open for Fly checks
+- Ops steps: [`HOSTING_CHALLENGER.md`](HOSTING_CHALLENGER.md)
 
 ---
 

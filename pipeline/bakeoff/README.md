@@ -22,8 +22,10 @@ python bakeoff/fetch_and_join_osm.py --od01-bbox
 #    Full LGA (slower; may need Overpass retries):
 # python bakeoff/fetch_and_join_osm.py
 
-# 3. Build score-aware graph
+# 3. Build score-aware graph (road-class cost bias + OSM crossing-node edges)
 python bakeoff/build_graph.py
+# Crossing nodes: fetched automatically if casey_osm_crossing_nodes.geojson is missing.
+# Or: python bakeoff/fetch_and_join_osm.py --reuse-osm
 
 # 4. Run bake-off (needs Mapbox token from web/.env.local)
 python bakeoff/run_bakeoff.py --od OD-01
@@ -36,13 +38,23 @@ Outputs: `data/bakeoff/results/bakeoff_YYYYMMDD_HHMM.csv` + route GeoJSON.
 
 ### Hybrid trip mode (resident + lab)
 
-Serve the score-aware graph for the Next.js app (required for cul-de-sac cut-throughs Mapbox misses):
+**Repeatable local stack** (challenger `:8790` + Next `:3000`) from repo root:
+
+```bash
+./scripts/dev-up.sh      # start both if needed
+./scripts/dev-status.sh  # health checks
+./scripts/dev-down.sh    # stop pid-tracked processes
+```
+
+Or serve the score-aware graph alone:
 
 ```bash
 python bakeoff/serve_challenger.py --port 8790
 ```
 
 Web proxies via `POST /api/challenger-route` (`CHALLENGER_URL`, default `http://127.0.0.1:8790`). Without this service, `/` and `/lab` fall back to Mapbox-only.
+
+**Production:** Fly.io always-on VM. You do account + secret + Vercel env; then `fly deploy` from a machine that has the graph pickle. See [`docs/HOSTING_CHALLENGER.md`](../../docs/HOSTING_CHALLENGER.md).
 
 ### Network fitness check
 

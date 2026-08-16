@@ -53,3 +53,7 @@ pipeline/**/__pycache__/
 
 # Vercel CLI (link from repo root)
 .vercel/
+
+
+# Local hybrid stack (scripts/dev-up.sh)
+.dev-pids/
