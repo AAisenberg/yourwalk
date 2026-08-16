@@ -563,4 +563,4 @@ export const RESULTS_PREF_RERANK_NOTE =
  * Use in the plan sheet and in tester / Nikki notes.
  */
 export const HOW_PREFS_CHANGE_WALKS =
-  "Footpaths, Heat & Shade, and Lighting change which streets we search, not the Casey scores on the pills. More important means we will take a slightly longer path if it is better on that measure. Less important means a quicker walk can win among the options we found. Prefer away from roads is a separate, longer park option — tick it only if you will take the extra time. Tap Find after you change these.";
+  "Footpaths, Heat & Shade, and Lighting change which streets we search, not the Casey scores on the pills. More important means we will take a slightly longer path if it is better on that measure. Less important means a quicker walk can win among the options we found. On Around here, Find picks turning points on better-scoring Casey footpaths for what you marked as important, then draws the circuit. Prefer away from roads is a separate, longer park option on A to B. Tick it only if you will take the extra time. Tap Find after you change these.";

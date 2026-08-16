@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { MdMyLocation, MdPlace } from "react-icons/md";
 
+import { WalkPinGlyph } from "@/components/resident/WalkPin";
 import { searchPlaces, type PlaceResult } from "@/lib/routing/geocode";
 import type { LngLat } from "@/lib/routing/types";
 
@@ -14,6 +16,9 @@ type Props = {
   pickActive: boolean;
   onPickToggle: () => void;
   onPlace: (place: { center: LngLat; label: string }) => void;
+  showLocate?: boolean;
+  onLocate?: () => void;
+  geoBusy?: boolean;
 };
 
 export function PlaceField({
@@ -25,6 +30,9 @@ export function PlaceField({
   pickActive,
   onPickToggle,
   onPlace,
+  showLocate,
+  onLocate,
+  geoBusy,
 }: Props) {
   const listId = useId();
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -49,7 +57,7 @@ export function PlaceField({
     const t = window.setTimeout(async () => {
       setLoading(true);
       try {
-        const places = await searchPlaces(query, token, 5);
+        const places = await searchPlaces(query, token, 8);
         setResults(places);
         setOpen(true);
       } catch {
@@ -85,10 +93,7 @@ export function PlaceField({
               : "bg-white ring-[#E8ECF2]"
         }`}
       >
-        <span
-          className="h-2.5 w-2.5 shrink-0 rounded-full"
-          style={{ background: dot }}
-        />
+        <WalkPinGlyph color={dot} size={16} />
         <div className="min-w-0 flex-1">
           <div
             className={`text-[10px] font-semibold uppercase tracking-wide ${
@@ -129,26 +134,50 @@ export function PlaceField({
             />
           )}
         </div>
+        {showLocate ? (
+          <button
+            type="button"
+            onClick={onLocate}
+            disabled={geoBusy}
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+              isNight
+                ? "bg-white/10 text-white/80"
+                : "bg-yw-day-surface text-yw-navy"
+            } disabled:opacity-40`}
+            aria-label={geoBusy ? "Getting location" : "Use my location"}
+            title="Use my location"
+          >
+            {geoBusy ? (
+              <span
+                className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-yw-teal border-t-transparent"
+                aria-hidden
+              />
+            ) : (
+              <MdMyLocation className="h-5 w-5" />
+            )}
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={onPickToggle}
-          className={`flex min-h-9 min-w-11 shrink-0 items-center justify-center rounded-xl px-2.5 text-[11px] font-semibold ${
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
             pickActive
               ? "bg-yw-blue text-white"
               : isNight
                 ? "bg-white/10 text-white/80"
-                : "bg-yw-day-surface text-slate-600"
+                : "bg-yw-day-surface text-yw-navy"
           }`}
-          title="Pick on map"
+          aria-label="Drop a pin on the map"
+          title="Drop pin"
         >
-          Map
+          <MdPlace className="h-5 w-5" />
         </button>
       </div>
 
-      {open && editing && (results.length > 0 || loading) ? (
+      {open && editing && query.trim().length >= 2 ? (
         <ul
           id={listId}
-          className={`absolute left-0 right-0 z-20 mt-1 max-h-48 overflow-y-auto rounded-2xl border shadow-lg ${
+          className={`absolute left-0 right-0 z-20 mt-1 max-h-56 overflow-y-auto rounded-2xl border shadow-lg ${
             isNight
               ? "border-white/10 bg-yw-night-panel"
               : "border-[#E8ECF2] bg-white"
@@ -161,6 +190,16 @@ export function PlaceField({
               }`}
             >
               Searching…
+            </li>
+          ) : null}
+          {!loading && results.length === 0 ? (
+            <li
+              className={`px-3 py-2.5 text-xs ${
+                isNight ? "text-white/45" : "text-slate-500"
+              }`}
+            >
+              No Casey places for that search. Try a school, hospital, park, or
+              street.
             </li>
           ) : null}
           {results.map((r) => (
@@ -177,14 +216,14 @@ export function PlaceField({
                   setQuery("");
                 }}
               >
-                <span className="block">
+                <span className="block min-w-0">
                   <span className="block font-medium">{r.label}</span>
                   <span
                     className={`block truncate text-[11px] ${
                       isNight ? "text-white/45" : "text-slate-500"
                     }`}
                   >
-                    {r.place_name}
+                    {r.kind ? `${r.kind} · ${r.place_name}` : r.place_name}
                   </span>
                 </span>
               </button>

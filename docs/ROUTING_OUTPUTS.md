@@ -132,7 +132,7 @@ After the card set is fixed:
 
 ## Outing mode (Around here)
 
-Waypoint walks use Mapbox with **positive** `walkway_bias`. The **hard carriageway gate is trip A→B only** — not applied to Loop / There and back. Suburban circuits necessarily use street-adjacent footpaths; treating them like mid-road trip options rejected nearly all Montpelier / Berwick loops (`no_route` after tilequery). Loop quality rules (circuit revisit, reverse-overlap, spur demote, ±5 min band) remain in `planOuting.ts`.
+Turning points are scored with the same Casey preference blend as A→B (P4). Find prefers the better-scoring turns in the duration ring, then draws start → turn → turn → home. Casey graph legs are used when they connect; otherwise Mapbox with **positive** `walkway_bias`. The **hard carriageway gate is trip A→B only** and is not applied to Loop / There and back. Suburban circuits necessarily use street-adjacent footpaths; treating them like mid-road trip options rejected nearly all Montpelier / Berwick loops (`no_route` after tilequery). Loop quality rules (circuit revisit, reverse-overlap, spur demote, ±5 min band) remain in `planOuting.ts`. Prefer away from roads is ranking-only on loops.
 
 ## QA OD (regression)
 
@@ -191,6 +191,7 @@ Replay: start challenger, then `cd web && npx tsx scripts/smoke-trip-funnel.ts`.
 | Preference ranking / away-from-roads copy | `web/src/lib/routing/preferences.ts` |
 | Road-class cost + crossing synthesis | `pipeline/bakeoff/build_graph.py` |
 | A→B funnel diagnostics | `web/src/lib/routing/tripFunnel.ts` · `web/scripts/smoke-trip-funnel.ts` |
+| Outing P4 turning-point bias | `web/src/lib/routing/outingStreamBias.ts` · `web/scripts/verify-p4-outing-bias.ts` |
 | Prefs-in-pathfinding smoke | `web/scripts/smoke-prefs-pathfinding.ts` |
 | OD-12 Homestead north-side + away variant | `web/scripts/verify-od12-homestead.ts` |
 | Challenger service | `pipeline/bakeoff/serve_challenger.py` |
@@ -199,6 +200,7 @@ Replay: start challenger, then `cd web && npx tsx scripts/smoke-trip-funnel.ts`.
 
 | Date | Change |
 |------|--------|
+| **16 Aug 2026** | P4 outing: turning points use the trip preference blend; Casey graph legs when they connect; Mapbox fallback. Montpelier 30 min Loop is the exit fixture. |
 | **16 Aug 2026** | Dual Casey cards: preference-best + other pathish corridor (invert stream, no prefix penalty, 1.20×). Pathish pref paths may keep up to 1.20× (OD-12 Bellevue). Prefer away from roads stays an optional third card. |
 | **16 Aug 2026** | Challenger road-class cost 1.5–2× so parallel footpaths beat road ways; synthesise crossing edges from node-tagged OSM crossings; Prefer away from roads is generation-time (1.6× detour + off-road challenger). Hide Mapbox that still looks mid-carriageway when Casey is already on the footpath. OD-12 default: north-side Homestead via roundabout crossings. |
 | **12 Aug 2026** | P1 gate + P2 pref costs: challenger Dijkstra blends Acc/Heat&Shade (or Lighting); resident Find passes prefs. OD-01/OD-12 shade≠footpaths geometries. |

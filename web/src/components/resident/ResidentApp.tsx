@@ -12,16 +12,17 @@ import {
   type ReactNode,
 } from "react";
 
-import {
-  IconLocate,
-  IconOuting,
-  IconTrip,
-  OVERLAY_ICONS,
-  SHAPE_ICONS,
-} from "@/components/resident/icons";
+import { IconEye, IconEyeOff, IconOuting, IconTrip } from "@/components/resident/icons";
 import { PlaceField } from "@/components/resident/PlaceField";
+import { RingedAmenityIcon } from "@/components/resident/RingedAmenityIcon";
+import {
+  WALK_PIN_FROM,
+  WALK_PIN_TO,
+  createWalkPinElement,
+} from "@/components/resident/WalkPin";
 import { SegmentedPill } from "@/components/resident/SegmentedPill";
 import { WalkModeSwitch } from "@/components/resident/WalkModeSwitch";
+import { MdClose, MdEdit, MdLayers } from "react-icons/md";
 import { MD_UP, useMediaQuery } from "@/hooks/useMediaQuery";
 import {
   APP_VERSION,
@@ -36,10 +37,17 @@ import {
   fetchLgaBoundary,
   fetchSegmentsGeoJSON,
 } from "@/lib/fetchSegments";
+import {
+  plannedLightPreset,
+  resolveCaseyWhen,
+  whenHintForOverride,
+  type LightPreset,
+} from "@/lib/caseyWhen";
 import { reverseGeocode } from "@/lib/routing/geocode";
 import {
   formatDistance,
   formatDuration,
+  pointInCaseyBbox,
   toDisplayScore,
 } from "@/lib/routing/geo";
 import {
@@ -48,12 +56,15 @@ import {
   type OverlayId,
   type OverlayState,
 } from "@/lib/overlays";
+import {
+  ensureOverlayImages,
+  overlayIconImageId,
+  overlayIconLayerId,
+} from "@/lib/overlayMapIcons";
 import { planScoredRoutes } from "@/lib/routing/planRoute";
 import { OutingDurationSlider } from "@/components/resident/OutingDurationSlider";
 import {
-  RESIDENT_OUTING_SHAPES,
   clampOutingMinutes,
-  type OutingShape,
   planOutingRoutes,
 } from "@/lib/routing/planOuting";
 import {
@@ -61,8 +72,6 @@ import {
   DEFAULT_PREFS_NIGHT,
   PREF_IMPORTANCE_MAX,
   PREF_IMPORTANCE_MIN,
-  HOW_PREFS_CHANGE_WALKS,
-  RESULTS_PREF_RERANK_NOTE,
   type RoutePreferences,
   type WalkMode,
   clampImportance,
@@ -87,9 +96,18 @@ type WalkIntent = "trip" | "outing";
 /** Bottom sheet snap — Google Maps-style peek / half / full. */
 type SheetSnap = "peek" | "half" | "full";
 
-const WELCOME_STORAGE_KEY = "yw-resident-welcome-v1";
+const WELCOME_STORAGE_KEY = "yw-resident-welcome-v2";
+const PREFS_STORAGE_KEY = "yw-resident-prefs-v1";
+const LAYERS_STORAGE_KEY = "yw-resident-layers-v1";
+const LAYERS_TIP_KEY = "yw-resident-layers-tip-v1";
 
-const ROUTE_COLORS = ["#00AAA6", "#27AAE1", "#8DC63F"] as const;
+const ROUTE_COLORS_DAY = ["#00AAA6", "#27AAE1", "#8DC63F"] as const;
+/** Night: lighting-family yellows so walks pop on the dark Standard basemap. */
+const ROUTE_COLORS_NIGHT = ["#FFCB1F", "#F6871F", "#D7DF23"] as const;
+
+function routeColors(night: boolean): readonly [string, string, string] {
+  return night ? ROUTE_COLORS_NIGHT : ROUTE_COLORS_DAY;
+}
 const SHEET_SNAPS: SheetSnap[] = ["peek", "half", "full"];
 const SHEET_SNAP_CLASS: Record<SheetSnap, string> = {
   peek: "h-[22%] max-h-[22%]",
@@ -97,14 +115,124 @@ const SHEET_SNAP_CLASS: Record<SheetSnap, string> = {
   full: "h-[72%] max-h-[72%]",
 };
 
+const YOURWALK_STYLE =
+  "mapbox://styles/crowdspot1/cmsve8sql00ak01rgb6vn39pt";
 const DAY_BASEMAP = "mapbox://styles/mapbox/streets-v12";
 const NIGHT_BASEMAP = "mapbox://styles/mapbox/dark-v11";
 
-/** Install route + optional LGA layers after load or basemap style switch. */
+function applyStandardLook(map: mapboxgl.Map, preset: LightPreset) {
+  try {
+    map.setConfigProperty("basemap", "lightPreset", preset);
+    map.setConfigProperty("basemap", "showPointOfInterestLabels", false);
+    // Standard paints OSM paths/trails as a neon dotted line at night.
+    // That is not Casey T1EAM and only covers part of the network — hide it.
+    map.setConfigProperty("basemap", "showPedestrianRoads", false);
+  } catch {
+    /* classic streets / dark has no Standard basemap config */
+  }
+}
+
+const T1EAM_UNDERLAY_SRC = "t1eam-underlay";
+const T1EAM_UNDERLAY_FILL = "t1eam-underlay-fill";
+const T1EAM_UNDERLAY_LINE = "t1eam-underlay-line";
+
+function t1eamUnderlayColor(night: boolean): string {
+  return night ? "#8B8DD9" : "#292984";
+}
+
+/** Quiet Casey footpath carpet — polygons, not Mapbox pedestrian dots. */
+function ensureT1eamUnderlay(
+  map: mapboxgl.Map,
+  features: GeoJSON.Feature[],
+  night: boolean,
+) {
+  if (features.length === 0) return;
+  const data: GeoJSON.FeatureCollection = {
+    type: "FeatureCollection",
+    features,
+  };
+  const existing = map.getSource(T1EAM_UNDERLAY_SRC);
+  if (existing && existing.type === "geojson") {
+    existing.setData(data);
+  } else {
+    map.addSource(T1EAM_UNDERLAY_SRC, {
+      type: "geojson",
+      data,
+      // Underlay only — a little simplify keeps 27k polygons cheaper
+      tolerance: 0.4,
+    });
+  }
+
+  const color = t1eamUnderlayColor(night);
+  const before = map.getLayer("routes-alt") ? "routes-alt" : undefined;
+  if (!map.getLayer(T1EAM_UNDERLAY_FILL)) {
+    map.addLayer(
+      {
+        id: T1EAM_UNDERLAY_FILL,
+        type: "fill",
+        source: T1EAM_UNDERLAY_SRC,
+        slot: "middle",
+        minzoom: 12,
+        paint: {
+          "fill-color": color,
+          "fill-opacity": night ? 0.28 : 0.2,
+          "fill-emissive-strength": night ? 0.4 : 0,
+        },
+      },
+      before,
+    );
+  } else {
+    map.setPaintProperty(T1EAM_UNDERLAY_FILL, "fill-color", color);
+    map.setPaintProperty(
+      T1EAM_UNDERLAY_FILL,
+      "fill-opacity",
+      night ? 0.28 : 0.2,
+    );
+    map.setPaintProperty(
+      T1EAM_UNDERLAY_FILL,
+      "fill-emissive-strength",
+      night ? 0.4 : 0,
+    );
+  }
+  if (!map.getLayer(T1EAM_UNDERLAY_LINE)) {
+    map.addLayer(
+      {
+        id: T1EAM_UNDERLAY_LINE,
+        type: "line",
+        source: T1EAM_UNDERLAY_SRC,
+        slot: "middle",
+        minzoom: 12,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": color,
+          "line-width": 0.8,
+          "line-opacity": night ? 0.42 : 0.3,
+          "line-emissive-strength": night ? 0.3 : 0,
+        },
+      },
+      before,
+    );
+  } else {
+    map.setPaintProperty(T1EAM_UNDERLAY_LINE, "line-color", color);
+    map.setPaintProperty(
+      T1EAM_UNDERLAY_LINE,
+      "line-opacity",
+      night ? 0.42 : 0.3,
+    );
+    map.setPaintProperty(
+      T1EAM_UNDERLAY_LINE,
+      "line-emissive-strength",
+      night ? 0.3 : 0,
+    );
+  }
+}
+
+/** Install route + optional LGA / T1EAM layers after load or basemap style switch. */
 function installMapChrome(
   map: mapboxgl.Map,
   opts: {
     lga?: GeoJSON.FeatureCollection | null;
+    t1eam?: GeoJSON.Feature[];
     night: boolean;
   },
 ) {
@@ -120,11 +248,13 @@ function installMapChrome(
       type: "line",
       source: "routes",
       filter: ["==", ["get", "selected"], 0],
+      slot: "top",
       layout: { "line-cap": "round", "line-join": "round" },
       paint: {
         "line-color": ["get", "color"],
         "line-width": 3.5,
-        "line-opacity": opts.night ? 0.45 : 0.38,
+        "line-opacity": opts.night ? 0.72 : 0.42,
+        "line-emissive-strength": opts.night ? 0.85 : 0.12,
       },
     });
   }
@@ -134,6 +264,7 @@ function installMapChrome(
       type: "line",
       source: "routes",
       filter: ["==", ["get", "selected"], 1],
+      slot: "top",
       layout: {
         "line-cap": "round",
         "line-join": "round",
@@ -141,9 +272,10 @@ function installMapChrome(
       paint: {
         "line-color": ["get", "color"],
         // Round caps + short dashes ≈ dotted circles along the path
-        "line-width": 5,
-        "line-opacity": 0.98,
+        "line-width": 5.5,
+        "line-opacity": 1,
         "line-dasharray": [0.12, 1.65],
+        "line-emissive-strength": opts.night ? 1 : 0.2,
       },
     });
   }
@@ -165,6 +297,10 @@ function installMapChrome(
       },
       "routes-alt",
     );
+  }
+
+  if (opts.t1eam?.length) {
+    ensureT1eamUnderlay(map, opts.t1eam, opts.night);
   }
 }
 
@@ -202,7 +338,8 @@ export function ResidentApp() {
   const lgaDataRef = useRef<GeoJSON.FeatureCollection | null>(null);
   const routesRef = useRef<ScoredRoute[]>([]);
   const selectedIdRef = useRef<string | null>(null);
-  const basemapStyleRef = useRef<string>(DAY_BASEMAP);
+  const basemapStyleRef = useRef<string>(YOURWALK_STYLE);
+  const usedClassicBasemapRef = useRef(false);
   const walkModeRef = useRef<WalkMode>("day");
 
   const [mapReady, setMapReady] = useState(false);
@@ -210,7 +347,11 @@ export function ResidentApp() {
   const [networkStatus, setNetworkStatus] = useState("Loading footpath network…");
   const [error, setError] = useState<string | null>(null);
   const [walkMode, setWalkMode] = useState<WalkMode>("day");
+  const [whenOverridden, setWhenOverridden] = useState(false);
+  const [whenHint, setWhenHint] = useState("Day · daylight in Casey now");
+  const [whenStale, setWhenStale] = useState(false);
   const [prefs, setPrefs] = useState<RoutePreferences>(DEFAULT_PREFS_DAY);
+  const [prefsReady, setPrefsReady] = useState(false);
   const [pickMode, setPickMode] = useState<PickMode>("idle");
   const [origin, setOrigin] = useState<LngLat | null>(null);
   const [destination, setDestination] = useState<LngLat | null>(null);
@@ -224,8 +365,10 @@ export function ResidentApp() {
   const [sheetSnap, setSheetSnap] = useState<SheetSnap>("half");
   const [walkIntent, setWalkIntent] = useState<WalkIntent>("trip");
   const [outingMinutes, setOutingMinutes] = useState(25);
-  const [outingShape, setOutingShape] = useState<OutingShape>("loop");
   const [overlays, setOverlays] = useState<OverlayState>(DEFAULT_OVERLAYS);
+  const [layersOpen, setLayersOpen] = useState(false);
+  const [showLayersTip, setShowLayersTip] = useState(false);
+  const [layersReady, setLayersReady] = useState(false);
   /** True after “Use this route” — map focused on the selected walk. */
   const [routeLocked, setRouteLocked] = useState(false);
   const [geoBusy, setGeoBusy] = useState(false);
@@ -236,14 +379,65 @@ export function ResidentApp() {
   } | null>(null);
 
   useEffect(() => {
+    let storedPrefs: string | null = null;
     try {
       if (window.localStorage.getItem(WELCOME_STORAGE_KEY) !== "1") {
         setShowWelcome(true);
       }
+      setShowLayersTip(window.localStorage.getItem(LAYERS_TIP_KEY) !== "1");
+      storedPrefs = window.localStorage.getItem(PREFS_STORAGE_KEY);
+      if (storedPrefs) {
+        const parsed = JSON.parse(storedPrefs) as Partial<RoutePreferences>;
+        setPrefs((prev) => ({
+          ...prev,
+          accessibility: clampImportance(
+            parsed.accessibility ?? prev.accessibility,
+          ),
+          shadeHeat: clampImportance(parsed.shadeHeat ?? prev.shadeHeat),
+          afterDark: clampImportance(parsed.afterDark ?? prev.afterDark),
+          preferSharedPaths: Boolean(
+            parsed.preferSharedPaths ?? prev.preferSharedPaths,
+          ),
+        }));
+      }
+      const storedLayers = window.localStorage.getItem(LAYERS_STORAGE_KEY);
+      if (storedLayers) {
+        const parsed = JSON.parse(storedLayers) as Partial<OverlayState>;
+        setOverlays({ ...DEFAULT_OVERLAYS, ...parsed });
+      }
     } catch {
       setShowWelcome(true);
     }
+    const auto = resolveCaseyWhen();
+    setWalkMode(auto.walkMode);
+    setWhenHint(auto.hint);
+    if (auto.walkMode === "night" && !storedPrefs) {
+      setPrefs(DEFAULT_PREFS_NIGHT);
+    }
+    setPrefsReady(true);
+    setLayersReady(true);
   }, []);
+
+  useEffect(() => {
+    if (!prefsReady) return;
+    try {
+      window.localStorage.setItem(PREFS_STORAGE_KEY, JSON.stringify(prefs));
+    } catch {
+      /* ignore */
+    }
+  }, [prefs, prefsReady]);
+
+  useEffect(() => {
+    if (!layersReady) return;
+    try {
+      window.localStorage.setItem(
+        LAYERS_STORAGE_KEY,
+        JSON.stringify(overlays),
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [overlays, layersReady]);
 
   const dismissWelcome = useCallback(() => {
     setShowWelcome(false);
@@ -260,19 +454,58 @@ export function ResidentApp() {
 
   useEffect(() => {
     walkModeRef.current = walkMode;
-    setPrefs((prev) => ({
-      ...(walkMode === "day" ? DEFAULT_PREFS_DAY : DEFAULT_PREFS_NIGHT),
-      preferSharedPaths: prev.preferSharedPaths,
-    }));
-    // Day ↔ Night needs a fresh plan (scores / loops differ). Back to edit;
-    // keep start, duration, shape, overlays, shared-path preference.
+  }, [walkMode]);
+
+  const clearResults = useCallback(() => {
     setRoutes([]);
     setSelectedId(null);
     setRouteError(null);
-    setSheetMode("plan");
-    setSheetSnap("half");
+    setRouteLocked(false);
     setPlanning(false);
-  }, [walkMode]);
+    setPickMode("idle");
+  }, []);
+
+  const editWalk = useCallback(() => {
+    clearResults();
+    setWhenStale(false);
+    setSheetMode("plan");
+    setSheetSnap("full");
+  }, [clearResults]);
+
+  const clearWalk = useCallback(() => {
+    clearResults();
+    setWhenStale(false);
+    setOrigin(null);
+    setDestination(null);
+    setOriginLabel("");
+    setDestLabel("");
+    setSheetMode("plan");
+    setSheetSnap("full");
+  }, [clearResults]);
+
+  const onWhenChange = (mode: WalkMode) => {
+    setWhenOverridden(true);
+    setWalkMode(mode);
+    setWhenHint(whenHintForOverride(mode));
+    if (sheetMode === "results" && routes.length > 0) {
+      clearResults();
+      setSheetMode("plan");
+      setSheetSnap("full");
+      setWhenStale(true);
+    }
+  };
+
+  const openLayers = () => {
+    setLayersOpen((o) => !o);
+    if (showLayersTip) {
+      setShowLayersTip(false);
+      try {
+        window.localStorage.setItem(LAYERS_TIP_KEY, "1");
+      } catch {
+        /* ignore */
+      }
+    }
+  };
 
   useEffect(() => {
     routesRef.current = routes;
@@ -295,6 +528,7 @@ export function ResidentApp() {
       const map = mapRef.current;
       const src = map?.getSource("routes") as mapboxgl.GeoJSONSource | undefined;
       if (!src) return;
+      const colors = routeColors(walkMode === "night");
       // selected as 0/1 — Mapbox property filters are more reliable than booleans
       src.setData({
         type: "FeatureCollection",
@@ -302,14 +536,14 @@ export function ResidentApp() {
           type: "Feature",
           properties: {
             id: r.id,
-            color: ROUTE_COLORS[i % ROUTE_COLORS.length],
+            color: colors[i % colors.length],
             selected: r.id === selected ? 1 : 0,
           },
           geometry: r.geometry,
         })),
       });
     },
-    [],
+    [walkMode],
   );
 
   /** Re-attach amenity overlay layers (needed after basemap style swap). */
@@ -317,49 +551,67 @@ export function ResidentApp() {
     (overlayState: OverlayState = overlays) => {
       const map = mapRef.current;
       if (!map) return;
-      for (const def of OVERLAY_DEFS) {
-        if (!def.available || !def.url) continue;
-        const srcId = `overlay-${def.id}`;
-        const layerId = `overlay-${def.id}-pts`;
-        const on = overlayState[def.id];
-
-        if (on) {
-          if (!map.getSource(srcId)) {
-            map.addSource(srcId, { type: "geojson", data: def.url });
-            map.addLayer({
-              id: layerId,
-              type: "circle",
-              source: srcId,
-              paint: {
-                "circle-radius": [
-                  "interpolate",
-                  ["linear"],
-                  ["zoom"],
-                  11,
-                  3,
-                  15,
-                  5,
-                ],
-                "circle-color": def.color,
-                "circle-stroke-width": 1,
-                "circle-stroke-color": "#ffffff",
-                "circle-opacity": 0.9,
-              },
-            });
-          } else if (map.getLayer(layerId)) {
-            map.setLayoutProperty(layerId, "visibility", "visible");
-          }
-        } else if (map.getLayer(layerId)) {
-          map.setLayoutProperty(layerId, "visibility", "none");
+      void (async () => {
+        try {
+          await ensureOverlayImages(map);
+        } catch {
+          return;
         }
-      }
+        if (mapRef.current !== map) return;
+        for (const def of OVERLAY_DEFS) {
+          if (!def.available || !def.url) continue;
+          const srcId = `overlay-${def.id}`;
+          const oldCircleId = `overlay-${def.id}-pts`;
+          const layerId = overlayIconLayerId(def.id);
+          const on = overlayState[def.id];
+
+          if (map.getLayer(oldCircleId)) map.removeLayer(oldCircleId);
+
+          if (on) {
+            if (!map.getSource(srcId)) {
+              map.addSource(srcId, { type: "geojson", data: def.url });
+            }
+            if (!map.getLayer(layerId)) {
+              map.addLayer({
+                id: layerId,
+                type: "symbol",
+                source: srcId,
+                slot: "top",
+                layout: {
+                  "icon-image": overlayIconImageId(def.id),
+                  "icon-size": [
+                    "interpolate",
+                    ["linear"],
+                    ["zoom"],
+                    12,
+                    0.55,
+                    16,
+                    0.95,
+                  ],
+                  "icon-allow-overlap": false,
+                  "icon-ignore-placement": false,
+                  "icon-padding": 4,
+                },
+                paint: {
+                  "icon-opacity": 0.96,
+                  "icon-emissive-strength": 0.75,
+                },
+              });
+            } else {
+              map.setLayoutProperty(layerId, "visibility", "visible");
+            }
+          } else if (map.getLayer(layerId)) {
+            map.setLayoutProperty(layerId, "visibility", "none");
+          }
+        }
+      })();
     },
     [overlays],
   );
 
   useEffect(() => {
     paintRoutes(routes, selectedId);
-  }, [routes, selectedId, paintRoutes]);
+  }, [routes, selectedId, walkMode, paintRoutes]);
 
   useEffect(() => {
     const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
@@ -370,12 +622,10 @@ export function ResidentApp() {
     if (!containerRef.current || mapRef.current) return;
 
     mapboxgl.accessToken = token;
-    const initialStyle =
-      walkModeRef.current === "night" ? NIGHT_BASEMAP : DAY_BASEMAP;
-    basemapStyleRef.current = initialStyle;
+    basemapStyleRef.current = YOURWALK_STYLE;
     const map = new mapboxgl.Map({
       container: containerRef.current,
-      style: initialStyle,
+      style: YOURWALK_STYLE,
       bounds: [
         [CASEY_BOUNDS.west, CASEY_BOUNDS.south],
         [CASEY_BOUNDS.east, CASEY_BOUNDS.north],
@@ -391,6 +641,7 @@ export function ResidentApp() {
       requestAnimationFrame(() => map.resize());
       window.setTimeout(() => map.resize(), 250);
 
+      applyStandardLook(map, resolveCaseyWhen().lightPreset);
       installMapChrome(map, {
         lga: lgaDataRef.current,
         night: walkModeRef.current === "night",
@@ -445,6 +696,7 @@ export function ResidentApp() {
             lgaDataRef.current = lga;
             installMapChrome(map, {
               lga,
+              t1eam: featuresRef.current,
               night: walkModeRef.current === "night",
             });
           } catch {
@@ -457,6 +709,11 @@ export function ResidentApp() {
           const body = await fetchSegmentsGeoJSON(resolveGeoJsonUrl());
           if (!mapRef.current) return;
           featuresRef.current = body.features ?? [];
+          ensureT1eamUnderlay(
+            map,
+            featuresRef.current,
+            walkModeRef.current === "night",
+          );
           setNetworkReady(true);
           setNetworkStatus("Ready to plan a walk");
         } catch (err) {
@@ -467,6 +724,19 @@ export function ResidentApp() {
     });
 
     map.on("error", (e) => {
+      const msg = e.error?.message ?? "";
+      if (
+        !usedClassicBasemapRef.current &&
+        basemapStyleRef.current === YOURWALK_STYLE &&
+        /style|403|404|not found|failed to fetch/i.test(msg)
+      ) {
+        usedClassicBasemapRef.current = true;
+        const fallback =
+          walkModeRef.current === "night" ? NIGHT_BASEMAP : DAY_BASEMAP;
+        basemapStyleRef.current = fallback;
+        map.setStyle(fallback);
+        return;
+      }
       console.error("Mapbox error", e.error);
       setError(e.error?.message ?? "Map failed to load");
     });
@@ -483,31 +753,72 @@ export function ResidentApp() {
     };
   }, []);
 
-  // Day streets ↔ Night dark basemap (style swap clears custom layers)
+  // Planned When → Standard lightPreset (no full style swap)
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    const next = walkMode === "night" ? NIGHT_BASEMAP : DAY_BASEMAP;
-    if (basemapStyleRef.current === next) return;
-    basemapStyleRef.current = next;
-
-    map.setStyle(next);
-    map.once("style.load", () => {
-      installMapChrome(map, {
-        lga: lgaDataRef.current,
-        night: walkMode === "night",
+    const preset = plannedLightPreset(walkMode, whenOverridden);
+    if (usedClassicBasemapRef.current) {
+      const next = walkMode === "night" ? NIGHT_BASEMAP : DAY_BASEMAP;
+      if (basemapStyleRef.current === next) return;
+      basemapStyleRef.current = next;
+      map.setStyle(next);
+      map.once("style.load", () => {
+        installMapChrome(map, {
+          lga: lgaDataRef.current,
+          t1eam: featuresRef.current,
+          night: walkMode === "night",
+        });
+        paintRoutes(routesRef.current, selectedIdRef.current);
+        syncOverlayLayers();
       });
-      paintRoutes(routesRef.current, selectedIdRef.current);
-      syncOverlayLayers();
-    });
-  }, [walkMode, mapReady, paintRoutes, syncOverlayLayers]);
+      return;
+    }
+    applyStandardLook(map, preset);
+    if (map.getLayer("routes-alt")) {
+      map.setPaintProperty(
+        "routes-alt",
+        "line-opacity",
+        walkMode === "night" ? 0.72 : 0.42,
+      );
+      map.setPaintProperty(
+        "routes-alt",
+        "line-emissive-strength",
+        walkMode === "night" ? 0.85 : 0.12,
+      );
+    }
+    if (map.getLayer("routes-selected")) {
+      map.setPaintProperty(
+        "routes-selected",
+        "line-emissive-strength",
+        walkMode === "night" ? 1 : 0.2,
+      );
+    }
+    if (map.getLayer("lga-line")) {
+      map.setPaintProperty(
+        "lga-line",
+        "line-color",
+        walkMode === "night" ? "#8B8DD9" : "#292984",
+      );
+    }
+    if (map.getLayer(T1EAM_UNDERLAY_FILL)) {
+      ensureT1eamUnderlay(
+        map,
+        featuresRef.current,
+        walkMode === "night",
+      );
+    }
+  }, [walkMode, whenOverridden, mapReady, paintRoutes, syncOverlayLayers]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     if (origin) {
       if (!originMarkerRef.current) {
-        originMarkerRef.current = new mapboxgl.Marker({ color: "#009444" })
+        originMarkerRef.current = new mapboxgl.Marker({
+          element: createWalkPinElement(WALK_PIN_FROM, "From"),
+          anchor: "center",
+        })
           .setLngLat([origin.lng, origin.lat])
           .addTo(map);
       } else originMarkerRef.current.setLngLat([origin.lng, origin.lat]);
@@ -517,7 +828,10 @@ export function ResidentApp() {
     }
     if (destination) {
       if (!destMarkerRef.current) {
-        destMarkerRef.current = new mapboxgl.Marker({ color: "#EC008C" })
+        destMarkerRef.current = new mapboxgl.Marker({
+          element: createWalkPinElement(WALK_PIN_TO, "To"),
+          anchor: "center",
+        })
           .setLngLat([destination.lng, destination.lat])
           .addTo(map);
       } else destMarkerRef.current.setLngLat([destination.lng, destination.lat]);
@@ -564,6 +878,12 @@ export function ResidentApp() {
             lng: pos.coords.longitude,
             lat: pos.coords.latitude,
           };
+          if (!pointInCaseyBbox(point)) {
+            setRouteError(
+              "That location is outside Casey. Search or drop a pin inside the city.",
+            );
+            return;
+          }
           const label = await reverseGeocode(point, token);
           setOrigin(point);
           setOriginLabel(label || "Current location");
@@ -605,6 +925,7 @@ export function ResidentApp() {
     setRoutes([]);
     setSelectedId(null);
     setRouteLocked(false);
+    setWhenStale(false);
     await new Promise<void>((r) =>
       requestAnimationFrame(() => requestAnimationFrame(() => r())),
     );
@@ -616,16 +937,40 @@ export function ResidentApp() {
             overlays[id] &&
             OVERLAY_DEFS.some((d) => d.id === id && d.available),
         );
-        ranked = await planOutingRoutes(
-          origin,
-          outingMinutes,
-          featuresRef.current,
-          token,
-          walkMode,
-          prefs,
-          { shape: outingShape, amenityGoals },
-          3,
-        );
+        try {
+          ranked = await planOutingRoutes(
+            origin,
+            outingMinutes,
+            featuresRef.current,
+            token,
+            walkMode,
+            prefs,
+            { shape: "loop", amenityGoals },
+            3,
+          );
+        } catch (loopErr) {
+          try {
+            ranked = await planOutingRoutes(
+              origin,
+              outingMinutes,
+              featuresRef.current,
+              token,
+              walkMode,
+              prefs,
+              { shape: "out_and_back", amenityGoals },
+              3,
+            ).then((found) =>
+              found.map((r) => ({
+                ...r,
+                outing_note:
+                  r.outing_note ??
+                  "Couldn’t find a clean circuit. This walk goes out and back the same way.",
+              })),
+            );
+          } catch {
+            throw loopErr;
+          }
+        }
       } else {
         const scored = await planScoredRoutes(
           origin,
@@ -721,54 +1066,61 @@ export function ResidentApp() {
       }`}
     >
       <header
-        className={`yw-chrome-transition flex items-center border-b px-4 py-3 ${
+        className={`yw-chrome-transition flex items-center gap-2 border-b px-3 py-2.5 sm:px-4 ${
           isNight
             ? "border-white/10 bg-yw-night-surface"
             : "border-[#E8ECF2] bg-white"
         }`}
       >
-        <div className="flex min-w-0 items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/brand/yourwalk-mark.svg"
-            alt=""
-            width={36}
-            height={28}
-            className="h-8 w-auto shrink-0"
-            aria-hidden
-          />
-          <div className="min-w-0">
-            <div className="flex min-w-0 items-center gap-2">
-              <p
-                className={`truncate text-xl font-extrabold leading-none tracking-tight ${
-                  isNight ? "text-white" : "text-yw-navy"
-                }`}
-              >
-                YourWalk
-              </p>
-              <span
-                className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold tracking-wide ${
-                  isNight
-                    ? "bg-white/10 text-white/80 ring-1 ring-white/20"
-                    : "bg-yw-navy/8 text-yw-navy ring-1 ring-yw-navy/15"
-                }`}
-                title={betaVersionDetail()}
-              >
-                {BETA_LABEL}
-              </span>
-            </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/brand/yourwalk-mark.svg"
+          alt=""
+          width={36}
+          height={28}
+          className="h-8 w-auto shrink-0"
+          aria-hidden
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
             <p
-              className={`mt-0.5 truncate text-[11px] font-medium ${
-                isNight ? "text-white/55" : "text-slate-600"
+              className={`truncate text-xl font-extrabold leading-none tracking-tight ${
+                isNight ? "text-white" : "text-yw-navy"
               }`}
             >
-              Connecting Casey walks
-              <span className="hidden sm:inline">
-                {" "}
-                · app {APP_VERSION} · scores {SCORING_SPEC_VERSION}
-              </span>
+              YourWalk
             </p>
+            <span
+              className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold tracking-wide ${
+                isNight
+                  ? "bg-white/10 text-white/80 ring-1 ring-white/20"
+                  : "bg-yw-navy/8 text-yw-navy ring-1 ring-yw-navy/15"
+              }`}
+              title={betaVersionDetail()}
+            >
+              {BETA_LABEL}
+            </span>
           </div>
+          <p
+            className={`mt-0.5 truncate text-[10px] font-medium ${
+              isNight ? "text-white/45" : "text-slate-500"
+            }`}
+            title={
+              whenOverridden
+                ? `${whenHint} · app ${APP_VERSION} · scores ${SCORING_SPEC_VERSION}`
+                : `Connecting Casey walks · app ${APP_VERSION} · scores ${SCORING_SPEC_VERSION}`
+            }
+          >
+            {whenHint}
+          </p>
+        </div>
+        <div className="w-[138px] shrink-0">
+          <WalkModeSwitch
+            value={walkMode}
+            onChange={onWhenChange}
+            isNight={isNight}
+            className="mb-0"
+          />
         </div>
       </header>
 
@@ -851,36 +1203,118 @@ export function ResidentApp() {
           </div>
         ) : null}
 
-        {/* Locate FAB — above sheet on mobile; map corner on desktop */}
         <button
           type="button"
-          disabled={geoBusy || !mapReady}
-          onClick={() => void useMyLocation()}
-          className={`absolute z-[7] flex h-12 w-12 items-center justify-center rounded-full shadow-lg ring-1 transition disabled:opacity-40 ${
-            isDesktop
-              ? "bottom-5 right-5"
-              : sheetSnap === "peek"
-                ? "bottom-[calc(22%+12px)] right-3"
-                : sheetSnap === "half"
-                  ? "bottom-[calc(48%+12px)] right-3"
-                  : "bottom-[calc(72%+12px)] right-3"
+          onClick={openLayers}
+          className={`absolute z-[8] flex h-11 w-11 items-center justify-center rounded-full shadow-lg ring-1 ${
+            isDesktop ? "left-[28.25rem] top-3" : "left-3 top-3"
           } ${
-            isNight
-              ? "bg-yw-night-panel text-yw-blue ring-white/15"
-              : "bg-white text-yw-navy ring-black/10"
+            layersOpen || Object.values(overlays).some(Boolean)
+              ? "bg-yw-teal text-white ring-yw-teal/40"
+              : isNight
+                ? "bg-yw-night-panel text-white ring-white/15"
+                : "bg-white text-yw-navy ring-black/10"
           }`}
-          aria-label={geoBusy ? "Getting location" : "Use my location"}
-          title="Use my location"
+          aria-expanded={layersOpen}
+          aria-label="Map layers"
+          title="Layers"
         >
-          {geoBusy ? (
-            <span
-              className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-yw-teal border-t-transparent"
-              aria-hidden
-            />
-          ) : (
-            <IconLocate className="h-6 w-6" aria-hidden />
-          )}
+          <MdLayers className="h-5 w-5" />
         </button>
+
+        {showLayersTip && !layersOpen && pickMode === "idle" ? (
+          <p
+            className={`absolute z-[8] max-w-[13.5rem] rounded-xl px-2.5 py-2 text-[11px] font-semibold leading-snug shadow-sm ${
+              isDesktop ? "left-[31.25rem] top-3" : "left-16 top-3"
+            } ${
+              isNight
+                ? "bg-yw-night-panel text-white ring-1 ring-white/15"
+                : "bg-white text-yw-navy ring-1 ring-black/10"
+            }`}
+          >
+            Tap Layers to show fountains, benches, toilets, or dog bags.
+          </p>
+        ) : null}
+
+        {layersOpen ? (
+          <div
+            className={`absolute z-[9] w-56 rounded-2xl p-2.5 shadow-lg ring-1 ${
+              isDesktop ? "left-[28.25rem] top-16" : "left-3 top-16"
+            } ${
+              isNight
+                ? "bg-yw-night-panel ring-white/15"
+                : "bg-white ring-black/10"
+            }`}
+          >
+            <p
+              className={`mb-1.5 px-1 text-[10px] font-semibold ${
+                isNight ? "text-white/50" : "text-slate-500"
+              }`}
+            >
+              Show on the map
+              {walkIntent === "outing" ? " · soft bias for Loop" : ""}
+            </p>
+            <div className="flex flex-col gap-1">
+            {OVERLAY_DEFS.map((def) => {
+              const on = overlays[def.id];
+              return (
+                <button
+                  key={def.id}
+                  type="button"
+                  disabled={!def.available}
+                  aria-pressed={on}
+                  aria-label={
+                    def.available
+                      ? on
+                        ? `Hide ${def.label}`
+                        : `Show ${def.label}`
+                      : `${def.label}, coming soon`
+                  }
+                  onClick={() => toggleOverlay(def.id)}
+                  className={`flex min-h-11 w-full items-center gap-2.5 rounded-xl px-2 text-left text-[11px] font-semibold disabled:opacity-45 ${
+                    on
+                      ? isNight
+                        ? "bg-white/10 ring-1 ring-white/20"
+                        : "bg-[color-mix(in_srgb,var(--yw-teal)_12%,white)] ring-1 ring-yw-teal/35"
+                      : isNight
+                        ? "text-white/55"
+                        : "text-slate-500"
+                  }`}
+                >
+                  <RingedAmenityIcon id={def.id} size="sm" muted={!on} />
+                  <span className="min-w-0 flex-1">
+                    {def.label}
+                    {!def.available ? (
+                      <span
+                        className={`block text-[9px] font-medium ${
+                          isNight ? "text-white/45" : "text-slate-500"
+                        }`}
+                      >
+                        Coming soon
+                      </span>
+                    ) : null}
+                  </span>
+                  {def.available ? (
+                    on ? (
+                      <IconEye
+                        className="h-4 w-4 shrink-0 text-yw-teal"
+                        aria-hidden
+                      />
+                    ) : (
+                      <IconEyeOff
+                        className={`h-4 w-4 shrink-0 ${
+                          isNight ? "text-white/35" : "text-slate-400"
+                        }`}
+                        aria-hidden
+                      />
+                    )
+                  ) : null}
+                </button>
+              );
+            })}
+            </div>
+          </div>
+        ) : null}
 
         <div
           className={`yw-chrome-transition absolute z-10 flex flex-col overflow-hidden shadow-2xl ${
@@ -964,7 +1398,7 @@ export function ResidentApp() {
                 >
                   {sheetMode === "results" && routes.length > 0
                     ? shortLabel(originLabel) || "Your walk"
-                    : "Tell us about your walk"}
+                    : "Find your walk"}
                 </p>
                 <p
                   className={`truncate text-[11px] ${
@@ -975,7 +1409,7 @@ export function ResidentApp() {
                     ? routeLocked
                       ? "Selected on the map · swipe up to compare"
                       : `${routes.length} option${routes.length === 1 ? "" : "s"} · tap to expand`
-                    : "Swipe up to set preferences"}
+                    : "Swipe up to plan"}
                 </p>
               </div>
               <button
@@ -1020,108 +1454,97 @@ export function ResidentApp() {
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">
                   {walkIntent === "outing"
-                    ? `${shortLabel(originLabel) || "Start"} · ~${outingMinutes} min ${
-                        outingShape === "out_and_back"
-                          ? "there and back"
-                          : "loop"
-                      }`
-                    : `${shortLabel(originLabel) || "Origin"} → ${shortLabel(destLabel) || "Destination"}`}
+                    ? `${shortLabel(originLabel) || "Start"} · ~${outingMinutes} min loop`
+                    : `${shortLabel(originLabel) || "From"} → ${shortLabel(destLabel) || "To"}`}
                 </p>
                 <p
                   className={`text-[11px] ${
                     isNight ? "text-white/55" : "text-slate-600"
                   }`}
                 >
-                  {walkIntent === "outing"
-                    ? `${routes.length} walk${routes.length === 1 ? "" : "s"} from your start · ranked by what matters, time${
-                        Object.values(overlays).some(Boolean)
-                          ? ", and amenity proximity"
-                          : ""
-                      } · tap a path on the map to select`
-                    : routes.length === 1
-                      ? "1 trip option · lower importance favours a quicker walk"
-                      : `${routes.length} trip options · tap a path on the map to select`}
+                  {routes.length} option{routes.length === 1 ? "" : "s"} · tap a
+                  walk to highlight it on the map
                 </p>
               </div>
-              <button
-                type="button"
-                className={`flex min-h-11 shrink-0 items-center rounded-xl px-3 text-xs font-semibold ${
-                  isNight
-                    ? "bg-white/10 text-white/85"
-                    : "bg-slate-100 text-slate-700"
-                }`}
-                onClick={() => {
-                  setRouteLocked(false);
-                  setSheetMode("plan");
-                  setSheetSnap("full");
-                }}
-              >
-                Edit walk
-              </button>
+              <div className="flex shrink-0 gap-1">
+                <button
+                  type="button"
+                  title="Edit walk"
+                  aria-label="Edit walk"
+                  className={`flex h-11 w-11 items-center justify-center rounded-xl ${
+                    isNight
+                      ? "bg-white/10 text-white"
+                      : "bg-slate-100 text-slate-700"
+                  }`}
+                  onClick={editWalk}
+                >
+                  <MdEdit className="h-5 w-5" />
+                </button>
+                <button
+                  type="button"
+                  title="Clear walk"
+                  aria-label="Clear walk"
+                  className={`flex h-11 w-11 items-center justify-center rounded-xl ${
+                    isNight
+                      ? "bg-white/10 text-white"
+                      : "bg-slate-100 text-slate-700"
+                  }`}
+                  onClick={clearWalk}
+                >
+                  <MdClose className="h-5 w-5" />
+                </button>
+              </div>
             </div>
-          ) : null}
-
-          {sheetExpanded &&
-          !planning &&
-          sheetMode === "results" &&
-          routes.length > 0 ? (
-            <p
-              className={`mb-3 rounded-xl px-3 py-2 text-[11px] leading-snug ${
-                isNight
-                  ? "bg-white/[0.06] text-white/70"
-                  : "bg-slate-100 text-slate-700"
-              }`}
-            >
-              {RESULTS_PREF_RERANK_NOTE}
-            </p>
           ) : null}
 
           {sheetExpanded && !planning && sheetMode === "plan" ? (
             <div key="plan" className="yw-sheet-panel">
               <h1
-                className={`mb-4 text-lg font-extrabold tracking-tight ${
+                className={`mb-1.5 text-lg font-extrabold tracking-tight ${
                   isNight ? "text-white" : "text-yw-navy"
                 }`}
               >
-                Tell us about your walk
+                Find your walk
               </h1>
+              {whenStale ? (
+                <p
+                  className={`mb-3 rounded-xl px-3 py-2 text-[11px] leading-snug ${
+                    isNight
+                      ? "bg-white/[0.06] text-white/70"
+                      : "bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  When changed. Find again to re-score.
+                </p>
+              ) : null}
 
               {showWelcome ? (
                 <div
-                  className={`mb-4 rounded-2xl border px-3.5 py-3 ${
-                    isNight
-                      ? "border-white/15 bg-white/[0.06]"
-                      : "border-yw-teal/30 bg-[color-mix(in_srgb,var(--yw-teal)_8%,white)]"
+                  className={`mb-3 rounded-xl px-3 py-2 ${
+                    isNight ? "bg-white/10" : "bg-yw-day-surface"
                   }`}
                 >
                   <p
-                    className={`text-[12px] font-semibold leading-snug ${
-                      isNight ? "text-white" : "text-yw-navy"
+                    className={`text-[12px] leading-snug ${
+                      isNight ? "text-white/70" : "text-slate-600"
                     }`}
                   >
-                    YourWalk finds routes that suit you, not just the shortest
-                    one.
-                  </p>
-                  <p
-                    className={`mt-1.5 text-[11px] leading-snug ${
-                      isNight ? "text-white/65" : "text-slate-700"
-                    }`}
-                  >
-                    Mark what matters — smoother paths, shade, or lighting after
-                    dark — and we rank the best options we can find. This pilot
-                    plans walks; it does not give turn-by-turn navigation yet.
+                    Casey footpaths, ranked for shade, smoother paths, or
+                    lighting after dark. Not just the shortest way.
                   </p>
                   <button
                     type="button"
                     onClick={dismissWelcome}
-                    className={`mt-2.5 text-[11px] font-bold ${
-                      isNight ? "text-yw-teal" : "text-yw-teal"
+                    className={`mt-1.5 text-[11px] font-semibold ${
+                      isNight ? "text-yw-blue" : "text-yw-navy"
                     }`}
                   >
                     Got it
                   </button>
                 </div>
-              ) : null}
+              ) : (
+                <div className="mb-3" />
+              )}
 
               <section>
                 <p
@@ -1129,26 +1552,147 @@ export function ResidentApp() {
                     isNight ? "text-white/70" : "text-slate-700"
                   }`}
                 >
-                  When
+                  Type of walk
                 </p>
-                <WalkModeSwitch
-                  value={walkMode}
-                  onChange={setWalkMode}
+                <SegmentedPill
+                  value={walkIntent}
+                  onChange={setWalkIntent}
                   isNight={isNight}
+                  ariaLabel="Type of walk"
+                  className="mb-3"
+                  options={[
+                    {
+                      id: "trip",
+                      label: "A to B",
+                      Icon: IconTrip,
+                      title: "Start and end places",
+                    },
+                    {
+                      id: "outing",
+                      label: "Loop",
+                      Icon: IconOuting,
+                      title: "A circuit of about N minutes from a start",
+                    },
+                  ]}
                 />
+
+              {walkIntent === "trip" ? (
+                <div className="mb-4 space-y-2">
+                  <PlaceField
+                    label="From"
+                    placeholder="Park, school, suburb, or street"
+                    dot={WALK_PIN_FROM}
+                    isNight={isNight}
+                    valueLabel={shortLabel(originLabel)}
+                    pickActive={pickMode === "origin"}
+                    onPickToggle={() =>
+                      setPickMode((m) => (m === "origin" ? "idle" : "origin"))
+                    }
+                    showLocate
+                    onLocate={() => void useMyLocation()}
+                    geoBusy={geoBusy}
+                    onPlace={({ center, label }) => {
+                      setOrigin(center);
+                      setOriginLabel(label);
+                      setPickMode("idle");
+                      mapRef.current?.flyTo({
+                        center: [center.lng, center.lat],
+                        zoom: 14,
+                        duration: 600,
+                      });
+                    }}
+                  />
+                  <PlaceField
+                    label="To"
+                    placeholder="Park, school, suburb, or street"
+                    dot={WALK_PIN_TO}
+                    isNight={isNight}
+                    valueLabel={shortLabel(destLabel)}
+                    pickActive={pickMode === "destination"}
+                    onPickToggle={() =>
+                      setPickMode((m) =>
+                        m === "destination" ? "idle" : "destination",
+                      )
+                    }
+                    onPlace={({ center, label }) => {
+                      setDestination(center);
+                      setDestLabel(label);
+                      setPickMode("idle");
+                      mapRef.current?.flyTo({
+                        center: [center.lng, center.lat],
+                        zoom: 14,
+                        duration: 600,
+                      });
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="mb-4 space-y-2">
+                  <PlaceField
+                    label="Start"
+                    placeholder="Park, school, suburb, or street"
+                    dot={WALK_PIN_FROM}
+                    isNight={isNight}
+                    valueLabel={shortLabel(originLabel)}
+                    pickActive={pickMode === "origin"}
+                    onPickToggle={() =>
+                      setPickMode((m) => (m === "origin" ? "idle" : "origin"))
+                    }
+                    showLocate
+                    onLocate={() => void useMyLocation()}
+                    geoBusy={geoBusy}
+                    onPlace={({ center, label }) => {
+                      setOrigin(center);
+                      setOriginLabel(label);
+                      setPickMode("idle");
+                      mapRef.current?.flyTo({
+                        center: [center.lng, center.lat],
+                        zoom: 14,
+                        duration: 600,
+                      });
+                    }}
+                  />
+                  <OutingDurationSlider
+                    value={outingMinutes}
+                    onChange={(m) => setOutingMinutes(clampOutingMinutes(m))}
+                    isNight={isNight}
+                  />
+                  <p
+                    className={`text-[10px] leading-snug ${
+                      isNight ? "text-white/45" : "text-slate-500"
+                    }`}
+                  >
+                    A circuit from your start that returns on a different path.
+                  </p>
+                  <p
+                    className={`text-[10px] leading-snug ${
+                      isNight ? "text-white/45" : "text-slate-500"
+                    }`}
+                  >
+                    Want a fountain or bench on the way? Use Layers.
+                  </p>
+                </div>
+              )}
+
+              {pickMode !== "idle" ? (
+                <p className="mb-3 text-xs font-medium text-yw-blue">
+                  Tap the map to set{" "}
+                  {pickMode === "origin"
+                    ? walkIntent === "outing"
+                      ? "start"
+                      : "from"
+                    : "to"}
+                </p>
+              ) : null}
+              </section>
+
+              <section>
                 <p
                   className={`mb-1 text-[12px] font-semibold ${
                     isNight ? "text-white/55" : "text-slate-600"
                   }`}
                 >
                   What matters most
-                </p>
-                <p
-                  className={`mb-2 text-[10px] leading-snug ${
-                    isNight ? "text-white/45" : "text-slate-500"
-                  }`}
-                >
-                  {HOW_PREFS_CHANGE_WALKS}
                 </p>
                 <PrefSlider
                   title="Accessible footpaths"
@@ -1239,258 +1783,6 @@ export function ResidentApp() {
                   />
                 )}
               </section>
-
-              <section
-                className={`mt-4 border-t pt-4 ${
-                  isNight ? "border-white/10" : "border-[#E8ECF2]"
-                }`}
-              >
-                <p
-                  className={`mb-2 text-[13px] font-semibold ${
-                    isNight ? "text-white/70" : "text-slate-700"
-                  }`}
-                >
-                  Type of walk
-                </p>
-                <SegmentedPill
-                  value={walkIntent}
-                  onChange={setWalkIntent}
-                  isNight={isNight}
-                  ariaLabel="Type of walk"
-                  className="mb-1.5"
-                  options={[
-                    {
-                      id: "trip",
-                      label: "A to B",
-                      Icon: IconTrip,
-                      title: "Start and end places",
-                    },
-                    {
-                      id: "outing",
-                      label: "Around here",
-                      Icon: IconOuting,
-                      title: "About N minutes from a start",
-                    },
-                  ]}
-                />
-                <p
-                  className={`mb-3 text-[10px] leading-snug ${
-                    isNight ? "text-white/45" : "text-slate-500"
-                  }`}
-                >
-                  {walkIntent === "trip"
-                    ? "Set a start and end in Casey."
-                    : "Timed walk from a start — loop or there and back."}
-                </p>
-
-              {walkIntent === "trip" ? (
-                <div className="mb-3 space-y-2">
-                  <PlaceField
-                    label="From"
-                    placeholder="Suburb, address, or place"
-                    dot="#009444"
-                    isNight={isNight}
-                    valueLabel={shortLabel(originLabel)}
-                    pickActive={pickMode === "origin"}
-                    onPickToggle={() =>
-                      setPickMode((m) => (m === "origin" ? "idle" : "origin"))
-                    }
-                    onPlace={({ center, label }) => {
-                      setOrigin(center);
-                      setOriginLabel(label);
-                      setPickMode("idle");
-                      mapRef.current?.flyTo({
-                        center: [center.lng, center.lat],
-                        zoom: 14,
-                        duration: 600,
-                      });
-                    }}
-                  />
-                  <PlaceField
-                    label="To"
-                    placeholder="Where are you walking to?"
-                    dot="#EC008C"
-                    isNight={isNight}
-                    valueLabel={shortLabel(destLabel)}
-                    pickActive={pickMode === "destination"}
-                    onPickToggle={() =>
-                      setPickMode((m) =>
-                        m === "destination" ? "idle" : "destination",
-                      )
-                    }
-                    onPlace={({ center, label }) => {
-                      setDestination(center);
-                      setDestLabel(label);
-                      setPickMode("idle");
-                      mapRef.current?.flyTo({
-                        center: [center.lng, center.lat],
-                        zoom: 14,
-                        duration: 600,
-                      });
-                    }}
-                  />
-                </div>
-              ) : (
-                <div className="mb-3 space-y-2">
-                  <PlaceField
-                    label="Start"
-                    placeholder="Where will you begin?"
-                    dot="#009444"
-                    isNight={isNight}
-                    valueLabel={shortLabel(originLabel)}
-                    pickActive={pickMode === "origin"}
-                    onPickToggle={() =>
-                      setPickMode((m) => (m === "origin" ? "idle" : "origin"))
-                    }
-                    onPlace={({ center, label }) => {
-                      setOrigin(center);
-                      setOriginLabel(label);
-                      setPickMode("idle");
-                      mapRef.current?.flyTo({
-                        center: [center.lng, center.lat],
-                        zoom: 14,
-                        duration: 600,
-                      });
-                    }}
-                  />
-                  <OutingDurationSlider
-                    value={outingMinutes}
-                    onChange={(m) => setOutingMinutes(clampOutingMinutes(m))}
-                    isNight={isNight}
-                  />
-                  <p
-                    className={`mt-3 mb-1.5 text-[12px] font-semibold ${
-                      isNight ? "text-white/60" : "text-slate-600"
-                    }`}
-                  >
-                    Shape
-                  </p>
-                  <SegmentedPill
-                    value={outingShape === "one_way" ? "loop" : outingShape}
-                    onChange={setOutingShape}
-                    isNight={isNight}
-                    ariaLabel="Outing shape"
-                    options={RESIDENT_OUTING_SHAPES.map((s) => ({
-                      id: s.id,
-                      label:
-                        s.id === "out_and_back" ? "There & back" : "Loop",
-                      Icon: SHAPE_ICONS[s.id],
-                      title: s.hint,
-                    }))}
-                  />
-                  <p
-                    className={`mt-1.5 text-[10px] leading-snug ${
-                      isNight ? "text-white/45" : "text-slate-500"
-                    }`}
-                  >
-                    {
-                      RESIDENT_OUTING_SHAPES.find((s) => s.id === outingShape)
-                        ?.hint
-                    }
-                    {outingShape === "loop"
-                      ? " We’ll offer a few different circuits when we can — not there-and-backs mixed in."
-                      : ""}
-                  </p>
-                </div>
-              )}
-
-              {pickMode !== "idle" ? (
-                <p className="mb-2 text-xs font-medium text-yw-blue">
-                  Tap the map to set{" "}
-                  {pickMode === "origin"
-                    ? walkIntent === "outing"
-                      ? "start"
-                      : "origin"
-                    : "destination"}
-                </p>
-              ) : null}
-              </section>
-
-              <section
-                className={`mt-4 border-t pt-4 ${
-                  isNight ? "border-white/10" : "border-[#E8ECF2]"
-                }`}
-              >
-                <p
-                  className={`mb-1.5 text-[13px] font-semibold ${
-                    isNight ? "text-white/70" : "text-slate-700"
-                  }`}
-                >
-                  Along the way
-                </p>
-                <p
-                  className={`mb-2 text-[10px] leading-snug ${
-                    isNight ? "text-white/45" : "text-slate-500"
-                  }`}
-                >
-                  Show on the map
-                  {walkIntent === "outing" ? "; soft bias for Around here" : ""}
-                  . Not in the walk score.
-                </p>
-                <div className="mb-1 grid grid-cols-2 gap-1.5">
-                  {OVERLAY_DEFS.map((def) => {
-                    const checked = overlays[def.id];
-                    const OverlayIcon = OVERLAY_ICONS[def.id];
-                    return (
-                      <label
-                        key={def.id}
-                        className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border px-2.5 py-2 text-[11px] ${
-                          !def.available
-                            ? isNight
-                              ? "border-white/10 opacity-45"
-                              : "border-slate-100 opacity-50"
-                            : checked
-                              ? isNight
-                                ? "border-white/25 bg-white/[0.06]"
-                                : "border-yw-navy/25 bg-yw-navy/[0.04]"
-                              : isNight
-                                ? "border-white/15"
-                                : "border-[#E8ECF2]"
-                        }`}
-                        title={def.hint}
-                        style={
-                          {
-                            "--yw-check-accent": isNight
-                              ? "#8B8DD9"
-                              : "#292984",
-                            "--yw-check-border": isNight
-                              ? "rgba(255,255,255,0.35)"
-                              : "#CBD5E1",
-                            "--yw-check-bg": isNight
-                              ? "rgba(255,255,255,0.06)"
-                              : "#fff",
-                          } as CSSProperties
-                        }
-                      >
-                        <input
-                          type="checkbox"
-                          className="yw-check"
-                          disabled={!def.available}
-                          checked={checked}
-                          onChange={() => toggleOverlay(def.id)}
-                        />
-                        <OverlayIcon
-                          className="h-4 w-4 shrink-0"
-                          style={{ color: def.color }}
-                          aria-hidden
-                        />
-                        <span>
-                          <span className="font-semibold">{def.label}</span>
-                          {!def.available ? (
-                            <span
-                              className={`block text-[9px] ${
-                                isNight ? "text-white/45" : "text-slate-500"
-                              }`}
-                            >
-                              Coming soon
-                            </span>
-                          ) : null}
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </section>
             </div>
           ) : null}
 
@@ -1506,12 +1798,15 @@ export function ResidentApp() {
               <p className="mt-0.5 opacity-90">{routeError}</p>
               <p className="mt-1.5 opacity-80">
                 {walkIntent === "outing"
-                  ? "Try another start on the map, There and back, or a different duration."
-                  : "Try closer points in Casey, or tap Map to set From/To on the streets."}
+                  ? "Try another start on the map, or a different duration."
+                  : "Try closer points in Casey, or drop a pin to set From/To."}
               </p>
             </div>
           ) : null}
-          {sheetExpanded && !planning && routes.length > 0 ? (
+          {sheetExpanded &&
+          !planning &&
+          sheetMode === "results" &&
+          routes.length > 0 ? (
             <ul key="results-list" className="yw-sheet-panel mt-3 space-y-2.5">
               {routes.map((r, i) => {
                 const active = r.id === selectedId;
@@ -1526,7 +1821,8 @@ export function ResidentApp() {
                   ranked ?? preferenceScore(r, prefs, walkMode),
                 );
                 const label = routeCardLabel(r, routes);
-                const color = ROUTE_COLORS[i % ROUTE_COLORS.length];
+                const colors = routeColors(isNight);
+                const color = colors[i % colors.length];
                 return (
                   <li key={r.id}>
                     <button
@@ -1558,6 +1854,15 @@ export function ResidentApp() {
                             {label}
                           </div>
                           <p
+                            className={`mt-1 text-[11px] ${
+                              isNight ? "text-white/55" : "text-slate-600"
+                            }`}
+                          >
+                            {formatDuration(r.duration_s)}
+                            <span className="opacity-30"> · </span>
+                            {formatDistance(r.distance_m)}
+                          </p>
+                          <p
                             className={`mt-1 text-[11px] leading-snug ${
                               isNight ? "text-white/55" : "text-slate-600"
                             }`}
@@ -1574,7 +1879,9 @@ export function ResidentApp() {
                             return (
                               <p
                                 className={`mt-1 text-[10px] leading-snug ${
-                                  isNight ? "text-amber-200" : "text-amber-900"
+                                  isNight
+                                    ? "text-amber-200"
+                                    : "text-amber-900"
                                 }`}
                               >
                                 {matchNote}
@@ -1677,28 +1984,6 @@ export function ResidentApp() {
                           </p>
                         );
                       })()}
-
-                      <div
-                        className={`mt-2 flex gap-3 text-xs ${
-                          isNight ? "text-white/60" : "text-slate-600"
-                        }`}
-                      >
-                        <span>
-                          <strong
-                            className={isNight ? "text-white/90" : "text-slate-800"}
-                          >
-                            {formatDuration(r.duration_s)}
-                          </strong>
-                        </span>
-                        <span className="opacity-30">·</span>
-                        <span>
-                          <strong
-                            className={isNight ? "text-white/90" : "text-slate-800"}
-                          >
-                            {formatDistance(r.distance_m)}
-                          </strong>
-                        </span>
-                      </div>
                     </button>
                   </li>
                 );
@@ -1774,7 +2059,7 @@ export function ResidentApp() {
                 {!networkReady
                   ? "Loading network…"
                   : walkIntent === "outing"
-                    ? "Find my walk"
+                    ? "Find my loop"
                     : "Find my route"}
               </button>
               {mapReady ? (
@@ -1947,14 +2232,14 @@ function PrefSlider({
   };
   return (
     <div
-      className={`mb-2.5 rounded-2xl border px-3.5 py-3 ${shells[tone]}`}
+      className={`mb-1.5 rounded-xl border px-3 py-2 ${shells[tone]}`}
       style={{ "--yw-pref-accent": accent } as CSSProperties}
     >
-      <div className="mb-2 flex items-start justify-between gap-2">
+      <div className="mb-1 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <span className={`text-[15px] font-bold ${titles[tone]}`}>{title}</span>
+          <span className={`text-[13px] font-bold ${titles[tone]}`}>{title}</span>
           {description ? (
-            <p className={`mt-0.5 text-[12px] leading-snug ${descs[tone]}`}>
+            <p className={`truncate text-[10px] leading-snug ${descs[tone]}`}>
               {description}
             </p>
           ) : null}
@@ -1974,7 +2259,9 @@ function PrefSlider({
         aria-label={`${title} importance`}
       />
       <div
-        className={`mt-0.5 flex justify-between text-[10px] font-semibold leading-none ${descs[tone]}`}
+        className={`mt-0.5 flex justify-between text-[9px] font-medium leading-none ${
+          isNight ? "text-white/40" : "text-slate-500"
+        }`}
       >
         <span>Less important</span>
         <span>More important</span>
