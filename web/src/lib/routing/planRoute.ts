@@ -1,14 +1,17 @@
 import {
   isChallengerPathSafe,
+  mapboxLooksCentreline,
   nudgeGeometryTowardSidewalk,
 } from "./carriageway";
-import { fetchChallengerRoute } from "./challenger";
+import { fetchChallengerRoute, type ChallengerRoute } from "./challenger";
 import {
   fetchWalkingRouteCandidates,
+  MAX_DETOUR_RATIO,
+  MAX_DETOUR_RATIO_AWAY,
   type MapboxRoute,
 } from "./directions";
 import { pointInCaseyBbox } from "./geo";
-import type { RoutePreferences } from "./preferences";
+import { isScoreAwareStrategy, type RoutePreferences } from "./preferences";
 import { scoreRouteAgainstSegments } from "./scoreRoute";
 import type { LngLat, RankMode, ScoredRoute } from "./types";
 
@@ -81,6 +84,7 @@ function toScored(
     strategy?: string;
     centreline_look_share?: number;
     paint_nudged?: boolean;
+    complement_stream?: ScoredRoute["complement_stream"];
   },
   index: number,
   segments: GeoJSON.Feature[],
@@ -95,13 +99,15 @@ function toScored(
     strategy: r.strategy,
     centreline_look_share: r.centreline_look_share,
     paint_nudged: r.paint_nudged,
+    complement_stream: r.complement_stream,
     score: scoreRouteAgainstSegments(r.geometry, segments, r.distance_m),
   };
 }
 
 /**
- * Hybrid trip mode: Mapbox walking candidates + distinct score-aware path.
- * Challenger is retained when distinct even if that means dropping a Mapbox alt.
+ * Hybrid trip mode: Mapbox walking candidates + dual Casey cards
+ * (preference-best + other pathish corridor). Challenger is retained
+ * when distinct even if that means dropping a Mapbox alt.
  *
  * Track 0: Mapbox polylines are sidewalk-nudged when Streets shows a centreline
  * footway with a mapped sidewalk farther out (OD-12 Liara pattern).
@@ -120,22 +126,38 @@ export async function planScoredRoutes(
     throw new Error("Origin and destination must be inside the Casey pilot area.");
   }
 
-  const challengerPrefs = prefs
+  const preferAway = Boolean(prefs?.preferSharedPaths);
+  const streamPrefs = prefs
     ? {
         accessibility: prefs.accessibility,
         shadeHeat: prefs.shadeHeat,
         afterDark: prefs.afterDark,
       }
     : undefined;
+  const fetchOpts = opts?.challengerApiBase
+    ? { apiBase: opts.challengerApiBase }
+    : {};
 
-  const [mapboxRaw, challenger] = await Promise.all([
-    fetchWalkingRouteCandidates(origin, destination, token, maxRoutes),
-    fetchChallengerRoute(origin, destination, mode, {
-      prefs: challengerPrefs,
-      ...(opts?.challengerApiBase
-        ? { apiBase: opts.challengerApiBase }
-        : {}),
+  const [mapboxRaw, challenger, complementCh, awayChallenger] = await Promise.all([
+    fetchWalkingRouteCandidates(origin, destination, token, maxRoutes, {
+      maxDetourRatio: preferAway ? MAX_DETOUR_RATIO_AWAY : MAX_DETOUR_RATIO,
     }),
+    fetchChallengerRoute(origin, destination, mode, {
+      prefs: streamPrefs,
+      ...fetchOpts,
+    }),
+    streamPrefs
+      ? fetchChallengerRoute(origin, destination, mode, {
+          prefs: { ...streamPrefs, complement: true },
+          ...fetchOpts,
+        })
+      : Promise.resolve(null),
+    preferAway
+      ? fetchChallengerRoute(origin, destination, mode, {
+          prefs: { ...streamPrefs, preferSharedPaths: true },
+          ...fetchOpts,
+        })
+      : Promise.resolve(null),
   ]);
 
   await yieldToUi();
@@ -166,51 +188,100 @@ export async function planScoredRoutes(
     await yieldToUi();
   }
 
-  if (
-    challenger &&
-    isGeometryDistinct(
-      challenger.geometry,
-      challenger.distance_m,
-      scored.map((r) => ({
+  const caseyExisting = () =>
+    scored
+      .filter((r) => isScoreAwareStrategy(r.strategy))
+      .map((r) => ({
         geometry: r.geometry,
         distance_m: r.distance_m,
-      })),
-    ) &&
-    (await isChallengerPathSafe(challenger, token))
-  ) {
+      }));
+
+  const tryMergeChallenger = async (
+    candidate: ChallengerRoute | null,
+    idPrefix: string,
+  ): Promise<ScoredRoute | null> => {
+    if (!candidate) return null;
+    // Dedupe Casey only against other Casey cards. A Mapbox lookalike
+    // must not hide Bellevue / Fieldhouse; that Mapbox is dropped below.
+    if (
+      !isGeometryDistinct(
+        candidate.geometry,
+        candidate.distance_m,
+        caseyExisting(),
+      )
+    ) {
+      return null;
+    }
+    if (!(await isChallengerPathSafe(candidate, token))) return null;
     // Same Track 0 paint treatment as Mapbox: OSM ways without separate
-    // sidewalk geometry draw at the road centreline (OD-12 Homestead Rd), so
-    // nudge to the casing edge. Distance/duration stay graph truth; the
-    // path-safe gate above already ran on the raw geometry.
+    // sidewalk geometry draw at the road centreline (OD-12 Homestead Rd).
     const saNudged = await nudgeGeometryTowardSidewalk(
-      challenger.geometry,
+      candidate.geometry,
       token,
     );
     const sa = toScored(
       {
-        distance_m: challenger.distance_m,
-        duration_s: challenger.duration_s,
+        distance_m: candidate.distance_m,
+        duration_s: candidate.duration_s,
         geometry: saNudged.geometry,
-        strategy: challenger.strategy,
+        strategy: candidate.strategy,
         centreline_look_share: saNudged.centreline_look_share,
         paint_nudged: saNudged.nudged_share > 0,
+        complement_stream: candidate.complement_stream,
       },
       scored.length,
       segments,
-      "score-aware",
+      idPrefix,
     );
     await yieldToUi();
-    const mapboxKeep = Math.max(0, maxRoutes - 1);
-    // When Mapbox paint was centreline-ambiguous, lead with score-aware so
-    // Recommended defaults to the path-safer line before preference sort.
-    const mapboxCards = scored.slice(0, mapboxKeep);
-    const merged = mapboxNeededNudge
-      ? [sa, ...mapboxCards]
-      : [...mapboxCards, sa];
-    return merged.map((r, i) => ({ ...r, index: i, id: r.id }));
+    scored.push(sa);
+    return sa;
+  };
+
+  // Preference-best, then the other pathish corridor, then away-from-roads
+  // (only if the resident asked). Cap 3; Mapbox only if room and path-safe.
+  const def = await tryMergeChallenger(challenger, "score-aware");
+  const complement = await tryMergeChallenger(
+    complementCh,
+    "score-aware-complement",
+  );
+  const away = await tryMergeChallenger(awayChallenger, "score-aware-away");
+  const extras = [def, complement, away].filter(
+    (r): r is ScoredRoute => r != null,
+  );
+  if (!extras.length) {
+    return scored.slice(0, maxRoutes).map((r, i) => ({ ...r, index: i }));
   }
 
-  return scored.slice(0, maxRoutes).map((r, i) => ({ ...r, index: i }));
+  // Casey is already on the footpath network. Hide Mapbox that still reads
+  // as a mid-carriageway walk (OD-12 Homestead). Keep Mapbox when it is a
+  // genuinely path-safe different corridor (OD-CARRIAGE-01), or when Casey
+  // is absent (last resort above).
+  const mapboxCards = scored
+    .filter((r) => !extras.includes(r))
+    .filter((r) => !mapboxLooksCentreline(r))
+    .filter((r) =>
+      isGeometryDistinct(
+        r.geometry,
+        r.distance_m,
+        extras.map((e) => ({
+          geometry: e.geometry,
+          distance_m: e.distance_m,
+        })),
+      ),
+    );
+  const mapboxKeep = Math.max(0, maxRoutes - extras.length);
+  // When Mapbox paint was centreline-ambiguous, lead with score-aware so
+  // Recommended defaults to the path-safer line before preference sort.
+  // Prefer-away leads with the off-road variant the resident asked for.
+  const lead =
+    preferAway && away
+      ? [away, ...extras.filter((r) => r !== away)]
+      : extras;
+  const merged = mapboxNeededNudge || preferAway
+    ? [...lead, ...mapboxCards.slice(0, mapboxKeep)]
+    : [...mapboxCards.slice(0, mapboxKeep), ...lead];
+  return merged.slice(0, maxRoutes).map((r, i) => ({ ...r, index: i, id: r.id }));
 }
 
 export function sortRoutes(

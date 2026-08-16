@@ -21,6 +21,23 @@ const PATHISH = new Set([
 /** Reject when this share of samples nearest a non-path street class. */
 export const MAX_CARRIAGEWAY_SHARE = 0.28;
 
+/**
+ * When a path-safe Casey card exists, drop Mapbox if this share of densified
+ * points sat on/in the carriageway (Track 0 look, before / during nudge).
+ * Same budget as the carriageway gate. OD-12 Homestead fails this; path-safe
+ * Mapbox alts on OD-CARRIAGE-01 do not.
+ */
+export const MAX_CENTRELINE_LOOK_WHEN_CASEY = 0.28;
+
+/** True when Mapbox still reads as a mid-road walk (Casey should replace it). */
+export function mapboxLooksCentreline(route: {
+  centreline_look_share?: number | null;
+}): boolean {
+  const look = route.centreline_look_share;
+  if (look == null || !Number.isFinite(look)) return false;
+  return look >= MAX_CENTRELINE_LOOK_WHEN_CASEY;
+}
+
 /** Tilequery radius for carriageway / sidewalk probes (metres). */
 const TILEQUERY_RADIUS_M = 35;
 

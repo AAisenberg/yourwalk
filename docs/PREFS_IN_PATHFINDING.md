@@ -1,6 +1,6 @@
 # Preference-weighted pathfinding — north star spec
 
-**Status:** Proposed — implement after challenger ops are reliable  
+**Status:** Accepted lean — P1–P3 shipped locally 16 Aug 2026. Hosted challenger still open.  
 **Date:** 12 August 2026  
 **Product:** YourWalk · City of Casey pilot  
 **Related:** [`DECISIONS.md`](DECISIONS.md) ADR-001 · [`ROUTING_OUTPUTS.md`](ROUTING_OUTPUTS.md) · [`SCORING_SPEC_v1.1.md`](SCORING_SPEC_v1.1.md) §13 · `web/src/lib/routing/tripFunnel.ts`
@@ -124,10 +124,10 @@ stream = (w_acc * accessibility + w_light * lighting) / (w_acc + w_light)
 cost = length_m * f(stream)
 ```
 
-**Soft biases (optional v1)**
+**Soft biases (shipped 16 Aug 2026)**
 
-- Prefer away from roads: mild multiplier from OSM highway class / shared-use — ranking bonus today; may also nudge cost. Must not override carriageway product rule.
-- Efficiency: keep soft detour cap vs graph-shortest (today ~1.15×). Do not let shade chase unbounded detours.
+- Prefer away from roads: **generation-time**. Default graph already applies 1.5–2× per-metre cost on road classes. When the toggle is on, Dijkstra uses a stronger off-road multiplier, the challenger detour cap rises to ~1.6×, and Mapbox's 1.3× gate matches. Ranking still adds the shared-use bonus. Must not override the carriageway product rule.
+- Efficiency: keep soft detour cap vs graph-shortest (1.15× default; 1.6× when Prefer away from roads is on). Do not let shade chase unbounded detours.
 
 ### 4.3 Candidate set strategy (trip)
 
@@ -135,7 +135,7 @@ To make slider changes **visible** even when Mapbox returns one line:
 
 1. Keep Mapbox path-safe pool (0–2 cards after gates).
 2. Request **one preference-weighted challenger** with current slider blend (primary).
-3. Optionally request a second challenger at **complementary** weights (e.g. shade-max vs footpaths-max) when geometrically distinct — cap total cards at 3.
+3. Request a second challenger at **complementary** weights (the other pathish corridor: invert the dominant stream, no prefix penalty) when geometrically distinct. Mid/mid treats shade / lighting as dominant. Not both sliders at the floor. Cap total cards at 3.
 4. Rank with existing match logic so Recommended stays preference-true.
 
 Minimum shippable: step 1 + 2. Step 3 is the trust amplifier for demos (“here is the shadier option vs the smoother option”).
@@ -186,7 +186,7 @@ Do not promise prefs-in-pathfinding on Vercel until the challenger is reachable 
 | **P0 — Ops** | Challenger process + env docs; funnel smoke in CI-ish script | Local funnel `challenger health: OK`; prod plan documented |
 | **P1 — Gate fix** | Challenger pathish classification so OD-11 can merge | ✅ Done 12 Aug 2026 — OSM pathish OR Streets; OD-11 + OD-12 dual cards; OD-CARRIAGE-01 unchanged |
 | **P2 — Pref costs (trip)** | Join streams; `/route` accepts prefs; one blended challenger | ✅ Done 12 Aug 2026 — Acc + derived Heat & Shade on graph; `smoke-prefs-pathfinding.ts` distinct on OD-01 + OD-12 (OD-11 single corridor) |
-| **P3 — Dual challenger (trip)** | Shade-max + footpaths-max variants when distinct | Demo script: slider flip changes Recommended **line**, not only match |
+| **P3 — Dual challenger (trip)** | Shade-max + footpaths-max variants when distinct; Prefer away from roads now requests an off-road-biased second challenger | ✅ Done 16 Aug 2026 — other pathish corridor (invert stream, no prefix penalty, 1.20×) plus away-from-roads variant (1.6×) |
 | **P4 — Outing bias** | Via selection uses blended stream | Montpelier-class loop: Find again after shade max changes circuit when network allows |
 
 UI copy (Slice 1/2) stays complementary: “Edit walk and search again” remains true because pathfinding runs at Find time, not on every thumb move (unless we later add debounced live re-plan — out of scope for P2).
@@ -232,7 +232,7 @@ UI copy (Slice 1/2) stays complementary: “Edit walk and search again” remain
 ## 10. Open questions
 
 1. **Hosted challenger:** Fly.io / Railway / always-on VM vs “local only for lab, Mapbox-only prod” for Casey staff test?
-2. **Dual challenger cost:** Always two Dijkstra calls vs only when Mapbox pool size is 1?
+2. **Dual challenger cost:** Always two Dijkstra calls vs only when Mapbox pool size is 1? **Decided 16 Aug 2026:** always request the other pathish corridor; omit if not distinct. Cap 3 with optional away.
 3. **Heat & Shade on graph:** Persist `heat_shade_score` in parquet join vs derive at build time from Day/Acc?
 4. **Thumb vs Find:** Keep Find-to-search (recommended for P2) or debounced re-plan on results?
 
@@ -251,4 +251,6 @@ UI copy (Slice 1/2) stays complementary: “Edit walk and search again” remain
 
 | Date | Note |
 |------|------|
+| 16 Aug 2026 | P3: other pathish corridor (no prefix penalty, 1.20×) + optional away-from-roads. Dual Casey battery 5/13 ODs. Recap: [`ROUTING_NOTE_NIKKI_2026-08-16.md`](ROUTING_NOTE_NIKKI_2026-08-16.md). |
+| 16 Aug 2026 | Prefer away from roads is generation-time (1.6× detour, trail-vs-sidewalk costs). Road-class 1.5–2× cost and OSM crossing-node edges shipped with it. |
 | 12 Aug 2026 | Spec opened from XYX feedback + trip funnel (challenger down vs up). |

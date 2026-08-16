@@ -11,7 +11,7 @@ import geopandas as gpd
 import httpx
 import numpy as np
 from shapely import make_valid
-from shapely.geometry import LineString
+from shapely.geometry import LineString, Point
 from shapely.ops import unary_union
 
 ROOT = Path(__file__).resolve().parent
@@ -19,6 +19,7 @@ sys.path.insert(0, str(ROOT))
 
 from paths import (  # noqa: E402
     LGA_BOUNDARY,
+    OSM_CROSSINGS,
     OSM_JOINED,
     OSM_WAYS,
     SCORES_EXPORT,
@@ -62,6 +63,21 @@ out body geom;
 """.strip()
 
 
+def overpass_crossing_query(
+    south: float, west: float, north: float, east: float
+) -> str:
+    """Node-tagged pedestrian crossings (often not mapped as footway ways)."""
+    return f"""
+[out:json][timeout:180];
+(
+  node["highway"="crossing"]({south},{west},{north},{east});
+  node["crossing"]({south},{west},{north},{east});
+  node["footway"="crossing"]({south},{west},{north},{east});
+);
+out body;
+""".strip()
+
+
 def _parse_ways(payload: dict) -> list[dict]:
     rows: list[dict] = []
     for el in payload.get("elements", []):
@@ -82,6 +98,87 @@ def _parse_ways(payload: dict) -> list[dict]:
             }
         )
     return rows
+
+
+def _parse_crossing_nodes(payload: dict) -> list[dict]:
+    rows: list[dict] = []
+    seen: set[int] = set()
+    for el in payload.get("elements", []):
+        if el.get("type") != "node":
+            continue
+        nid = el.get("id")
+        if nid in seen:
+            continue
+        lon, lat = el.get("lon"), el.get("lat")
+        if lon is None or lat is None:
+            continue
+        tags = el.get("tags") or {}
+        seen.add(int(nid))
+        rows.append(
+            {
+                "osm_id": int(nid),
+                "highway": tags.get("highway"),
+                "crossing": tags.get("crossing"),
+                "footway": tags.get("footway"),
+                "crossing_ref": tags.get("crossing_ref"),
+                "geometry": Point(float(lon), float(lat)),
+            }
+        )
+    return rows
+
+
+def fetch_osm_crossing_nodes(
+    *, bbox: tuple[float, float, float, float] | None = None
+) -> gpd.GeoDataFrame:
+    """Fetch node-tagged OSM crossings for graph-build synthesis.
+
+    Routing connectivity only — not a scoring input (methodology v1.1
+    still treats general crossings as a Council-data gap).
+    """
+    south, west, north, east = bbox or lga_bbox()
+    print(
+        f"Overpass crossings bbox S/W → N/E: {south:.4f},{west:.4f} → {north:.4f},{east:.4f}"
+    )
+    headers = {"User-Agent": USER_AGENT}
+    q = overpass_crossing_query(south, west, north, east)
+    last_err: Exception | None = None
+    payload = None
+    with httpx.Client(timeout=180.0, headers=headers) as client:
+        for url in OVERPASS_ENDPOINTS:
+            try:
+                print(f"  query crossing nodes via {url.split('/')[2]}")
+                r = client.post(url, data={"data": q})
+                if r.status_code == 429 or r.status_code >= 500:
+                    last_err = httpx.HTTPStatusError(
+                        f"{r.status_code}", request=r.request, response=r
+                    )
+                    time.sleep(5)
+                    continue
+                r.raise_for_status()
+                payload = r.json()
+                break
+            except Exception as e:  # noqa: BLE001
+                last_err = e
+                time.sleep(2)
+    if payload is None:
+        raise RuntimeError(f"Overpass failed for crossing nodes: {last_err}")
+    rows = _parse_crossing_nodes(payload)
+    print(f"    +{len(rows)} crossing nodes")
+    if not rows:
+        return gpd.GeoDataFrame(
+            columns=["osm_id", "highway", "crossing", "footway", "crossing_ref", "geometry"],
+            crs=4326,
+        )
+    gdf = gpd.GeoDataFrame(rows, crs=4326)
+    if LGA_BOUNDARY.exists() and bbox is None:
+        lga = gpd.read_file(LGA_BOUNDARY)
+        if lga.crs is None:
+            lga = lga.set_crs(4326)
+        else:
+            lga = lga.to_crs(4326)
+        poly = unary_union(lga.geometry).buffer(0.002)
+        gdf = gdf[gdf.intersects(poly)].copy()
+    return gdf
 
 
 def fetch_osm_ways(*, bbox: tuple[float, float, float, float] | None = None) -> gpd.GeoDataFrame:
@@ -242,7 +339,12 @@ def main() -> int:
     parser.add_argument(
         "--reuse-osm",
         action="store_true",
-        help=f"Reuse existing {OSM_WAYS.name} (skip Overpass)",
+        help=f"Reuse existing {OSM_WAYS.name} (skip Overpass ways)",
+    )
+    parser.add_argument(
+        "--reuse-crossings",
+        action="store_true",
+        help=f"Reuse existing {OSM_CROSSINGS.name} (skip Overpass nodes)",
     )
     args = parser.parse_args()
 
@@ -268,6 +370,14 @@ def main() -> int:
         osm = fetch_osm_ways(bbox=bbox)
         osm.to_file(OSM_WAYS, driver="GeoJSON")
         print(f"  {len(osm)} ways → {OSM_WAYS}")
+
+    if args.reuse_crossings and OSM_CROSSINGS.exists():
+        print(f"Reusing crossing nodes ← {OSM_CROSSINGS}")
+    else:
+        print("Fetching OSM crossing nodes…")
+        crossings = fetch_osm_crossing_nodes(bbox=bbox)
+        crossings.to_file(OSM_CROSSINGS, driver="GeoJSON")
+        print(f"  {len(crossings)} crossing nodes → {OSM_CROSSINGS}")
 
     scores = gpd.read_file(SCORES_EXPORT)
     if bbox is not None:

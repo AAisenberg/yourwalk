@@ -6,10 +6,13 @@ import { fetchChallengerRoute } from "./challenger";
 import {
   challengerOsmPathishOk,
   isChallengerPathSafe,
+  mapboxLooksCentreline,
+  nudgeGeometryTowardSidewalk,
   roadCarriagewayShare,
 } from "./carriageway";
 import {
   MAX_DETOUR_RATIO,
+  MAX_DETOUR_RATIO_AWAY,
   type MapboxRoute,
 } from "./directions";
 import { isGeometryDistinct } from "./planRoute";
@@ -141,6 +144,7 @@ export async function diagnoseTripRouteFunnel(opts: {
     accessibility?: number;
     shadeHeat?: number;
     afterDark?: number;
+    preferSharedPaths?: boolean;
   };
 }): Promise<TripFunnelReport> {
   const {
@@ -212,12 +216,15 @@ export async function diagnoseTripRouteFunnel(opts: {
     };
   }
 
+  const detourRatio = prefs?.preferSharedPaths
+    ? MAX_DETOUR_RATIO_AWAY
+    : MAX_DETOUR_RATIO;
   const shortest = Math.min(...collected.map((r) => r.distance));
   const afterDetour = collected.filter(
     (r) =>
       !Number.isFinite(shortest) ||
       shortest <= 0 ||
-      r.distance <= shortest * MAX_DETOUR_RATIO,
+      r.distance <= shortest * detourRatio,
   );
   const droppedDetour = collected
     .filter((r) => !afterDetour.includes(r))
@@ -326,10 +333,17 @@ export async function diagnoseTripRouteFunnel(opts: {
           duration_s: Math.round(challenger.duration_s),
           strategy: challenger.strategy,
         };
-        // Match planRoute: keep maxRoutes-1 Mapbox + challenger
+        // Same as planRoute: drop Mapbox that still looks mid-road once Casey
+        // is on the footpath (OD-12 Homestead). Path-safe Mapbox alts stay.
+        const mapboxHonest: FunnelCandidate[] = [];
+        for (const r of mapboxDistinct) {
+          const nudged = await nudgeGeometryTowardSidewalk(r.geometry, token);
+          if (mapboxLooksCentreline(nudged)) continue;
+          mapboxHonest.push(summarise(r));
+        }
         const mapboxKeep = Math.max(0, maxRoutes - 1);
         const merged = [
-          ...finalRoutes.slice(0, mapboxKeep),
+          ...mapboxHonest.slice(0, mapboxKeep),
           {
             strategy: challenger.strategy,
             distance_m: Math.round(challenger.distance_m),

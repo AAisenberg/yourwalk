@@ -61,6 +61,7 @@ import {
   DEFAULT_PREFS_NIGHT,
   PREF_IMPORTANCE_MAX,
   PREF_IMPORTANCE_MIN,
+  HOW_PREFS_CHANGE_WALKS,
   RESULTS_PREF_RERANK_NOTE,
   type RoutePreferences,
   type WalkMode,
@@ -1147,8 +1148,7 @@ export function ResidentApp() {
                     isNight ? "text-white/45" : "text-slate-500"
                   }`}
                 >
-                  Sliders set how important each factor is when we rank options
-                  — not whether you want worse paths.
+                  {HOW_PREFS_CHANGE_WALKS}
                 </p>
                 <PrefSlider
                   title="Accessible footpaths"
@@ -1172,7 +1172,7 @@ export function ResidentApp() {
                             : "bg-[color-mix(in_srgb,var(--yw-blue)_14%,white)]"
                           : ""
                       }`}
-                      title="Soft preference: rank walks higher when they use more Casey shared-use paths (trails and wider paths), not only roadside footpaths. Does not change corridor score pills."
+                      title="When you search, include a walk that stays on parks and paths even if it takes longer (up to about 1.6×). Does not change corridor score pills."
                       style={
                         {
                           "--yw-check-accent": "#0B5F8A",

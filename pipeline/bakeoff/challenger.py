@@ -14,8 +14,14 @@ from shapely.geometry import LineString, mapping
 
 from build_graph import (  # noqa: E402
     MAX_DETOUR,
+    MAX_DETOUR_AWAY,
+    MAX_DETOUR_COMPLEMENT,
+    MAX_DETOUR_PATHISH,
+    PATHISH_KEEP_MIN_SHARE,
     _norm_score,
+    highway_cost_mult,
     nearest_node,
+    norm_highway,
     reset_node_index,
 )
 from paths import GRAPH_PICKLE
@@ -34,12 +40,71 @@ def clamp_importance(v: object) -> int:
     return max(PREF_IMPORTANCE_MIN, min(PREF_IMPORTANCE_MAX, n))
 
 
+def invert_dominant_stream(prefs: dict[str, Any], mode: str) -> dict[str, Any]:
+    """Contrast weights: invert the dominant active stream.
+
+    Mid/mid treats shade (day) or lighting (night) as dominant so the
+    complement is footpaths-max. No corridor penalty — the other pathish
+    walk (e.g. Bellevue vs Homestead) should share a prefix if it needs to.
+    Both-sliders-at-floor is *not* the complement.
+    """
+    if mode == "night":
+        w_acc = clamp_importance(prefs.get("accessibility", 60))
+        w_light = clamp_importance(prefs.get("afterDark", 40))
+        if w_light >= w_acc:
+            return {
+                "accessibility": PREF_IMPORTANCE_MAX,
+                "afterDark": PREF_IMPORTANCE_MIN,
+                "shadeHeat": 0,
+                "preferSharedPaths": False,
+            }
+        return {
+            "accessibility": PREF_IMPORTANCE_MIN,
+            "afterDark": PREF_IMPORTANCE_MAX,
+            "shadeHeat": 0,
+            "preferSharedPaths": False,
+        }
+    w_acc = clamp_importance(prefs.get("accessibility", 60))
+    w_shade = clamp_importance(prefs.get("shadeHeat", 40))
+    if w_shade >= w_acc:
+        return {
+            "accessibility": PREF_IMPORTANCE_MAX,
+            "shadeHeat": PREF_IMPORTANCE_MIN,
+            "afterDark": 0,
+            "preferSharedPaths": False,
+        }
+    return {
+        "accessibility": PREF_IMPORTANCE_MIN,
+        "shadeHeat": PREF_IMPORTANCE_MAX,
+        "afterDark": 0,
+        "preferSharedPaths": False,
+    }
+
+
+def complement_stream_name(prefs: dict[str, Any], mode: str) -> str:
+    """Stream the inverted complement maximises."""
+    if mode == "night":
+        w_acc = clamp_importance(prefs.get("accessibility", 60))
+        w_light = clamp_importance(prefs.get("afterDark", 40))
+        return "afterDark" if w_light > w_acc else "accessibility"
+    w_acc = clamp_importance(prefs.get("accessibility", 60))
+    w_shade = clamp_importance(prefs.get("shadeHeat", 40))
+    return "shadeHeat" if w_shade > w_acc else "accessibility"
+
+
 def preference_edge_weight(
     g: nx.Graph,
     mode: str,
     prefs: dict[str, Any],
+    *,
+    penalize_edges: set[frozenset[Any]] | None = None,
+    penalize_mult: float = 3.0,
 ):
-    """NetworkX weight callable: preference-blended Casey streams → edge cost."""
+    """NetworkX weight callable: preference-blended Casey streams → edge cost.
+
+    ``penalize_edges`` (undirected ``frozenset({u, v})``) is used to push a
+    second, geometrically distinct away-from-roads path off the default corridor.
+    """
     meta = g.graph
     acc_p10 = float(meta.get("acc_p10", meta.get("day_p10", 40)))
     acc_p90 = float(meta.get("acc_p90", meta.get("day_p90", 80)))
@@ -48,12 +113,15 @@ def preference_edge_weight(
     light_p10 = float(meta.get("light_p10", meta.get("night_p10", 50)))
     light_p90 = float(meta.get("light_p90", meta.get("night_p90", 90)))
 
+    prefer_away = bool(prefs.get("preferSharedPaths"))
+
     if mode == "night":
         w_acc = clamp_importance(prefs.get("accessibility", 60))
         w_light = clamp_importance(prefs.get("afterDark", 40))
 
-        def weight_night(_u: Any, _v: Any, data: dict[str, Any]) -> float:
+        def weight_night(u: Any, v: Any, data: dict[str, Any]) -> float:
             length = max(1.0, float(data.get("length_m") or 1.0))
+            hw_mult = highway_cost_mult(data.get("highway"), prefer_away=prefer_away)
             parts: list[tuple[float, int]] = []
             acc = data.get("accessibility_score")
             light = data.get("lighting_after_dark_score")
@@ -66,17 +134,22 @@ def preference_edge_weight(
                     (_norm_score(float(light), light_p10, light_p90), w_light)
                 )
             if not parts:
-                return length
-            s_norm = sum(n * w for n, w in parts) / sum(w for _, w in parts)
-            return length * (1.0 + (0.5 - s_norm))
+                cost = length * hw_mult
+            else:
+                s_norm = sum(n * w for n, w in parts) / sum(w for _, w in parts)
+                cost = length * (1.0 + (0.5 - s_norm)) * hw_mult
+            if penalize_edges and frozenset((u, v)) in penalize_edges:
+                cost *= penalize_mult
+            return cost
 
         return weight_night
 
     w_acc = clamp_importance(prefs.get("accessibility", 60))
     w_shade = clamp_importance(prefs.get("shadeHeat", 40))
 
-    def weight_day(_u: Any, _v: Any, data: dict[str, Any]) -> float:
+    def weight_day(u: Any, v: Any, data: dict[str, Any]) -> float:
         length = max(1.0, float(data.get("length_m") or 1.0))
+        hw_mult = highway_cost_mult(data.get("highway"), prefer_away=prefer_away)
         parts: list[tuple[float, int]] = []
         acc = data.get("accessibility_score")
         heat = data.get("heat_shade_score")
@@ -85,9 +158,13 @@ def preference_edge_weight(
         if heat is not None and heat == heat:
             parts.append((_norm_score(float(heat), heat_p10, heat_p90), w_shade))
         if not parts:
-            return length
-        s_norm = sum(n * w for n, w in parts) / sum(w for _, w in parts)
-        return length * (1.0 + (0.5 - s_norm))
+            cost = length * hw_mult
+        else:
+            s_norm = sum(n * w for n, w in parts) / sum(w for _, w in parts)
+            cost = length * (1.0 + (0.5 - s_norm)) * hw_mult
+        if penalize_edges and frozenset((u, v)) in penalize_edges:
+            cost *= penalize_mult
+        return cost
 
     return weight_day
 
@@ -106,16 +183,22 @@ OSM_PATHISH_HIGHWAYS = frozenset(
         "cycleway",
         "service",
         "living_street",
+        "crossing",
     }
 )
 
 
-def _norm_highway(hw: Any) -> str:
-    if hw is None:
-        return "unknown"
-    if isinstance(hw, (list, tuple)):
-        hw = hw[0] if hw else "unknown"
-    return str(hw).split(";")[0].strip().lower() or "unknown"
+def pathish_share_of(route: dict[str, Any] | None) -> float | None:
+    if not route:
+        return None
+    highway_m = route.get("osm_highway_m") or {}
+    total = sum(float(v) for v in highway_m.values())
+    if total <= 0:
+        return None
+    pathish = sum(
+        float(v) for k, v in highway_m.items() if k in OSM_PATHISH_HIGHWAYS
+    )
+    return pathish / total
 
 
 def load_graph(*, force: bool = False) -> nx.Graph:
@@ -165,7 +248,7 @@ def path_to_route(
         data = g.edges[a, b]
         seg_m = float(data.get("length_m") or 0)
         length_m += seg_m
-        hw = _norm_highway(data.get("highway"))
+        hw = norm_highway(data.get("highway"))
         highway_m[hw] = highway_m.get(hw, 0.0) + seg_m
         geom = data.get("geometry")
         if geom is None:
@@ -263,20 +346,59 @@ def challenger_route(
     When ``prefs`` is set and the graph has stream attributes, Dijkstra uses
     preference-blended Accessibility + Heat & Shade (day) or Lighting (night).
     """
+    want_complement = bool(prefs and prefs.get("complement"))
+    # Complement is its own fetch; never mix with the away-from-roads hunt.
+    prefer_away = bool(prefs and prefs.get("preferSharedPaths")) and not want_complement
     use_prefs = bool(prefs) and bool(g.graph.get("prefs_pathfinding"))
-    if use_prefs:
-        assert prefs is not None
-        weight: Any = preference_edge_weight(g, mode, prefs)
-        strategy = f"score_aware_{mode}_prefs"
+    complement_stream = None
+    if want_complement:
+        strategy = f"score_aware_{mode}_prefs_complement"
+    elif use_prefs or prefer_away:
+        if use_prefs and prefer_away:
+            strategy = f"score_aware_{mode}_prefs_away"
+        elif prefer_away:
+            strategy = f"score_aware_{mode}_away"
+        else:
+            strategy = f"score_aware_{mode}_prefs"
     else:
-        weight = "cost_day" if mode == "day" else "cost_night"
         strategy = f"score_aware_{mode}"
 
     u = nearest_node(g, origin[0], origin[1])
     v = nearest_node(g, dest[0], dest[1])
+    quality_weight = "cost_day" if mode == "day" else "cost_night"
+    path_base: list[Any] | None = None
     try:
-        path_score = nx.shortest_path(g, u, v, weight=weight)
         path_dist = nx.shortest_path(g, u, v, weight="cost_distance")
+        path_quality = nx.shortest_path(g, u, v, weight=quality_weight)
+        if want_complement:
+            # Other pathish corridor: invert the dominant stream, no prefix
+            # penalty (Bellevue shares Homestead; penalising hid it).
+            base_prefs = dict(prefs or {})
+            base_prefs["preferSharedPaths"] = False
+            base_prefs.pop("complement", None)
+            complement_prefs = invert_dominant_stream(base_prefs, mode)
+            complement_stream = complement_stream_name(complement_prefs, mode)
+            weight: Any = preference_edge_weight(g, mode, complement_prefs)
+            path_score = nx.shortest_path(g, u, v, weight=weight)
+        elif prefer_away:
+            # Push off the default corridor so a longer park/trail option can
+            # appear (OD-12 Alira Park is ~1.4× — cost bias alone stays on the
+            # already-pathish Homestead sidewalk).
+            base_prefs = dict(prefs or {})
+            base_prefs["preferSharedPaths"] = False
+            path_base = nx.shortest_path(
+                g, u, v, weight=preference_edge_weight(g, mode, base_prefs)
+            )
+            used = {frozenset((a, b)) for a, b in zip(path_base, path_base[1:])}
+            weight = preference_edge_weight(
+                g, mode, prefs or {}, penalize_edges=used, penalize_mult=3.0
+            )
+            path_score = nx.shortest_path(g, u, v, weight=weight)
+        elif use_prefs:
+            weight = preference_edge_weight(g, mode, prefs or {})
+            path_score = nx.shortest_path(g, u, v, weight=weight)
+        else:
+            path_score = path_quality
     except nx.NetworkXNoPath:
         return None
 
@@ -290,8 +412,27 @@ def challenger_route(
         origin,
         dest,
     )
+    quality_route = attach_pins(
+        path_to_route(g, path_quality, strategy=f"score_aware_{mode}"),
+        origin,
+        dest,
+    )
+    default_route = None
+    if prefer_away and path_base is not None:
+        # Footpath-biased default (not graph-shortest). Used when the away
+        # search exceeds the detour cap — never fall back to a service /
+        # residential shortcut and still call it "away from roads" (OD-12
+        # shade+away alley cut).
+        default_strategy = (
+            f"score_aware_{mode}_prefs" if use_prefs else f"score_aware_{mode}"
+        )
+        default_route = attach_pins(
+            path_to_route(g, path_base, strategy=default_strategy),
+            origin,
+            dest,
+        )
     if scored is None:
-        return shortest
+        return default_route or quality_route or shortest
     if shortest is None:
         return scored
 
@@ -299,24 +440,53 @@ def challenger_route(
     # Compare network portions via geometry without stubs if pin_stub present —
     # length_m already includes stubs equally on both, so ratio stays fair.
     detour = scored["distance_m"] / max(shortest["distance_m"], 1.0)
-    max_detour = float(g.graph.get("max_detour", MAX_DETOUR))
-    if detour > max_detour:
-        shortest["strategy"] = f"{strategy}_capped"
-        shortest["capped_from_detour"] = round(detour, 3)
-        if use_prefs and prefs is not None:
-            shortest["prefs"] = {
-                "accessibility": clamp_importance(prefs.get("accessibility", 60)),
-                "shadeHeat": clamp_importance(prefs.get("shadeHeat", 40)),
-                "afterDark": clamp_importance(prefs.get("afterDark", 40)),
-            }
-        return shortest
-    scored["detour_vs_graph_shortest"] = round(detour, 3)
-    if use_prefs and prefs is not None:
-        scored["prefs"] = {
-            "accessibility": clamp_importance(prefs.get("accessibility", 60)),
-            "shadeHeat": clamp_importance(prefs.get("shadeHeat", 40)),
-            "afterDark": clamp_importance(prefs.get("afterDark", 40)),
+    if want_complement:
+        max_detour = float(
+            g.graph.get("max_detour_complement", MAX_DETOUR_COMPLEMENT)
+        )
+    elif prefer_away:
+        max_detour = float(g.graph.get("max_detour_away", MAX_DETOUR_AWAY))
+    else:
+        max_detour = float(g.graph.get("max_detour", MAX_DETOUR))
+    prefs_out = None
+    if (use_prefs or want_complement) and prefs is not None:
+        out_prefs = invert_dominant_stream(prefs, mode) if want_complement else prefs
+        prefs_out = {
+            "accessibility": clamp_importance(out_prefs.get("accessibility", 60)),
+            "shadeHeat": clamp_importance(out_prefs.get("shadeHeat", 40)),
+            "afterDark": clamp_importance(out_prefs.get("afterDark", 40)),
+            "preferSharedPaths": prefer_away,
         }
+    share = pathish_share_of(scored)
+    if want_complement and share is not None and share < PATHISH_KEEP_MIN_SHARE:
+        return None
+    pathish_keep = (
+        share is not None
+        and share >= PATHISH_KEEP_MIN_SHARE
+        and detour <= float(g.graph.get("max_detour_pathish", MAX_DETOUR_PATHISH))
+    )
+    if detour > max_detour and not (pathish_keep and not prefer_away):
+        if want_complement:
+            # Omit — do not show junk or a duplicate of the primary card.
+            return None
+        if prefer_away and default_route is not None:
+            fallback = default_route
+            fallback["away_capped_to_default"] = True
+        else:
+            # No-junk: highway-biased Casey path, never graph-shortest
+            # (service / residential alley). Pathish corridors up to 1.20×
+            # are kept above (OD-12 Bellevue).
+            fallback = quality_route or shortest
+            fallback["strategy"] = f"score_aware_{mode}"
+        fallback["capped_from_detour"] = round(detour, 3)
+        if prefs_out is not None:
+            fallback["prefs"] = prefs_out
+        return fallback
+    scored["detour_vs_graph_shortest"] = round(detour, 3)
+    if prefs_out is not None:
+        scored["prefs"] = prefs_out
+    if complement_stream is not None:
+        scored["complement_stream"] = complement_stream
     return scored
 
 
@@ -344,6 +514,8 @@ def route_to_json(route: dict[str, Any]) -> dict[str, Any]:
         "osm_highway_m": highway_m,
         "osm_pathish_share": pathish_share,
         "prefs": route.get("prefs"),
+        "away_capped_to_default": route.get("away_capped_to_default"),
+        "complement_stream": route.get("complement_stream"),
     }
 
 

@@ -8,6 +8,8 @@ type Body = {
     accessibility?: number;
     shadeHeat?: number;
     afterDark?: number;
+    preferSharedPaths?: boolean;
+    complement?: boolean;
   };
 };
 

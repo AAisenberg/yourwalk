@@ -32,6 +32,8 @@ type QueryOpts = {
 
 /** Reject trip candidates longer than this × shortest (ADR-001 trip mode). */
 export const MAX_DETOUR_RATIO = 1.3;
+/** When Prefer away from roads is on — admits park/trail options (~1.4× OD-12). */
+export const MAX_DETOUR_RATIO_AWAY = 1.6;
 
 /**
  * Trip mode: generate up to `maxRoutes` sensible walking geometries.
@@ -45,8 +47,10 @@ export async function fetchWalkingRouteCandidates(
   destination: LngLat,
   token: string,
   maxRoutes = 3,
+  opts?: { maxDetourRatio?: number },
 ): Promise<MapboxRoute[]> {
   const collected: MapboxRoute[] = [];
+  const detourRatio = opts?.maxDetourRatio ?? MAX_DETOUR_RATIO;
 
   // Path-safe diversity:
   // - alternatives (no bias) often returns a distinct footpath geometry
@@ -64,7 +68,7 @@ export async function fetchWalkingRouteCandidates(
     throw new Error("No walking routes found between these points.");
   }
 
-  const filtered = filterDetours(collected, MAX_DETOUR_RATIO);
+  const filtered = filterDetours(collected, detourRatio);
   const offRoad = await filterCarriageways(filtered, token);
   const pool = offRoad.length ? offRoad : await keepLeastCarriageway(filtered, token);
 

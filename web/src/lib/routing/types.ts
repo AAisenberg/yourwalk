@@ -55,6 +55,11 @@ export type ScoredRoute = {
   centreline_look_share?: number;
   /** True when Mapbox geometry was shifted toward mapped sidewalks for paint. */
   paint_nudged?: boolean;
+  /**
+   * Stream the complementary Casey card maximises (other pathish corridor).
+   * Set only on `score_aware_*_prefs_complement` geometries.
+   */
+  complement_stream?: "accessibility" | "shadeHeat" | "afterDark";
 };
 
 export type RankMode = "day" | "night" | "accessibility";

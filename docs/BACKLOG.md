@@ -118,19 +118,22 @@ Before a backlog item is considered complete, it must meet all of the following:
 ### N1b: Tell us about your walk — entry flow + overlays
 **Links**: [`FLOWS/02_tell_us_about_your_walk.md`](FLOWS/02_tell_us_about_your_walk.md), [`DELIVERY_PLAN.md`](DELIVERY_PLAN.md) Sprint D+, methodology overlays in [`VULNERABILITY_INDEX.md`](VULNERABILITY_INDEX.md)
 
-**Description**: User-first entry: choose trip (A→B) or outing (~N minutes from here); set importance; optionally show amenity overlays (toilets, dog bags, benches, fountains) that are **not** in the index.
+**Description**: Walk planner on `/`. Route-first form (type → places → When → amenities → standing prefs). Auto Day/Night from Casey civil twilight. Selected walk discloses detail. Geolocate on From / Start. No live route tracking. Overlays (toilets, dog bags, benches, fountains) are **not** in the index.
 
 **Acceptance Criteria**:
 - Given a resident opens `/`
 - When they choose how they want to walk
 - Then they can pick **A to B** or **Around here** (duration + start via geolocate / search / pin)
+- And Use my location sits on From or Start and captures one in-session coordinate only
+- And When preselects from Casey civil twilight and can be overridden
 - And they can toggle overlay checkboxes for toilets, dog bags, benches, drinking fountains on the map
 - And overlays do not change Day/Night index maths
 - And A→B continues to use hybrid ranked routes
+- And result cards stay compact until a walk is selected, then that walk shows why / pills / coverage
 
 **Dependencies**: N1 hybrid trip stable; amenity GeoJSON available in pipeline
 
-**Status**: Next (Sprint D+) — UX copy deferred while N1c pathfinding trust lands
+**Status**: Next (Sprint D+) — shell shipped (testing); planner UX slice (order, auto When, disclosure, form geolocate) specified 16 Aug 2026 in the flow. Iterate after testing.
 
 ---
 
@@ -150,7 +153,7 @@ Before a backlog item is considered complete, it must meet all of the following:
 
 **Dependencies**: Local/hosted `serve_challenger.py`; graph rebuild with stream scores
 
-**Status**: Now — P1 + P2 done 12 Aug 2026 (pref-weighted challenger; shade vs footpaths changes geometry on OD-01/OD-12). Next **P3** dual challenger / **P4** outing via bias; prod challenger host still open
+**Status**: Now — P1 + P2 + P3 done 16 Aug 2026 (preference-best + other pathish corridor + optional away-from-roads; no-junk detour fallback). Dual Casey on 5/13 bake-off ODs; one honest card when the network has one corridor. Next: hosted challenger for phone/preview; side-of-street / heading-continuity; **P4** outing via bias; T1EAM-native geometry. Recap for XYX: [`ROUTING_NOTE_NIKKI_2026-08-16.md`](ROUTING_NOTE_NIKKI_2026-08-16.md)
 
 ---
 

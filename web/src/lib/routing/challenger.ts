@@ -4,6 +4,13 @@ export type ChallengerPrefs = {
   accessibility?: number;
   shadeHeat?: number;
   afterDark?: number;
+  /** Generation-time off-road bias + 1.6× detour (not ranking-only). */
+  preferSharedPaths?: boolean;
+  /**
+   * Second Casey card: invert the dominant stream (other pathish corridor).
+   * Challenger computes the invert; do not send inverted sliders.
+   */
+  complement?: boolean;
 };
 
 export type ChallengerRoute = {
@@ -19,6 +26,10 @@ export type ChallengerRoute = {
   /** Share of graph length on pathish OSM classes (footway, cycleway, service, …). */
   osm_pathish_share?: number | null;
   prefs?: ChallengerPrefs | null;
+  /** Away search exceeded 1.6×; geometry is the default footpath route. */
+  away_capped_to_default?: boolean;
+  /** Stream the complement card maximises (invert-dominant). */
+  complement_stream?: "accessibility" | "shadeHeat" | "afterDark";
 };
 
 type ChallengerResponse = {

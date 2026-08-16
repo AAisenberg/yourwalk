@@ -2,7 +2,7 @@
 
 **Audience:** Nikki (XYX Lab) and internal CrowdLab testers  
 **Product:** YourWalk resident routing (`/`) — City of Casey pilot only  
-**App version:** `0.1.0` (header shows **Beta** · app version · scores **1.1.3**)  
+**App version:** `0.2.0` (header shows **Beta** · app version · scores **1.1.3**)  
 **Map data:** GitHub release `map-data-v1` (interim CDN until Supabase returns)
 
 ## Link
@@ -29,11 +29,24 @@ If the map or footpath network looks blank: **hard-refresh** (Cmd+Shift+R). Larg
 - Recommended = best match to your importance sliders among options about the length you asked (time is a soft nudge on Around here).
 - **Not a safety guarantee.** Graffiti is an environmental-order proxy, not crime data. No crime prediction.
 
+## How your choices change the walk
+
+- **Find** searches for a Casey walk that matches Footpaths / Heat & Shade (or Lighting at night), plus a **different** neighbourhood path when the streets allow one.
+- **More important** on a slider means we will take a slightly longer path if it is better on that measure. **Less important** means a quicker walk can win among the cards we found.
+- **Prefer away from roads** is a third, longer park / trail option. It is off unless you tick it. Tap **Find** again after you change it.
+- Dragging sliders on the results list only **re-orders** the walks already found. Edit walk + Find to search again.
+- Pills stay Casey corridor scores. They do not change because you moved a slider.
+- Full recap (Cupples → Ashfield, tests, open issues): [`ROUTING_NOTE_NIKKI_2026-08-16.md`](ROUTING_NOTE_NIKKI_2026-08-16.md).
+
+The Casey graph must be running (local `serve_challenger.py` or a hosted `CHALLENGER_URL`). Without it you only see Mapbox.
+
 ## Routing honesty (beta)
 
-Trip options must not draw down the **road carriageway**. Generation + filter rules: [`ROUTING_OUTPUTS.md`](ROUTING_OUTPUTS.md). Soft “Prefer away from roads” only ranks shared-use paths; it does not replace that gate.
+Trip options must not draw down the **road carriageway**. Generation + filter rules: [`ROUTING_OUTPUTS.md`](ROUTING_OUTPUTS.md). Prefer away from roads is a generation-time park option (up to ~1.6×). It does not replace the carriageway gate.
 
-Regression OD: 16 Epsom Lane, Cranbourne North → 16 Arubi Avenue, Clyde North (expect path-safe option(s), no mid-road alternative).
+Regression OD: 16 Epsom Lane, Cranbourne North → 16 Arubi Avenue, Clyde North (expect path-safe option(s), no mid-carriageway alternative).
+
+Try also: **66 Cupples Crescent, Berwick → 2 Ashfield Drive, Berwick** (expect two Casey cards: Homestead vs Bellevue / Fieldhouse; a third if away is on).
 
 ## Known gaps (expected in this beta)
 
@@ -41,7 +54,7 @@ Regression OD: 16 Epsom Lane, Cranbourne North → 16 Arubi Avenue, Clyde North 
 |-----|--------|
 | No shareable walk link yet | Copy/share comes later |
 | No accounts / saved walks | Anonymous session only |
-| “Use this route” does not navigate turn-by-turn | Confirms selection and frames the map |
+| “Use this route” does not navigate turn-by-turn | Confirms selection and frames the map. Next planner slice: skinny cards, extra story on the selected walk only. Spec: [`FLOWS/02_tell_us_about_your_walk.md`](FLOWS/02_tell_us_about_your_walk.md) |
 | No “Why this walk?” deep dive | Card blurbs + score pills only |
 | Lab (`/lab`) is internal | Not linked from the resident header |
 | Crossings / kerb ramps incomplete | Reduced confidence until Council data arrives; missing inputs are not imputed as zero |
@@ -64,3 +77,4 @@ Send notes to Anthony (CrowdLab). Tag with Preview URL and approx time if someth
 - Scoring: [`SCORING_SPEC_v1.1.md`](SCORING_SPEC_v1.1.md)  
 - Visual system: [`RESIDENT_VISUAL_SYSTEM.md`](RESIDENT_VISUAL_SYSTEM.md)  
 - Next UX stocktake: [`RESIDENT_UX_NEXT.md`](RESIDENT_UX_NEXT.md)
+- Routing recap for XYX (16 Aug 2026): [`ROUTING_NOTE_NIKKI_2026-08-16.md`](ROUTING_NOTE_NIKKI_2026-08-16.md)

@@ -22,8 +22,10 @@ python bakeoff/fetch_and_join_osm.py --od01-bbox
 #    Full LGA (slower; may need Overpass retries):
 # python bakeoff/fetch_and_join_osm.py
 
-# 3. Build score-aware graph
+# 3. Build score-aware graph (road-class cost bias + OSM crossing-node edges)
 python bakeoff/build_graph.py
+# Crossing nodes: fetched automatically if casey_osm_crossing_nodes.geojson is missing.
+# Or: python bakeoff/fetch_and_join_osm.py --reuse-osm
 
 # 4. Run bake-off (needs Mapbox token from web/.env.local)
 python bakeoff/run_bakeoff.py --od OD-01

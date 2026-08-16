@@ -10,8 +10,10 @@ export type WalkMode = "day" | "night";
  * - Night uses Accessibility + After dark (Night Index)
  * Card scores (/10) stay Casey corridor scores; prefs only re-order options.
  *
- * Prefs do not generate new geometries (except via hybrid challenger pathfinding
- * later). Guardrail: active-mode weights are floored so ranking never collapses.
+ * Sliders re-rank the current cards. Find also requests a complementary
+ * Casey walk (invert the dominant stream). Prefer away from roads is a
+ * third, optional card. Guardrail: active-mode weights are floored so
+ * ranking never collapses.
  */
 export type RoutePreferences = {
   /** Safety after dark → Night Index (night mode only) */
@@ -21,9 +23,9 @@ export type RoutePreferences = {
   /** Shade & heat comfort → Day Index (day mode only) */
   shadeHeat: number;
   /**
-   * Soft-prefer Casey shared-use path class when ranking (not index maths).
-   * Resident copy: “Away from roads” — trails / wider paths vs roadside footpaths.
-   * Soft bias only — never hard-locks to SUP-only.
+   * Prefer parks / paths away from roads at **Find** time (not index maths).
+   * Widens detour (~1.6×) and requests an off-road-biased challenger variant.
+   * Ranking still applies a shared-use bonus among the cards we found.
    */
   preferSharedPaths: boolean;
 };
@@ -127,6 +129,65 @@ export function effectivePrefsForMode(
     return { ...METHODOLOGY_FALLBACK_PREFS_NIGHT, preferSharedPaths };
   }
   return { afterDark, accessibility, shadeHeat: 0, preferSharedPaths };
+}
+
+export type ComplementStream = "accessibility" | "shadeHeat" | "afterDark";
+
+/**
+ * Contrast walk for the second Casey card. Inverts the dominant active
+ * stream (shade vs footpaths by day; lighting vs footpaths by night)
+ * without penalising the shared prefix, so a pathish split like Bellevue
+ * vs Homestead can keep the same first streets. Mid/mid treats shade
+ * (or lighting) as dominant so the complement is footpaths-max. Not both
+ * sliders at the floor. Away-from-roads stays off.
+ */
+export function complementaryPrefs(
+  prefs: RoutePreferences,
+  mode: WalkMode,
+): RoutePreferences {
+  const w = effectivePrefsForMode(prefs, mode);
+  if (mode === "night") {
+    if (w.afterDark >= w.accessibility) {
+      return {
+        afterDark: PREF_IMPORTANCE_MIN,
+        accessibility: PREF_IMPORTANCE_MAX,
+        shadeHeat: 0,
+        preferSharedPaths: false,
+      };
+    }
+    return {
+      afterDark: PREF_IMPORTANCE_MAX,
+      accessibility: PREF_IMPORTANCE_MIN,
+      shadeHeat: 0,
+      preferSharedPaths: false,
+    };
+  }
+  if (w.shadeHeat >= w.accessibility) {
+    return {
+      afterDark: 0,
+      accessibility: PREF_IMPORTANCE_MAX,
+      shadeHeat: PREF_IMPORTANCE_MIN,
+      preferSharedPaths: false,
+    };
+  }
+  return {
+    afterDark: 0,
+    accessibility: PREF_IMPORTANCE_MIN,
+    shadeHeat: PREF_IMPORTANCE_MAX,
+    preferSharedPaths: false,
+  };
+}
+
+/** Stream the complement card maximises (for labels). */
+export function complementStream(
+  prefs: RoutePreferences,
+  mode: WalkMode,
+): ComplementStream {
+  const c = complementaryPrefs(prefs, mode);
+  if (mode === "night") {
+    return c.afterDark > c.accessibility ? "afterDark" : "accessibility";
+  }
+  return c.shadeHeat > c.accessibility ? "shadeHeat" : "accessibility";
 }
 
 /** Mean importance of sliders active in this walk mode (10–100). */
@@ -348,6 +409,20 @@ export function isScoreAwareStrategy(strategy?: string): boolean {
   );
 }
 
+export function isAwayFromRoadsStrategy(strategy?: string): boolean {
+  return Boolean(strategy?.includes("_away"));
+}
+
+export function isComplementStrategy(strategy?: string): boolean {
+  return Boolean(strategy?.includes("_complement"));
+}
+
+function complementLabel(stream?: string): string {
+  if (stream === "shadeHeat") return "More shade";
+  if (stream === "afterDark") return "Better lighting";
+  return "Smoother footpaths";
+}
+
 export function routeCardLabel(
   route: ScoredRoute,
   ranked: ScoredRoute[],
@@ -365,6 +440,10 @@ export function routeCardLabel(
   ) {
     return "Another loop";
   }
+  if (isAwayFromRoadsStrategy(route.strategy)) return "Away from roads";
+  if (isComplementStrategy(route.strategy)) {
+    return complementLabel(route.complement_stream);
+  }
   if (isScoreAwareStrategy(route.strategy)) return "Neighbourhood links";
   const shortest = [...ranked].sort((a, b) => a.distance_m - b.distance_m)[0];
   if (shortest?.id === route.id) return "Shortest";
@@ -376,6 +455,23 @@ export function routeCardBlurb(
   route: ScoredRoute,
   ranked: ScoredRoute[],
 ): string {
+  if (isAwayFromRoadsStrategy(route.strategy)) {
+    const shortestDur = Math.min(...ranked.map((r) => r.duration_s));
+    const extraMin = Math.round((route.duration_s - shortestDur) / 60);
+    if (extraMin >= 2) {
+      return `About ${extraMin} minutes longer, mostly away from roads`;
+    }
+    return "Mostly away from roads — parks and paths rather than street edges";
+  }
+  if (isComplementStrategy(route.strategy)) {
+    if (route.complement_stream === "shadeHeat") {
+      return "A different neighbourhood path that leans toward more shade";
+    }
+    if (route.complement_stream === "afterDark") {
+      return "A different neighbourhood path that leans toward better lighting";
+    }
+    return "A different neighbourhood path that leans toward smoother footpaths";
+  }
   if (ranked[0]?.id === route.id) {
     return "Best fit for what you marked as important among the walks we found";
   }
@@ -460,4 +556,11 @@ export function routeMatchExplain(
 
 /** Shown above result cards when prefs can re-rank without re-searching. */
 export const RESULTS_PREF_RERANK_NOTE =
-  "Moving the sliders re-orders these walks. It does not draw a new path until you tap Edit walk and search again.";
+  "Find looks for a walk that matches what you marked as important, plus a different neighbourhood path when one exists. Moving the sliders re-orders these walks. Prefer away from roads needs Edit walk and Find again — it can add a longer park or trail option.";
+
+/**
+ * Plain-language explainer (XYX: how tweaks change the walk).
+ * Use in the plan sheet and in tester / Nikki notes.
+ */
+export const HOW_PREFS_CHANGE_WALKS =
+  "Footpaths, Heat & Shade, and Lighting change which streets we search, not the Casey scores on the pills. More important means we will take a slightly longer path if it is better on that measure. Less important means a quicker walk can win among the options we found. Prefer away from roads is a separate, longer park option — tick it only if you will take the extra time. Tap Find after you change these.";
