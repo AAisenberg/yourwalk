@@ -6,7 +6,9 @@ Vercel runs the Next.js app. It cannot hold the Casey graph. Dual Casey cards on
 
 **Host:** Fly.io, Sydney (`syd`), 1 GB shared VM, stay-on (`min_machines_running = 1`). First Find must not pay a 10–20 s graph load. Expect a few USD per month.
 
-The browser never talks to Fly. Next `POST /api/challenger-route` proxies with a shared secret.
+The browser never talks to Fly. Next `POST /api/challenger-route` (trips) and `POST /api/challenger-loop` (Around-here circuits) proxy with a shared secret.
+
+**Endpoints:** `GET /health`, `POST /route` (A→B preference path), `POST /loop` (up to three Around-here circuits: `{start:{lng,lat}, minutes, mode, prefs}`). Both POST endpoints require the Bearer secret when set.
 
 ## What you do (Aisey)
 

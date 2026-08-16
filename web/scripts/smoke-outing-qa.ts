@@ -36,12 +36,16 @@ async function main() {
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
   if (!token) throw new Error("NEXT_PUBLIC_MAPBOX_TOKEN missing");
 
+  const base = (
+    process.env.YOURWALK_APP_URL ?? "http://localhost:3001"
+  ).replace(/\/$/, "");
+
   const features = (
     (await (
-      await fetch("http://localhost:3001/api/map-data/segment_scores.geojson")
+      await fetch(`${base}/api/map-data/segment_scores.geojson`)
     ).json()) as GeoJSON.FeatureCollection
   ).features;
-  if (!features.length) throw new Error("No segment features from localhost:3001");
+  if (!features.length) throw new Error(`No segment features from ${base}`);
 
   const starts = [
     { name: "Montpelier", lng: 145.3485, lat: -38.0405 },
@@ -63,7 +67,7 @@ async function main() {
           token,
           "day",
           DEFAULT_PREFS_DAY,
-          { shape: "loop" },
+          { shape: "loop", challengerApiBase: base },
         );
         const revs = routes.map((r) => parseRev(r.strategy));
         const bad = revs.some((v) => v != null && v > 0.2 + 1e-9);
@@ -116,7 +120,7 @@ async function main() {
         token,
         "day",
         DEFAULT_PREFS_DAY,
-        { shape: "out_and_back" },
+        { shape: "out_and_back", challengerApiBase: base },
       );
       rows.push(
         `${s.name} 25m there-back ${oab.length ? "OK" : "EMPTY"} n=${oab.length}`,

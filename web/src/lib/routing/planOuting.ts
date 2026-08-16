@@ -906,37 +906,15 @@ function selectDiverseLoops(
 }
 
 /**
- * Circuit walks: Casey-scored turning points, then Casey graph legs when
- * they connect, else Mapbox start→A→B→start. Applies spur reject/demote.
+ * Circuit walks: challenger /loop draws whole Casey circuits first; Mapbox
+ * start→A→B→start (Casey-scored turning points) is the fallback. Both go
+ * through the same quality gates (spur reject/demote, revisit, band).
  */
 /** Optional reject tallies when YOURWALK_DEBUG_LOOPS=1 (CLI diagnostics). */
 const loopRejectDebug: Record<string, number> = {};
 function bumpLoopReject(reason: string) {
   if (process.env.YOURWALK_DEBUG_LOOPS !== "1") return;
   loopRejectDebug[reason] = (loopRejectDebug[reason] ?? 0) + 1;
-}
-
-function concatLineStrings(
-  legs: GeoJSON.LineString[],
-): GeoJSON.LineString | null {
-  const coords: GeoJSON.Position[] = [];
-  for (const leg of legs) {
-    const c = leg.coordinates;
-    if (!c.length) return null;
-    if (!coords.length) {
-      coords.push(...c);
-      continue;
-    }
-    const last = coords[coords.length - 1]!;
-    const first = c[0]!;
-    const join = haversineM(
-      { lng: last[0]!, lat: last[1]! },
-      { lng: first[0]!, lat: first[1]! },
-    );
-    coords.push(...c.slice(join < 25 ? 1 : 0));
-  }
-  if (coords.length < 2) return null;
-  return { type: "LineString", coordinates: coords };
 }
 
 async function fetchCaseyOutbound(
@@ -957,43 +935,176 @@ async function fetchCaseyOutbound(
   });
 }
 
-async function fetchCaseyLoop(
-  start: LngLat,
-  a: LngLat,
-  b: LngLat,
-  strategy: string,
-  mode: "day" | "night",
-  prefs: RoutePreferences,
-  apiBase?: string,
-): Promise<{
+type DrawnLoop = {
   geometry: GeoJSON.LineString;
   distance: number;
   duration: number;
   strategy: string;
-} | null> {
-  const { fetchChallengerRoute } = await import("./challenger");
-  const opts = {
-    prefs: {
-      accessibility: prefs.accessibility,
-      shadeHeat: prefs.shadeHeat,
-      afterDark: prefs.afterDark,
-    },
-    ...(apiBase ? { apiBase } : {}),
+};
+
+/**
+ * Shared quality gates for a drawn circuit (server Casey or Mapbox waypoint):
+ * closed at the pin, in the ±5 min band, no there-and-back, low same-path
+ * revisit, no long cul-de-sac spurs, not a shrunken circle. Pushes survivors
+ * into the pool for diverse selection.
+ */
+function gateLoopIntoPool(
+  drawn: DrawnLoop,
+  id: string,
+  start: LngLat,
+  viaM: number,
+  targetDurationS: number,
+  segments: GeoJSON.Feature[],
+  amenitySets: AmenitySet[],
+  pool: LoopPoolItem[],
+): boolean {
+  const geometry = closeLoopGeometry(drawn.geometry, start);
+  const end = geometry.coordinates.at(-1);
+  if (!end) {
+    bumpLoopReject("no_end");
+    return false;
+  }
+  if (haversineM(start, { lng: end[0], lat: end[1] }) > 40) {
+    bumpLoopReject("not_closed");
+    return false;
+  }
+
+  if (!withinAskedDuration(drawn.duration, targetDurationS)) {
+    bumpLoopReject("duration");
+    return false;
+  }
+
+  const overlap = reverseOverlapRatio(geometry);
+  if (overlap > MAX_LOOP_REVERSE_OVERLAP) {
+    bumpLoopReject("reverse_overlap");
+    return false;
+  }
+
+  const { ratio: revisit } = pathRevisitRatio(geometry, start);
+  if (revisit > MAX_LOOP_REVISIT) {
+    bumpLoopReject("revisit");
+    return false;
+  }
+
+  const spur = measureCulDeSacSpurs(geometry, start);
+  if (
+    spur.worstSpurM > SPUR_REJECT_WORST_M ||
+    spur.totalSpurM > SPUR_REJECT_TOTAL_M
+  ) {
+    bumpLoopReject("spur");
+    return false;
+  }
+
+  let maxAway = 0;
+  const step = Math.max(1, Math.floor(geometry.coordinates.length / 20));
+  for (let k = 0; k < geometry.coordinates.length; k += step) {
+    const c = geometry.coordinates[k];
+    maxAway = Math.max(maxAway, haversineM(start, { lng: c[0], lat: c[1] }));
+  }
+  if (maxAway < viaM * 0.35) {
+    bumpLoopReject("too_small");
+    return false;
+  }
+
+  const soft = amenitySoftScore(geometry, amenitySets);
+  const quality = circuitQualityScore(revisit, spur);
+  const clean =
+    revisit <= CLEAN_LOOP_REVISIT &&
+    overlap <= 0.4 &&
+    spur.worstSpurM <= SPUR_NOTE_M;
+
+  const item: ScoredRoute = {
+    id,
+    index: pool.length,
+    distance_m: drawn.distance,
+    duration_s: drawn.duration,
+    geometry,
+    strategy: `${drawn.strategy}_rev${revisit.toFixed(2)}_sp${Math.round(spur.worstSpurM)}`,
+    amenity_note: soft.note,
+    outing_note: clean
+      ? undefined
+      : "A little shared path on this circuit — still mostly new streets.",
+    score: scoreRouteAgainstSegments(geometry, segments, drawn.distance),
   };
-  const [ab, bc, ca] = await Promise.all([
-    fetchChallengerRoute(start, a, mode, opts),
-    fetchChallengerRoute(a, b, mode, opts),
-    fetchChallengerRoute(b, start, mode, opts),
-  ]);
-  if (!ab || !bc || !ca) return null;
-  const stitched = concatLineStrings([ab.geometry, bc.geometry, ca.geometry]);
-  if (!stitched) return null;
-  return {
-    geometry: closeLoopGeometry(stitched, start),
-    distance: ab.distance_m + bc.distance_m + ca.distance_m,
-    duration: ab.duration_s + bc.duration_s + ca.duration_s,
-    strategy: `score_aware_loop_${strategy}`,
-  };
+  pool.push({
+    scored: item,
+    revisit,
+    hard: clean,
+    durErr: Math.abs(drawn.duration - targetDurationS),
+    spur,
+    quality,
+  });
+  bumpLoopReject("accepted");
+  return true;
+}
+
+/**
+ * Primary loop engine: the challenger's /loop planner draws whole circuits on
+ * the Casey graph (through-junction turning points, cross-leg reuse penalty,
+ * via radius resized from measured length). One HTTP call for up to three
+ * distinct in-band circuits; client gates still apply.
+ */
+async function collectCaseyLoops(
+  start: LngLat,
+  durationMin: number,
+  viaM: number,
+  targetDurationS: number,
+  segments: GeoJSON.Feature[],
+  mode: "day" | "night",
+  prefs: RoutePreferences,
+  amenitySets: AmenitySet[],
+  collected: ScoredRoute[],
+  maxRoutes: number,
+  challengerApiBase?: string,
+): Promise<void> {
+  if (typeof window === "undefined" && !challengerApiBase) return;
+  let loops;
+  try {
+    const { fetchChallengerLoops } = await import("./challenger");
+    loops = await fetchChallengerLoops(start, durationMin, mode, {
+      prefs: {
+        accessibility: prefs.accessibility,
+        shadeHeat: prefs.shadeHeat,
+        afterDark: prefs.afterDark,
+      },
+      ...(challengerApiBase ? { apiBase: challengerApiBase } : {}),
+    });
+  } catch {
+    bumpLoopReject("casey_loop_exception");
+    return;
+  }
+  if (!loops.length) {
+    bumpLoopReject("casey_loop_empty");
+    return;
+  }
+
+  const pool: LoopPoolItem[] = [];
+  for (let i = 0; i < loops.length; i++) {
+    const l = loops[i]!;
+    bumpLoopReject("casey_loop_received");
+    gateLoopIntoPool(
+      {
+        geometry: l.geometry,
+        distance: l.distance_m,
+        duration: l.duration_s,
+        strategy: l.strategy,
+      },
+      `outing-loop-casey-${i}`,
+      start,
+      viaM,
+      targetDurationS,
+      segments,
+      amenitySets,
+      pool,
+    );
+  }
+  for (const r of selectDiverseLoops(
+    pool,
+    LOOP_PREFER_OPTIONS,
+    Math.min(maxRoutes, LOOP_MAX_OPTIONS),
+  )) {
+    pushDistinctLoop(collected, r);
+  }
 }
 
 async function collectLoop(
@@ -1008,8 +1119,6 @@ async function collectLoop(
   prefs: RoutePreferences,
   mode: "day" | "night",
   nearby: NearbyCaseySegment[],
-  challengerApiBase?: string,
-  caseyBudget?: { left: number },
 ): Promise<void> {
   const compass = loopWaypointPairs(start, viaM, amenitySets);
   const casey = caseyRingPairs(start, viaM, nearby, prefs, mode);
@@ -1027,131 +1136,30 @@ async function collectLoop(
   for (let i = 0; i < pairs.length; i++) {
     const { a, b, strategy } = pairs[i]!;
     try {
-      let drawn: {
-        geometry: GeoJSON.LineString;
-        distance: number;
-        duration: number;
-        strategy: string;
-      } | null = null;
-      if (
-        (caseyBudget?.left ?? 0) > 0 &&
-        (typeof window !== "undefined" || Boolean(challengerApiBase))
-      ) {
-        drawn = await fetchCaseyLoop(
-          start,
-          a,
-          b,
-          strategy,
-          mode,
-          prefs,
-          challengerApiBase,
-        );
-        if (caseyBudget) caseyBudget.left -= 1;
+      const r = await fetchWalkingWaypointRoute(
+        [start, a, b, start],
+        token,
+        strategy,
+      );
+      if (!r) {
+        bumpLoopReject("no_route");
+        continue;
       }
-      if (
-        drawn &&
-        !withinAskedDuration(drawn.duration, targetDurationS)
-      ) {
-        drawn = null;
-      }
-      if (!drawn) {
-        const r = await fetchWalkingWaypointRoute(
-          [start, a, b, start],
-          token,
-          strategy,
-        );
-        if (!r) {
-          bumpLoopReject("no_route");
-          continue;
-        }
-        drawn = {
+      gateLoopIntoPool(
+        {
           geometry: r.geometry,
           distance: r.distance,
           duration: r.duration,
           strategy: r.strategy,
-        };
-      }
-
-      const geometry = closeLoopGeometry(drawn.geometry, start);
-      const end = geometry.coordinates.at(-1);
-      if (!end) {
-        bumpLoopReject("no_end");
-        continue;
-      }
-      if (haversineM(start, { lng: end[0], lat: end[1] }) > 40) {
-        bumpLoopReject("not_closed");
-        continue;
-      }
-
-      if (!withinAskedDuration(drawn.duration, targetDurationS)) {
-        bumpLoopReject("duration");
-        continue;
-      }
-
-      const overlap = reverseOverlapRatio(geometry);
-      if (overlap > MAX_LOOP_REVERSE_OVERLAP) {
-        bumpLoopReject("reverse_overlap");
-        continue;
-      }
-
-      const { ratio: revisit } = pathRevisitRatio(geometry, start);
-      if (revisit > MAX_LOOP_REVISIT) {
-        bumpLoopReject("revisit");
-        continue;
-      }
-
-      const spur = measureCulDeSacSpurs(geometry, start);
-      if (
-        spur.worstSpurM > SPUR_REJECT_WORST_M ||
-        spur.totalSpurM > SPUR_REJECT_TOTAL_M
-      ) {
-        bumpLoopReject("spur");
-        continue;
-      }
-
-      let maxAway = 0;
-      const step = Math.max(1, Math.floor(geometry.coordinates.length / 20));
-      for (let k = 0; k < geometry.coordinates.length; k += step) {
-        const c = geometry.coordinates[k];
-        maxAway = Math.max(
-          maxAway,
-          haversineM(start, { lng: c[0], lat: c[1] }),
-        );
-      }
-      if (maxAway < viaM * 0.35) {
-        bumpLoopReject("too_small");
-        continue;
-      }
-
-      const soft = amenitySoftScore(geometry, amenitySets);
-      const quality = circuitQualityScore(revisit, spur);
-      const clean =
-        revisit <= CLEAN_LOOP_REVISIT &&
-        overlap <= 0.4 &&
-        spur.worstSpurM <= SPUR_NOTE_M;
-
-      const item: ScoredRoute = {
-        id: `outing-loop-${i}`,
-        index: pool.length,
-        distance_m: drawn.distance,
-        duration_s: drawn.duration,
-        geometry,
-        strategy: `${drawn.strategy}_rev${revisit.toFixed(2)}_sp${Math.round(spur.worstSpurM)}`,
-        amenity_note: soft.note,
-        outing_note: clean
-          ? undefined
-          : "A little shared path on this circuit — still mostly new streets.",
-        score: scoreRouteAgainstSegments(geometry, segments, drawn.distance),
-      };
-      pool.push({
-        scored: item,
-        revisit,
-        hard: clean,
-        durErr: Math.abs(drawn.duration - targetDurationS),
-        spur,
-        quality,
-      });
-      bumpLoopReject("accepted");
+        },
+        `outing-loop-${i}`,
+        start,
+        viaM,
+        targetDurationS,
+        segments,
+        amenitySets,
+        pool,
+      );
     } catch {
       bumpLoopReject("exception");
     }
@@ -1231,31 +1239,47 @@ export async function planOutingRoutes(
       160,
       (durationMin / 3) * WALK_M_PER_MIN * LOOP_VIA_STRAIGHT_FACTOR,
     );
-    const nearby = caseySegmentsNearStart(
+
+    // Casey graph circuits first — one /loop call, coordinated legs
+    await collectCaseyLoops(
       start,
+      durationMin,
+      viaM,
+      targetDurationS,
       segments,
-      viaM * 1.28 * 1.25 + 160,
+      mode,
+      prefs,
+      amenitySets,
+      collected,
+      loopCap,
+      opts.challengerApiBase,
     );
-    // Prefer larger vias first — short undershoots were common at 40 min
-    const viaScales = [1, 1.12, 1.28, 0.9, 0.78];
-    const caseyBudget = { left: CASEY_STITCH_MAX_PAIRS };
-    for (const scale of viaScales) {
-      if (collected.length >= LOOP_PREFER_OPTIONS) break;
-      await collectLoop(
+
+    // Mapbox waypoint fallback only while short of two cards
+    if (collected.length < LOOP_PREFER_OPTIONS) {
+      const nearby = caseySegmentsNearStart(
         start,
-        viaM * scale,
-        targetDurationS,
         segments,
-        token,
-        amenitySets,
-        collected,
-        loopCap,
-        prefs,
-        mode,
-        nearby,
-        opts.challengerApiBase,
-        caseyBudget,
+        viaM * 1.28 * 1.25 + 160,
       );
+      // Prefer larger vias first — short undershoots were common at 40 min
+      const viaScales = [1, 1.12, 1.28, 0.9, 0.78];
+      for (const scale of viaScales) {
+        if (collected.length >= LOOP_PREFER_OPTIONS) break;
+        await collectLoop(
+          start,
+          viaM * scale,
+          targetDurationS,
+          segments,
+          token,
+          amenitySets,
+          collected,
+          loopCap,
+          prefs,
+          mode,
+          nearby,
+        );
+      }
     }
     // Never pad Loop with there-and-backs or out-of-band times
   }
