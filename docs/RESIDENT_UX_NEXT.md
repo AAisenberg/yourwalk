@@ -54,7 +54,7 @@ Casey-ish centre `[145.317, -38.112]`, zoom ~15. GL JS 3.27 (app is `^3.26`). Co
 | E1 | ✅ Point the resident map at this style URL (classic streets / dark fallback) |
 | E2 | ✅ `setConfigProperty('basemap', 'lightPreset', dawn/day/dusk/night)` from When |
 | E3 | ✅ Hide Mapbox POIs; YourWalk overlays stay Track C |
-| E4 | **Parked.** Do not draw the Casey T1EAM footpath network as a resident underlay. Routing is OSM + crossings + scored corridors. T1EAM stays the scoring network, not a basemap carpet. |
+| E4 | ✅ Quiet T1EAM underlay. Casey footpath polygons from `segment_scores.geojson` (already loaded for scoring). Navy / night-quiet fill, no choropleth, always on from zoom 12, under walk lines. Mapbox `showPedestrianRoads` stays off. |
 
 Do not treat the Studio “build an app from this style” brief as a new product. YourWalk already exists. This URL is the basemap input for Track E.
 
@@ -81,7 +81,7 @@ Do not treat the Studio “build an app from this style” brief as a new produc
 | Compare pills on every result card | Shipped (testing) — tap highlights the map path |
 | Geolocate on From / Start | Shipped (testing) — one-shot; Casey bbox |
 | Casey civil twilight auto When | Shipped (testing) — `caseyWhen.ts`; override for the session |
-| YourWalk Mapbox style (`lightPreset` dawn/day/dusk/night) | Shipped (testing) — E1–E3; E4 T1EAM colour later |
+| YourWalk Mapbox style (`lightPreset` dawn/day/dusk/night) | Shipped (testing) — E1–E4; quiet T1EAM underlay |
 | Later time picker | After Now + override |
 | Live route tracking / start-to-finish breadcrumbs | Out of scope for pilot |
 | Backtrack spur snip on loops | Not built — see notes |
@@ -118,7 +118,7 @@ Desktop panel + Beta chrome already shipped. See [`BETA_TESTER_BRIEF.md`](BETA_T
 4. ✅ Loop quality + map chrome (dotted selected, quieter alts, tap path)
 5. Colour / brand polish — see [`RESIDENT_VISUAL_SYSTEM.md`](RESIDENT_VISUAL_SYSTEM.md) (overlaps with style work)
 6. ✅ Planner UX slice — order, auto When, prefs persist, form geolocate, selected disclosure
-7. ✅ YourWalk Standard style + `lightPreset` (E1–E3). E4 T1EAM underlay parked — not a resident layer
+7. ✅ YourWalk Standard style + `lightPreset` (E1–E3) + quiet T1EAM underlay (E4)
 8. Shareable link + Open in Maps + Later time picker
 
 Sprint framing: [`DELIVERY_PLAN.md`](DELIVERY_PLAN.md) Sprint D+. Backlog: [`BACKLOG.md`](BACKLOG.md) N1b.

@@ -11,12 +11,19 @@ import {
 import { MdClose, MdEdit, MdLayers, MdMyLocation, MdPlace } from "react-icons/md";
 
 import {
+  IconEye,
+  IconEyeOff,
   IconMoon,
   IconOuting,
   IconSun,
   IconTrip,
 } from "@/components/resident/icons";
 import { RingedAmenityIcon } from "@/components/resident/RingedAmenityIcon";
+import {
+  WALK_PIN_FROM,
+  WALK_PIN_TO,
+  WalkPinGlyph,
+} from "@/components/resident/WalkPin";
 import { SegmentedPill } from "@/components/resident/SegmentedPill";
 import { DEFAULT_OVERLAYS, OVERLAY_DEFS, type OverlayId } from "@/lib/overlays";
 import {
@@ -377,6 +384,7 @@ export default function PlannerMockupPage() {
                       ? " · soft bias for Loop"
                       : ""}
                   </p>
+                  <div className="flex flex-col gap-1">
                   {OVERLAY_DEFS.map((def) => {
                     const on = overlays[def.id];
                     return (
@@ -384,6 +392,7 @@ export default function PlannerMockupPage() {
                         key={def.id}
                         type="button"
                         aria-pressed={on}
+                        aria-label={on ? `Hide ${def.label}` : `Show ${def.label}`}
                         onClick={() =>
                           setOverlays((prev) => ({
                             ...prev,
@@ -403,13 +412,22 @@ export default function PlannerMockupPage() {
                         <RingedAmenityIcon id={def.id} size="sm" muted={!on} />
                         <span className="min-w-0 flex-1">{def.label}</span>
                         {on ? (
-                          <span className="text-[10px] font-bold text-yw-teal">
-                            Showing
-                          </span>
-                        ) : null}
+                          <IconEye
+                            className="h-4 w-4 shrink-0 text-yw-teal"
+                            aria-hidden
+                          />
+                        ) : (
+                          <IconEyeOff
+                            className={`h-4 w-4 shrink-0 ${
+                              isNight ? "text-white/35" : "text-slate-400"
+                            }`}
+                            aria-hidden
+                          />
+                        )}
                       </button>
                     );
                   })}
+                  </div>
                 </div>
               ) : null}
 
@@ -576,11 +594,21 @@ function FakeMap({
               />
             </>
           ) : null}
-          <circle cx="70" cy="310" r="6" fill="#009444" />
-          <circle cx="310" cy="70" r="6" fill="#EC008C" />
         </svg>
       </button>
       <div className="pointer-events-none absolute inset-0">
+        <span
+          className="absolute -translate-x-1/2 -translate-y-1/2 drop-shadow-sm"
+          style={{ left: "18.7%", top: "77.5%" }}
+        >
+          <WalkPinGlyph color={WALK_PIN_FROM} size={28} label="From" />
+        </span>
+        <span
+          className="absolute -translate-x-1/2 -translate-y-1/2 drop-shadow-sm"
+          style={{ left: "82.7%", top: "17.5%" }}
+        >
+          <WalkPinGlyph color={WALK_PIN_TO} size={28} label="To" />
+        </span>
         {AMENITY_MARKS.map((mark) =>
           overlays[mark.id] ? (
             <span
@@ -680,7 +708,7 @@ function PlanSheet(props: {
           <MockPlace
             label="From"
             placeholder="Park, school, suburb, or street"
-            dot="#009444"
+            dot={WALK_PIN_FROM}
             isNight={isNight}
             value={props.origin}
             onChange={props.setOrigin}
@@ -693,7 +721,7 @@ function PlanSheet(props: {
           <MockPlace
             label="To"
             placeholder="Park, school, suburb, or street"
-            dot="#EC008C"
+            dot={WALK_PIN_TO}
             isNight={isNight}
             value={props.destination}
             onChange={props.setDestination}
@@ -706,7 +734,7 @@ function PlanSheet(props: {
           <MockPlace
             label="Start"
             placeholder="Park, school, suburb, or street"
-            dot="#009444"
+            dot={WALK_PIN_FROM}
             isNight={isNight}
             value={props.origin}
             onChange={props.setOrigin}
@@ -1032,10 +1060,7 @@ function MockPlace({
             : "bg-white ring-[#E8ECF2]"
       }`}
     >
-      <span
-        className="h-2.5 w-2.5 shrink-0 rounded-full"
-        style={{ background: dot }}
-      />
+      <WalkPinGlyph color={dot} size={16} />
       <div className="min-w-0 flex-1">
         <div
           className={`text-[10px] font-semibold uppercase tracking-wide ${

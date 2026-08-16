@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { MdMyLocation, MdPlace } from "react-icons/md";
 
+import { WalkPinGlyph } from "@/components/resident/WalkPin";
 import { searchPlaces, type PlaceResult } from "@/lib/routing/geocode";
 import type { LngLat } from "@/lib/routing/types";
 
@@ -92,10 +93,7 @@ export function PlaceField({
               : "bg-white ring-[#E8ECF2]"
         }`}
       >
-        <span
-          className="h-2.5 w-2.5 shrink-0 rounded-full"
-          style={{ background: dot }}
-        />
+        <WalkPinGlyph color={dot} size={16} />
         <div className="min-w-0 flex-1">
           <div
             className={`text-[10px] font-semibold uppercase tracking-wide ${

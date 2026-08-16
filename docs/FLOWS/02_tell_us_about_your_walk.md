@@ -57,7 +57,8 @@ There and back is **not** a resident choice. Keep it as a silent engine fallback
 ### 0. Open YourWalk (`/`)
 
 - Map shows Casey; heading **Find your walk**; first-visit line: Casey footpaths, ranked for shade, smoother paths, or lighting after dark. Not just the shortest way.
-- No choropleth required on resident map (lab keeps scored network)
+- Quiet T1EAM footpath underlay is always on from zoom 12 (navy / night-quiet). Not a score choropleth. Lab keeps the scored network.
+- Mapbox pedestrian-road dots stay off.
 - Disclaimer remains: not a safety guarantee
 - Header When preselects from Casey sun position (civil twilight). Quiet reason under the wordmark, e.g. `Night · after dark in Casey now`
 - What matters most is open and restores last device-local values if present

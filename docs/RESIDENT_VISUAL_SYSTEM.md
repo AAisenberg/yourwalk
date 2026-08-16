@@ -12,10 +12,10 @@ Product name: **YourWalk** (one word). Australian English. WCAG 2.1 AA. Mapbox G
 | `--yw-navy` | `#292984` | Brand wordmark (day), day CTA, quiet day alts / LGA |
 | `--yw-teal` | `#00AAA6` | Recommended / selected route by **day**; primary accent actions |
 | `--yw-lime` | `#8DC63F` | Shade stream / ranked route 3 |
-| `--yw-green` | `#009444` | Origin pin |
+| `--yw-green` | `#009444` | From pin (circle + star) |
 | `--yw-amber` | `#FFCB1F` | Night selected walk (lighting family); highlights |
 | `--yw-orange` | `#F6871F` | Night importance / dog bags accent |
-| `--yw-pink` | `#EC008C` | Destination pin |
+| `--yw-pink` | `#EC008C` | To pin (circle + star) |
 | `--yw-chartreuse` | `#D7DF23` | Sparse accent only |
 | `--yw-day-surface` | `#F5F7FA` | Day app chrome |
 | `--yw-night-surface` | `#0B0C1A` | Night app chrome |
@@ -42,6 +42,7 @@ Do not invent a new palette. Avoid purple-on-white CTA gradients, warm cream + t
 ## Logo
 
 - Mark: [`web/public/brand/yourwalk-mark.svg`](../web/public/brand/yourwalk-mark.svg) (from `mobile-mockup/logo.svg`)
+- From / To map pins: logo **circle + star** (not the Mapbox teardrop). Green `#009444` From, pink `#EC008C` To, star `#FFF200`. Same glyph as the mark’s pink/orange lockup; colours stay role-coded.
 - Header: mark (~32px) + **YourWalk** wordmark (navy day / white night) as the hero brand signal; subtitle **Connecting Casey walks**; quiet **Beta** pill (navy / muted, not teal)
 - Header: mark + **YourWalk** + compact **Day / Night** switch. Auto When reason sits under the wordmark. Choosing Night swaps preference streams (After dark vs Shade & heat) and the planned basemap look.
 - Type of walk in the sheet: **A to B | Loop** (`SegmentedPill`). No There and back row.
@@ -109,7 +110,7 @@ Auto When uses Casey civil twilight (ADR-009), not a clock hour. Basemap follows
 | Results accent CTA | Teal | Teal |
 | Pref stream tints | Footpaths blue wash; shade lime wash | After dark amber wash; footpaths blue wash |
 
-**YourWalk Mapbox style:** `mapbox://styles/crowdspot1/cmsve8sql00ak01rgb6vn39pt` (Standard import, no custom layers yet). Resident map uses this URL and `setConfigProperty('basemap', 'lightPreset', …)` from planned When. Mapbox POI labels are off; YourWalk amenity overlays stay on Layers. Classic streets / dark is a fallback if the style cannot load. Track E4 (T1EAM footpath colour) is still later.
+**YourWalk Mapbox style:** `mapbox://styles/crowdspot1/cmsve8sql00ak01rgb6vn39pt` (Standard import). Resident map uses this URL and `setConfigProperty('basemap', 'lightPreset', …)` from planned When. Mapbox POI labels are off; Mapbox pedestrian roads are off. Casey T1EAM footpaths paint as a quiet underlay (navy by day, `--yw-night-quiet` by night) from zoom 12, under walk lines. Not a score choropleth. YourWalk amenity overlays stay on Layers. Classic streets / dark is a fallback if the style cannot load.
 
 ### Mapbox Standard: what the API can and cannot do
 
@@ -121,7 +122,7 @@ Classic styles (`streets-v12`, `dark-v11`) are frozen. Standard is the maintaine
 - Label groups on/off: POIs, places, roads, transit (booleans). POI **density** 1–5. Fuel-station mode. Not “only parks” or “only toilets.”
 - Road colours: `colorMotorways`, `colorTrunks`, `colorRoads` (other roads as a group)
 - Land, water, greenspace, buildings, some label colours
-- `showPedestrianRoads`: show or hide paths/trails. There is **no** `colorPedestrianRoads`
+- `showPedestrianRoads`: show or hide paths/trails. There is **no** `colorPedestrianRoads`. Resident app sets this **false** — Standard’s night path paint is a neon dotted line on only some OSM paths, which reads as a second footpath network.
 - Theme: default / faded / monochrome / custom LUT
 - Custom layers in slots: `bottom`, `middle`, `top`
 
@@ -138,11 +139,11 @@ Classic styles (`streets-v12`, `dark-v11`) are frozen. Standard is the maintaine
 Do this in order. Keep dawn / day / dusk / night as lighting only.
 
 1. **Playground first** — [Mapbox Standard Style Playground](https://docs.mapbox.com/playground/standard-style/). Set `lightPreset` through all four looks. Turn `showPedestrianRoads` on. Quiet motorways (`colorMotorways` toward the land colour). Note that paths still share Standard’s path styling; you cannot paint them teal here.
-2. **Studio style that imports Standard** — one YourWalk style URL. Same config. Add a **custom line layer** in the `middle` slot (above roads, under 3D). Source: Casey T1EAM footpaths (or a simplified path extract), not Mapbox’s path layer. Colour: YourWalk teal or navy, wider than Standard paths. Set `slot: "middle"` and `emissive-strength` so the line still reads at `night` and `dusk`.
-3. **Runtime** — one style; `setConfigProperty('basemap', 'lightPreset', …)` when When changes. Do not swap four style URLs. Hide Mapbox POIs; keep YourWalk amenity overlays.
-4. **Route geometry** — scored walk lines also go in `middle` or `top` with emissive-strength. Same four lighting presets, one paint rule.
+2. **Runtime T1EAM underlay (E4, shipped)** — paint Casey footpath **polygons** from the scoring GeoJSON already loaded for routing. Slot `middle`, quiet navy / night-quiet, no index colours. Do not stroke polygons as line-only (rings look like shards). Studio tileset later if 27k client features need a perf pass.
+3. **Runtime lighting** — one style; `setConfigProperty('basemap', 'lightPreset', …)` when When changes. Do not swap four style URLs. Hide Mapbox POIs and pedestrian roads; keep YourWalk amenity overlays.
+4. **Route geometry** — scored walk lines in `top` with emissive-strength. Same four lighting presets, one paint rule.
 
-If Casey footpaths must be the basemap truth (side of street, missing OSM paths), step 2 is the product path. Recolouring Standard’s built-in pedestrian roads will not get us there.
+Recolouring Standard’s built-in pedestrian roads will not get us there. Routes may sit a metre or two off the underlay until T1EAM-native route paint lands.
 
 No choropleth on the resident map. No stats strip or pill-cluster clutter in the first viewport.
 

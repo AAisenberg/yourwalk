@@ -12,9 +12,14 @@ import {
   type ReactNode,
 } from "react";
 
-import { IconOuting, IconTrip } from "@/components/resident/icons";
+import { IconEye, IconEyeOff, IconOuting, IconTrip } from "@/components/resident/icons";
 import { PlaceField } from "@/components/resident/PlaceField";
 import { RingedAmenityIcon } from "@/components/resident/RingedAmenityIcon";
+import {
+  WALK_PIN_FROM,
+  WALK_PIN_TO,
+  createWalkPinElement,
+} from "@/components/resident/WalkPin";
 import { SegmentedPill } from "@/components/resident/SegmentedPill";
 import { WalkModeSwitch } from "@/components/resident/WalkModeSwitch";
 import { MdClose, MdEdit, MdLayers } from "react-icons/md";
@@ -119,16 +124,115 @@ function applyStandardLook(map: mapboxgl.Map, preset: LightPreset) {
   try {
     map.setConfigProperty("basemap", "lightPreset", preset);
     map.setConfigProperty("basemap", "showPointOfInterestLabels", false);
+    // Standard paints OSM paths/trails as a neon dotted line at night.
+    // That is not Casey T1EAM and only covers part of the network — hide it.
+    map.setConfigProperty("basemap", "showPedestrianRoads", false);
   } catch {
     /* classic streets / dark has no Standard basemap config */
   }
 }
 
-/** Install route + optional LGA layers after load or basemap style switch. */
+const T1EAM_UNDERLAY_SRC = "t1eam-underlay";
+const T1EAM_UNDERLAY_FILL = "t1eam-underlay-fill";
+const T1EAM_UNDERLAY_LINE = "t1eam-underlay-line";
+
+function t1eamUnderlayColor(night: boolean): string {
+  return night ? "#8B8DD9" : "#292984";
+}
+
+/** Quiet Casey footpath carpet — polygons, not Mapbox pedestrian dots. */
+function ensureT1eamUnderlay(
+  map: mapboxgl.Map,
+  features: GeoJSON.Feature[],
+  night: boolean,
+) {
+  if (features.length === 0) return;
+  const data: GeoJSON.FeatureCollection = {
+    type: "FeatureCollection",
+    features,
+  };
+  const existing = map.getSource(T1EAM_UNDERLAY_SRC);
+  if (existing && existing.type === "geojson") {
+    existing.setData(data);
+  } else {
+    map.addSource(T1EAM_UNDERLAY_SRC, {
+      type: "geojson",
+      data,
+      // Underlay only — a little simplify keeps 27k polygons cheaper
+      tolerance: 0.4,
+    });
+  }
+
+  const color = t1eamUnderlayColor(night);
+  const before = map.getLayer("routes-alt") ? "routes-alt" : undefined;
+  if (!map.getLayer(T1EAM_UNDERLAY_FILL)) {
+    map.addLayer(
+      {
+        id: T1EAM_UNDERLAY_FILL,
+        type: "fill",
+        source: T1EAM_UNDERLAY_SRC,
+        slot: "middle",
+        minzoom: 12,
+        paint: {
+          "fill-color": color,
+          "fill-opacity": night ? 0.28 : 0.2,
+          "fill-emissive-strength": night ? 0.4 : 0,
+        },
+      },
+      before,
+    );
+  } else {
+    map.setPaintProperty(T1EAM_UNDERLAY_FILL, "fill-color", color);
+    map.setPaintProperty(
+      T1EAM_UNDERLAY_FILL,
+      "fill-opacity",
+      night ? 0.28 : 0.2,
+    );
+    map.setPaintProperty(
+      T1EAM_UNDERLAY_FILL,
+      "fill-emissive-strength",
+      night ? 0.4 : 0,
+    );
+  }
+  if (!map.getLayer(T1EAM_UNDERLAY_LINE)) {
+    map.addLayer(
+      {
+        id: T1EAM_UNDERLAY_LINE,
+        type: "line",
+        source: T1EAM_UNDERLAY_SRC,
+        slot: "middle",
+        minzoom: 12,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": color,
+          "line-width": 0.8,
+          "line-opacity": night ? 0.42 : 0.3,
+          "line-emissive-strength": night ? 0.3 : 0,
+        },
+      },
+      before,
+    );
+  } else {
+    map.setPaintProperty(T1EAM_UNDERLAY_LINE, "line-color", color);
+    map.setPaintProperty(
+      T1EAM_UNDERLAY_LINE,
+      "line-opacity",
+      night ? 0.42 : 0.3,
+    );
+    map.setPaintProperty(
+      T1EAM_UNDERLAY_LINE,
+      "line-emissive-strength",
+      night ? 0.3 : 0,
+    );
+  }
+}
+
+/** Install route + optional LGA / T1EAM layers after load or basemap style switch. */
 function installMapChrome(
   map: mapboxgl.Map,
   opts: {
     lga?: GeoJSON.FeatureCollection | null;
+    t1eam?: GeoJSON.Feature[];
     night: boolean;
   },
 ) {
@@ -193,6 +297,10 @@ function installMapChrome(
       },
       "routes-alt",
     );
+  }
+
+  if (opts.t1eam?.length) {
+    ensureT1eamUnderlay(map, opts.t1eam, opts.night);
   }
 }
 
@@ -588,6 +696,7 @@ export function ResidentApp() {
             lgaDataRef.current = lga;
             installMapChrome(map, {
               lga,
+              t1eam: featuresRef.current,
               night: walkModeRef.current === "night",
             });
           } catch {
@@ -600,6 +709,11 @@ export function ResidentApp() {
           const body = await fetchSegmentsGeoJSON(resolveGeoJsonUrl());
           if (!mapRef.current) return;
           featuresRef.current = body.features ?? [];
+          ensureT1eamUnderlay(
+            map,
+            featuresRef.current,
+            walkModeRef.current === "night",
+          );
           setNetworkReady(true);
           setNetworkStatus("Ready to plan a walk");
         } catch (err) {
@@ -652,6 +766,7 @@ export function ResidentApp() {
       map.once("style.load", () => {
         installMapChrome(map, {
           lga: lgaDataRef.current,
+          t1eam: featuresRef.current,
           night: walkMode === "night",
         });
         paintRoutes(routesRef.current, selectedIdRef.current);
@@ -686,6 +801,13 @@ export function ResidentApp() {
         walkMode === "night" ? "#8B8DD9" : "#292984",
       );
     }
+    if (map.getLayer(T1EAM_UNDERLAY_FILL)) {
+      ensureT1eamUnderlay(
+        map,
+        featuresRef.current,
+        walkMode === "night",
+      );
+    }
   }, [walkMode, whenOverridden, mapReady, paintRoutes, syncOverlayLayers]);
 
   useEffect(() => {
@@ -693,7 +815,10 @@ export function ResidentApp() {
     if (!map) return;
     if (origin) {
       if (!originMarkerRef.current) {
-        originMarkerRef.current = new mapboxgl.Marker({ color: "#009444" })
+        originMarkerRef.current = new mapboxgl.Marker({
+          element: createWalkPinElement(WALK_PIN_FROM, "From"),
+          anchor: "center",
+        })
           .setLngLat([origin.lng, origin.lat])
           .addTo(map);
       } else originMarkerRef.current.setLngLat([origin.lng, origin.lat]);
@@ -703,7 +828,10 @@ export function ResidentApp() {
     }
     if (destination) {
       if (!destMarkerRef.current) {
-        destMarkerRef.current = new mapboxgl.Marker({ color: "#EC008C" })
+        destMarkerRef.current = new mapboxgl.Marker({
+          element: createWalkPinElement(WALK_PIN_TO, "To"),
+          anchor: "center",
+        })
           .setLngLat([destination.lng, destination.lat])
           .addTo(map);
       } else destMarkerRef.current.setLngLat([destination.lng, destination.lat]);
@@ -1126,6 +1254,7 @@ export function ResidentApp() {
               Show on the map
               {walkIntent === "outing" ? " · soft bias for Loop" : ""}
             </p>
+            <div className="flex flex-col gap-1">
             {OVERLAY_DEFS.map((def) => {
               const on = overlays[def.id];
               return (
@@ -1134,6 +1263,13 @@ export function ResidentApp() {
                   type="button"
                   disabled={!def.available}
                   aria-pressed={on}
+                  aria-label={
+                    def.available
+                      ? on
+                        ? `Hide ${def.label}`
+                        : `Show ${def.label}`
+                      : `${def.label}, coming soon`
+                  }
                   onClick={() => toggleOverlay(def.id)}
                   className={`flex min-h-11 w-full items-center gap-2.5 rounded-xl px-2 text-left text-[11px] font-semibold disabled:opacity-45 ${
                     on
@@ -1158,18 +1294,25 @@ export function ResidentApp() {
                       </span>
                     ) : null}
                   </span>
-                  {on ? (
-                    <span
-                      className={`text-[10px] font-bold ${
-                        isNight ? "text-yw-teal" : "text-yw-teal"
-                      }`}
-                    >
-                      Showing
-                    </span>
+                  {def.available ? (
+                    on ? (
+                      <IconEye
+                        className="h-4 w-4 shrink-0 text-yw-teal"
+                        aria-hidden
+                      />
+                    ) : (
+                      <IconEyeOff
+                        className={`h-4 w-4 shrink-0 ${
+                          isNight ? "text-white/35" : "text-slate-400"
+                        }`}
+                        aria-hidden
+                      />
+                    )
                   ) : null}
                 </button>
               );
             })}
+            </div>
           </div>
         ) : null}
 
@@ -1438,7 +1581,7 @@ export function ResidentApp() {
                   <PlaceField
                     label="From"
                     placeholder="Park, school, suburb, or street"
-                    dot="#009444"
+                    dot={WALK_PIN_FROM}
                     isNight={isNight}
                     valueLabel={shortLabel(originLabel)}
                     pickActive={pickMode === "origin"}
@@ -1462,7 +1605,7 @@ export function ResidentApp() {
                   <PlaceField
                     label="To"
                     placeholder="Park, school, suburb, or street"
-                    dot="#EC008C"
+                    dot={WALK_PIN_TO}
                     isNight={isNight}
                     valueLabel={shortLabel(destLabel)}
                     pickActive={pickMode === "destination"}
@@ -1488,7 +1631,7 @@ export function ResidentApp() {
                   <PlaceField
                     label="Start"
                     placeholder="Park, school, suburb, or street"
-                    dot="#009444"
+                    dot={WALK_PIN_FROM}
                     isNight={isNight}
                     valueLabel={shortLabel(originLabel)}
                     pickActive={pickMode === "origin"}

@@ -12,6 +12,8 @@ import {
   MdPets,
   MdRoute,
   MdSwapHoriz,
+  MdVisibility,
+  MdVisibilityOff,
   MdWaterDrop,
   MdWbSunny,
   MdWc,
@@ -32,6 +34,8 @@ export const IconFountain = MdWaterDrop;
 export const IconBench = MdChair;
 export const IconToilet = MdWc;
 export const IconDogBag = MdPets;
+export const IconEye = MdVisibility;
+export const IconEyeOff = MdVisibilityOff;
 
 export const OVERLAY_ICONS: Record<OverlayId, IconType> = {
   fountains: IconFountain,
@@ -73,4 +77,11 @@ export const ICON_REVIEW: {
   { id: "benches", label: "Benches", Icon: IconBench, note: "Along the way" },
   { id: "toilets", label: "Toilets", Icon: IconToilet, note: "Along the way" },
   { id: "dog_bags", label: "Dog bags", Icon: IconDogBag, note: "Along the way" },
+  { id: "eye", label: "Layer on", Icon: IconEye, note: "Layers row visible" },
+  {
+    id: "eye-off",
+    label: "Layer off",
+    Icon: IconEyeOff,
+    note: "Layers row hidden",
+  },
 ];
