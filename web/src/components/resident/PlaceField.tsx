@@ -56,7 +56,7 @@ export function PlaceField({
     const t = window.setTimeout(async () => {
       setLoading(true);
       try {
-        const places = await searchPlaces(query, token, 5);
+        const places = await searchPlaces(query, token, 8);
         setResults(places);
         setOpen(true);
       } catch {
@@ -176,10 +176,10 @@ export function PlaceField({
         </button>
       </div>
 
-      {open && editing && (results.length > 0 || loading) ? (
+      {open && editing && query.trim().length >= 2 ? (
         <ul
           id={listId}
-          className={`absolute left-0 right-0 z-20 mt-1 max-h-48 overflow-y-auto rounded-2xl border shadow-lg ${
+          className={`absolute left-0 right-0 z-20 mt-1 max-h-56 overflow-y-auto rounded-2xl border shadow-lg ${
             isNight
               ? "border-white/10 bg-yw-night-panel"
               : "border-[#E8ECF2] bg-white"
@@ -192,6 +192,16 @@ export function PlaceField({
               }`}
             >
               Searching…
+            </li>
+          ) : null}
+          {!loading && results.length === 0 ? (
+            <li
+              className={`px-3 py-2.5 text-xs ${
+                isNight ? "text-white/45" : "text-slate-500"
+              }`}
+            >
+              No Casey places for that search. Try a school, hospital, park, or
+              street.
             </li>
           ) : null}
           {results.map((r) => (
@@ -208,14 +218,14 @@ export function PlaceField({
                   setQuery("");
                 }}
               >
-                <span className="block">
+                <span className="block min-w-0">
                   <span className="block font-medium">{r.label}</span>
                   <span
                     className={`block truncate text-[11px] ${
                       isNight ? "text-white/45" : "text-slate-500"
                     }`}
                   >
-                    {r.place_name}
+                    {r.kind ? `${r.kind} · ${r.place_name}` : r.place_name}
                   </span>
                 </span>
               </button>

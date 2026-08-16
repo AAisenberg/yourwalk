@@ -35,11 +35,11 @@ A **layers** button on the map (not the sheet). Toggles fountains, benches, toil
 
 ### Track D — Places in search
 
-Live geocode already requests `address,poi,place,locality,neighborhood` (Casey bbox). It is not street-only. XYX may not have seen POIs, or Casey POI coverage is thin.
+Shipped (16 Aug 2026 night). Geocoding v5 was returning streets that matched the words (`school` → School Court) and **zero** Casey POIs. Live From / Start / To now uses Mapbox **Search Box** `/forward` (schools, hospitals, aged care, parks), Casey bbox, v5 fallback.
 
-- Copy and result rows should say **place** first (park, school, station)
-- Confirm a few Casey landmarks in the live field (Fountain Gate, Wilson Botanic Park, a school)
-- Later: Mapbox Search Box if v5 POIs stay weak. Not required to start Track B
+- Rows show place name first, then kind · address (School, Hospital, …)
+- Empty: “No Casey places for that search”
+- Confirm in the field: Berwick Primary, Casey Hospital, aged care, Wilson Botanic Park
 
 ### Track E — YourWalk Standard style
 
@@ -103,9 +103,8 @@ Visual / basemap (two index states, four map looks):
 
 ## Focus next (recommended)
 
-1. Walk the live planner on `/` (not only `/design/planner`) — Day/Night auto, Loop, Layers, skinny results
+1. Routing trust (side of street, loop backtracks) when you pick it up again
 2. Shareable A→B + Open in Maps (honest hand-off copy)
-3. Shareable A→B + Open in Maps (honest hand-off copy)
 4. **Backtrack snip spike** — optional geometry cleanup for short reverse spurs
 5. Later time picker, then custom domain / production cut when ready for wider Casey testing
 
