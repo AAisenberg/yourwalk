@@ -132,7 +132,7 @@ After the card set is fixed:
 
 ## Outing mode (Around here)
 
-Turning points are scored with the same Casey preference blend as A→B (P4). Find prefers the better-scoring turns in the duration ring, then draws start → turn → turn → home. Casey graph legs are used when they connect; otherwise Mapbox with **positive** `walkway_bias`. The **hard carriageway gate is trip A→B only** and is not applied to Loop / There and back. Suburban circuits necessarily use street-adjacent footpaths; treating them like mid-road trip options rejected nearly all Montpelier / Berwick loops (`no_route` after tilequery). Loop quality rules (circuit revisit, reverse-overlap, spur demote, ±5 min band) remain in `planOuting.ts`. Prefer away from roads is ranking-only on loops.
+Loops are drawn on the Casey graph first. One call to the challenger `/loop` planner returns up to three distinct circuits: turning points are through-junctions (never dead-ends) scored with the same preference blend as A→B, the three legs share a cumulative reuse penalty (x4 on edges already walked, so the way home does not retrace the way out), and the via radius is resized from measured circuit length until the walk lands inside the ±5 min band. Mapbox waypoint drawing (positive `walkway_bias`, Casey-scored turning points) is the fallback when the planner returns nothing or the challenger is down. The **hard carriageway gate is trip A→B only** and is not applied to Loop / There and back. Suburban circuits necessarily use street-adjacent footpaths; treating them like mid-road trip options rejected nearly all Montpelier / Berwick loops (`no_route` after tilequery). Loop quality rules (circuit revisit, reverse-overlap, spur demote, ±5 min band) remain in `planOuting.ts` and apply to both engines. Prefer away from roads is ranking-only on loops.
 
 ## QA OD (regression)
 
@@ -200,6 +200,7 @@ Replay: start challenger, then `cd web && npx tsx scripts/smoke-trip-funnel.ts`.
 
 | Date | Change |
 |------|--------|
+| **16 Aug 2026** | Loops move to the challenger `/loop` planner: through-junction turning points, cumulative cross-leg reuse penalty (x4), calibration probe + damped via resize for the ±5 min band. Fixes Montpelier backtracking (revisit 0.15–0.21 to 0.00–0.09). Mapbox waypoint drawing is now the fallback only. |
 | **16 Aug 2026** | P4 outing: turning points use the trip preference blend; Casey graph legs when they connect; Mapbox fallback. Montpelier 30 min Loop is the exit fixture. |
 | **16 Aug 2026** | Dual Casey cards: preference-best + other pathish corridor (invert stream, no prefix penalty, 1.20×). Pathish pref paths may keep up to 1.20× (OD-12 Bellevue). Prefer away from roads stays an optional third card. |
 | **16 Aug 2026** | Challenger road-class cost 1.5–2× so parallel footpaths beat road ways; synthesise crossing edges from node-tagged OSM crossings; Prefer away from roads is generation-time (1.6× detour + off-road challenger). Hide Mapbox that still looks mid-carriageway when Casey is already on the footpath. OD-12 default: north-side Homestead via roundabout crossings. |

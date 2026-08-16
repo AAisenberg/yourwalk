@@ -37,6 +37,18 @@ type ChallengerResponse = {
   error?: string;
 };
 
+export type ChallengerLoop = ChallengerRoute & {
+  /** Server-side same-path revisit ratio (same metric family as planOuting). */
+  revisit?: number;
+  /** Turning points [lng, lat] the circuit was drawn through. */
+  vias?: [number, number][];
+};
+
+type ChallengerLoopsResponse = {
+  loops?: ChallengerLoop[];
+  error?: string;
+};
+
 /**
  * Fetch OSM+Casey score-aware path via Next proxy → local serve_challenger.py.
  * Returns null if the service is down (Mapbox-only fallback).
@@ -77,5 +89,48 @@ export async function fetchChallengerRoute(
   } catch (err) {
     console.warn("Challenger unavailable", err);
     return null;
+  }
+}
+
+/**
+ * Fetch up to three Around-here circuits from the challenger's /loop planner
+ * (through-junction turning points, cross-leg reuse penalty, adaptive sizing).
+ * Returns [] when the service is down so Mapbox waypoint drawing takes over.
+ */
+export async function fetchChallengerLoops(
+  start: LngLat,
+  minutes: number,
+  mode: "day" | "night" = "day",
+  opts?: { apiBase?: string; prefs?: ChallengerPrefs; maxOptions?: number },
+): Promise<ChallengerLoop[]> {
+  const path = "/api/challenger-loop";
+  const url = opts?.apiBase
+    ? `${opts.apiBase.replace(/\/$/, "")}${path}`
+    : path;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        start: { lng: start.lng, lat: start.lat },
+        minutes,
+        mode,
+        ...(opts?.prefs ? { prefs: opts.prefs } : {}),
+        ...(opts?.maxOptions ? { max_options: opts.maxOptions } : {}),
+      }),
+    });
+    if (!res.ok) {
+      if (res.status !== 503 && res.status !== 404) {
+        console.warn(`Challenger loop HTTP ${res.status}`);
+      }
+      return [];
+    }
+    const body = (await res.json()) as ChallengerLoopsResponse;
+    return (body.loops ?? []).filter(
+      (l) => l?.geometry?.coordinates?.length,
+    );
+  } catch (err) {
+    console.warn("Challenger loops unavailable", err);
+    return [];
   }
 }

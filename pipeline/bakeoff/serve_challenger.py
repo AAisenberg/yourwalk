@@ -27,6 +27,7 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
 from challenger import load_graph, plan_challenger  # noqa: E402
+from loop_planner import plan_loops  # noqa: E402
 
 
 def _shared_secret() -> str:
@@ -114,7 +115,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
-        if path not in ("/route", "/"):
+        if path not in ("/route", "/loop", "/"):
             self._json(404, {"error": "Not found"})
             return
         if not _authorized(self):
@@ -126,6 +127,9 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(raw.decode("utf-8") or "{}")
         except json.JSONDecodeError:
             self._json(400, {"error": "Invalid JSON"})
+            return
+        if path == "/loop":
+            self._handle_loop(body)
             return
         try:
             origin = body["origin"]
@@ -145,6 +149,41 @@ class Handler(BaseHTTPRequestHandler):
         mode = str(body.get("mode") or "day")
         prefs = body.get("prefs") if isinstance(body.get("prefs"), dict) else None
         self._handle_route(olng, olat, dlng, dlat, mode, prefs)
+
+    def _handle_loop(self, body: dict) -> None:
+        start = body.get("start") or body.get("origin")
+        try:
+            lng = float(start["lng"] if isinstance(start, dict) else start[0])
+            lat = float(start["lat"] if isinstance(start, dict) else start[1])
+            minutes = float(body.get("minutes") or 30)
+        except (KeyError, TypeError, ValueError, IndexError):
+            self._json(
+                400,
+                {"error": "Body needs start {lng,lat} and minutes"},
+            )
+            return
+        mode = str(body.get("mode") or "day")
+        prefs = body.get("prefs") if isinstance(body.get("prefs"), dict) else None
+        try:
+            max_options = int(body.get("max_options") or 3)
+        except (TypeError, ValueError):
+            max_options = 3
+        try:
+            loops = plan_loops(
+                lng,
+                lat,
+                minutes,
+                mode=mode,
+                prefs=prefs,
+                max_options=max_options,
+            )
+        except FileNotFoundError as exc:
+            self._json(503, {"error": str(exc)})
+            return
+        except Exception as exc:  # noqa: BLE001
+            self._json(500, {"error": str(exc)})
+            return
+        self._json(200, {"loops": loops})
 
     def _handle_route(
         self,
@@ -197,6 +236,7 @@ def main() -> int:
     print(f"Challenger listening on http://{args.host}:{args.port}", flush=True)
     print("  GET  /health", flush=True)
     print("  POST /route  JSON {origin:{lng,lat}, destination:{lng,lat}, mode}", flush=True)
+    print("  POST /loop   JSON {start:{lng,lat}, minutes, mode, prefs}", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

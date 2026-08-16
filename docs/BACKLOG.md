@@ -153,7 +153,7 @@ Before a backlog item is considered complete, it must meet all of the following:
 
 **Dependencies**: Local/hosted `serve_challenger.py`; graph rebuild with stream scores
 
-**Status**: Now — P1 + P2 + P3 done 16 Aug 2026. **P4** outing bias locked and shipping (Casey-scored turning points; Casey graph legs when they connect; Mapbox fallback). Hosted challenger live (ADR-010). Next: side-of-street / heading-continuity; T1EAM-native geometry. Recap for XYX: [`ROUTING_NOTE_NIKKI_2026-08-16.md`](ROUTING_NOTE_NIKKI_2026-08-16.md)
+**Status**: Now — P1 + P2 + P3 + P4 done 16 Aug 2026. Loops now draw on the Casey graph via the challenger `/loop` planner (through-junction vias, cross-leg reuse penalty, adaptive sizing) — fixes Montpelier backtracking; Mapbox waypoints are fallback only. Hosted challenger live (ADR-010). Next: side-of-street / heading-continuity; T1EAM-native geometry. Recap for XYX: [`ROUTING_NOTE_NIKKI_2026-08-16.md`](ROUTING_NOTE_NIKKI_2026-08-16.md)
 
 ---
 
