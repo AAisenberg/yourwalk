@@ -940,6 +940,8 @@ type DrawnLoop = {
   distance: number;
   duration: number;
   strategy: string;
+  /** Road-centreline share from the server planner (0–1), when known. */
+  roadShare?: number;
 };
 
 /**
@@ -1007,19 +1009,27 @@ function gateLoopIntoPool(
   }
 
   const soft = amenitySoftScore(geometry, amenitySets);
-  const quality = circuitQualityScore(revisit, spur);
+  // Road-centreline share (server circuits): demote roadier circuits so
+  // ties and third-card cuts favour walks drawn on the path network.
+  const roadPenalty =
+    drawn.roadShare != null ? Math.round(drawn.roadShare * 25) : 0;
+  const quality = circuitQualityScore(revisit, spur) - roadPenalty;
   const clean =
     revisit <= CLEAN_LOOP_REVISIT &&
     overlap <= 0.4 &&
     spur.worstSpurM <= SPUR_NOTE_M;
 
+  const roadTag =
+    drawn.roadShare != null
+      ? `_rd${Math.round(drawn.roadShare * 100)}`
+      : "";
   const item: ScoredRoute = {
     id,
     index: pool.length,
     distance_m: drawn.distance,
     duration_s: drawn.duration,
     geometry,
-    strategy: `${drawn.strategy}_rev${revisit.toFixed(2)}_sp${Math.round(spur.worstSpurM)}`,
+    strategy: `${drawn.strategy}_rev${revisit.toFixed(2)}_sp${Math.round(spur.worstSpurM)}${roadTag}`,
     amenity_note: soft.note,
     outing_note: clean
       ? undefined
@@ -1088,6 +1098,9 @@ async function collectCaseyLoops(
         distance: l.distance_m,
         duration: l.duration_s,
         strategy: l.strategy,
+        ...(typeof l.road_share === "number"
+          ? { roadShare: l.road_share }
+          : {}),
       },
       `outing-loop-casey-${i}`,
       start,

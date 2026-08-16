@@ -11,6 +11,18 @@ Findings behind this module (16 Aug 2026 backtracking investigation):
 - Turning points must be through-nodes (junction degree >= 2), never
   dead-ends, or the circuit is forced out-and-back into the spur.
 
+Road-aware selection (17 Aug 2026, mid-road lines fix):
+
+- OSM Berwick rarely maps residential sidewalks as separate ways, so legs on
+  road-class edges draw down the road centreline. ~84% of that road walking
+  had no mapped footway alternative, so edge costs alone cannot fix it.
+- Low-road circuits usually exist at a start but first-draw out of band and
+  need more via resizes to converge; at night the lighting blend actively
+  favours lit street corridors, so first-accepted picks were the roadiest.
+- Fix: draw every candidate pair, converge with up to five damped resizes
+  (with an oscillation guard), then return the lowest road-share circuits.
+  The durable fix is T1EAM-native sidewalk edges in the graph (backlog).
+
 One /loop call returns up to three distinct in-band circuits. The web app
 keeps its own quality gates and falls back to Mapbox waypoint drawing when
 this planner returns nothing.
@@ -31,7 +43,13 @@ from challenger import (
     path_to_route,
     route_to_json,
 )
-from graph_runtime import _norm_score, highway_cost_mult, nearest_node
+from graph_runtime import (
+    PATHISH_HIGHWAYS,
+    _norm_score,
+    highway_cost_mult,
+    nearest_node,
+    norm_highway,
+)
 
 WALK_MPS = 1.3
 BAND_S = 300.0
@@ -41,7 +59,10 @@ LOOP_QUALITY_SWING = 0.5
 PENALIZE_MULT = 4.0
 REVISIT_MAX = 0.20
 SIMILAR_OVERLAP = 0.75
-MAX_CIRCUIT_ATTEMPTS = 22
+# Enough for 12 pairs x up to 6 draws each is never reached; the deadline
+# and per-pair caps bound the tail. ~20 ms per circuit locally.
+MAX_CIRCUIT_ATTEMPTS = 48
+MAX_RESIZES = 5
 DEADLINE_S = 8.0
 SECTOR_DEG = 30.0
 # First-guess via radius as a share of target circuit length. Circuits at
@@ -50,6 +71,31 @@ SECTOR_DEG = 30.0
 VIA_RADIUS_SHARE = 0.20
 # Damped resize exponent: linear f = target/total oscillates past the band.
 RESIZE_DAMPING = 0.85
+
+# Classes drawn as OSM road centrelines (mid-road lines on the map).
+# `service` and `crossing` are excluded: laneways and kerb-to-kerb hops are
+# not what residents read as walking down the middle of a road.
+ROAD_SHARE_HIGHWAYS = frozenset(
+    {
+        "residential",
+        "unclassified",
+        "living_street",
+        "tertiary",
+        "tertiary_link",
+        "secondary",
+        "secondary_link",
+        "primary",
+        "primary_link",
+        "trunk",
+        "trunk_link",
+        "motorway",
+        "motorway_link",
+    }
+)
+# Reject circuits above this road-centreline share when alternatives exist.
+ROAD_SHARE_MAX = 0.45
+# Keep the pathish-via filter only when it leaves a workable candidate pool.
+PATHISH_VIA_MIN_CANDIDATES = 30
 
 Node = tuple[float, float]
 
@@ -261,6 +307,27 @@ def _sample_overlap(a: list[Node], b: list[Node], near_m: float = 55.0) -> float
     return near / n if n else 1.0
 
 
+def _touches_path_network(g: nx.Graph, node: Node) -> bool:
+    """True when an adjacent edge is pathish (not just a kerb-to-kerb crossing)."""
+    for _, data in g.adj[node].items():
+        hw = norm_highway(data.get("highway"))
+        if hw in PATHISH_HIGHWAYS and hw != "crossing":
+            return True
+    return False
+
+
+def _road_share(route: dict[str, Any]) -> float:
+    """Share of circuit length on road-centreline classes (drawn mid-road)."""
+    highway_m = route.get("osm_highway_m") or {}
+    total = sum(highway_m.values())
+    if total <= 0:
+        return 1.0
+    road = sum(
+        v for k, v in highway_m.items() if k in ROAD_SHARE_HIGHWAYS
+    )
+    return road / total
+
+
 def _via_candidates(
     g: nx.Graph,
     start: Node,
@@ -273,6 +340,7 @@ def _via_candidates(
     dlat = r_hi / 111320.0
     dlng = r_hi / (111320.0 * max(0.2, math.cos(math.radians(start[1]))))
     out: list[dict[str, Any]] = []
+    on_paths: list[dict[str, Any]] = []
     for n in g.nodes():
         if abs(n[0] - start[0]) > dlng or abs(n[1] - start[1]) > dlat:
             continue
@@ -282,14 +350,19 @@ def _via_candidates(
         if g.degree[n] < 2:
             continue
         blend = _node_blend(g, n, mode, prefs, percentiles)
-        out.append(
-            {
-                "node": n,
-                "dist": d,
-                "bearing": _bearing_deg(start, n),
-                "blend": blend if blend is not None else 0.5,
-            }
-        )
+        cand = {
+            "node": n,
+            "dist": d,
+            "bearing": _bearing_deg(start, n),
+            "blend": blend if blend is not None else 0.5,
+        }
+        out.append(cand)
+        if _touches_path_network(g, n):
+            on_paths.append(cand)
+    # Corners on the path network keep legs off road centrelines. Fall back
+    # to all through-nodes where OSM footway coverage is too sparse.
+    if len(on_paths) >= PATHISH_VIA_MIN_CANDIDATES:
+        return on_paths
     return out
 
 
@@ -413,8 +486,6 @@ def plan_loops(
     if not pairs:
         return []
 
-    accepted: list[dict[str, Any]] = []
-    accepted_coords: list[list[Node]] = []
     attempts = 0
     deadline = time.monotonic() + DEADLINE_S
     r_use = r0
@@ -435,12 +506,12 @@ def plan_loops(
             if rebuilt:
                 pairs = rebuilt
 
+    # Draw every pair (circuits are ~20 ms each) and pool the survivors, so
+    # the final pick can favour the least road-centreline walking rather
+    # than whatever converged first.
+    pool: list[dict[str, Any]] = []
     for a_cand, b_cand in pairs:
-        if (
-            len(accepted) >= max_options
-            or attempts >= MAX_CIRCUIT_ATTEMPTS
-            or time.monotonic() > deadline
-        ):
+        if attempts >= MAX_CIRCUIT_ATTEMPTS or time.monotonic() > deadline:
             break
         a_node: Node = a_cand["node"]
         b_node: Node = b_cand["node"]
@@ -448,10 +519,16 @@ def plan_loops(
             f"score_aware_loop_{mode}_b{int(a_cand['bearing'])}_r{int(r_use)}"
         )
         best: dict[str, Any] | None = None
-        # Initial draw plus up to two damped via-radius resizes.
-        for _ in range(3):
+        # Initial draw plus damped via-radius resizes. Low-road circuits
+        # often start 40-50 min for a 30 min ask and need several steps;
+        # the visited set breaks resize ping-pong between two snap points.
+        visited: set[tuple[Node, Node]] = set()
+        for _ in range(1 + MAX_RESIZES):
             if attempts >= MAX_CIRCUIT_ATTEMPTS or time.monotonic() > deadline:
                 break
+            if (a_node, b_node) in visited:
+                break
+            visited.add((a_node, b_node))
             attempts += 1
             route = _circuit(g, u, a_node, b_node, mode, prefs, strategy)
             if route is None:
@@ -492,19 +569,45 @@ def plan_loops(
         max_away = max((_haversine_m(start, p) for p in coords), default=0.0)
         if max_away < 0.35 * r_use:
             continue
+
+        pool.append(
+            {
+                "route": pinned,
+                "coords": coords,
+                "rev": rev,
+                "road": _road_share(best),
+                "dur_err": abs(float(best["distance_m"]) - target_m),
+                "vias": (a_node, b_node),
+            }
+        )
+
+    # Least mid-road walking first. Circuits over the road-share cap may
+    # only fill up to a two-card set; a third card must be under the cap.
+    pool.sort(key=lambda c: (c["road"], c["rev"], c["dur_err"]))
+    ordered = [c for c in pool if c["road"] <= ROAD_SHARE_MAX] + [
+        c for c in pool if c["road"] > ROAD_SHARE_MAX
+    ]
+
+    accepted: list[dict[str, Any]] = []
+    accepted_coords: list[list[Node]] = []
+    for cand in ordered:
+        if len(accepted) >= max_options:
+            break
+        if cand["road"] > ROAD_SHARE_MAX and len(accepted) >= 2:
+            continue
         if any(
-            _sample_overlap(coords, prev) >= SIMILAR_OVERLAP
+            _sample_overlap(cand["coords"], prev) >= SIMILAR_OVERLAP
             for prev in accepted_coords
         ):
             continue
-
-        out = route_to_json(pinned)
-        out["revisit"] = round(rev, 3)
+        out = route_to_json(cand["route"])
+        out["revisit"] = round(cand["rev"], 3)
+        out["road_share"] = round(cand["road"], 3)
         out["vias"] = [
-            [a_node[0], a_node[1]],
-            [b_node[0], b_node[1]],
+            [cand["vias"][0][0], cand["vias"][0][1]],
+            [cand["vias"][1][0], cand["vias"][1][1]],
         ]
         accepted.append(out)
-        accepted_coords.append(coords)
+        accepted_coords.append(cand["coords"])
 
     return accepted

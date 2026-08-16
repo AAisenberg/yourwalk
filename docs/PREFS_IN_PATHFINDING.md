@@ -145,16 +145,19 @@ Minimum shippable: step 1 + 2. Step 3 is the trust amplifier for demos (“here 
 
 **Intent:** Around here uses the same Casey scores and slider blend as A→B, so Find again after a slider change can propose a different circuit.
 
-**How a loop is made (server `/loop`, 16 Aug 2026)**
+**How a loop is made (server `/loop`, 16–17 Aug 2026)**
 
 1. One call to the challenger `/loop` planner with start, minutes, mode and the same preference sliders as A→B.
-2. The planner picks turning points on **through-junctions** (degree 2 or more, never dead-ends) in the duration ring, scored with the day/night blend (Accessibility + Heat & Shade by day; Accessibility + Lighting by night, Night Index fallback). One best turn per 30 degree sector keeps a spread of directions.
+2. The planner picks turning points on **through-junctions** (degree 2 or more, never dead-ends) in the duration ring, scored with the day/night blend (Accessibility + Heat & Shade by day; Accessibility + Lighting by night, Night Index fallback). One best turn per 30 degree sector keeps a spread of directions. Turning points must touch the path network (an adjacent footway/path edge, not just a road junction) where OSM coverage allows.
 3. A calibration probe measures how much the network wanders versus crow-fly at this start, then re-anchors the via ring so first draws land near the asked duration.
 4. Three legs (start → A, A → B, B → home) are routed with a **cumulative reuse penalty** (x4 on edges already walked) so the way home does not retrace the way out. The quality swing is tempered versus trips because circuits have a fixed time budget.
-5. If a circuit misses the ±5 min band, the vias are resized from measured length (damped) and redrawn, up to twice. The planner rejects high-revisit and near-duplicate circuits server-side and returns up to three.
-6. The app applies the existing loop quality gates unchanged (±5 min, same-path revisit, reverse-overlap, spur demote). Hard carriageway gate stays **off** for loops.
-7. Mapbox waypoint drawing (Casey-scored turning points, P4) is the fallback when `/loop` returns nothing or the challenger is down.
-8. Rank with outing match (prefs dominate inside the band). Prefer 2 cards; a third only if quality holds. One honest circuit if the network cannot diversify.
+5. If a circuit misses the ±5 min band, the vias are resized from measured length (damped) and redrawn, up to five times with a ping-pong guard. Low-road circuits often need the extra steps to converge.
+6. Every candidate pair is drawn and pooled, then the planner returns the circuits with the **least road-centreline walking** first (in-band, revisit ≤ 0.20, distinct). Circuits over 45% road share can only fill a two-card set, never the third card. Road share rides along in the response (`road_share`) and in the QA strategy suffix (`_rd28`).
+7. The app applies the existing loop quality gates unchanged (±5 min, same-path revisit, reverse-overlap, spur demote) and demotes roadier circuits in pool quality. Hard carriageway gate stays **off** for loops.
+8. Mapbox waypoint drawing (Casey-scored turning points, P4) is the fallback when `/loop` returns nothing or the challenger is down.
+9. Rank with outing match (prefs dominate inside the band). Prefer 2 cards; a third only if quality holds. One honest circuit if the network cannot diversify.
+
+**Known limit:** OSM Berwick rarely maps residential sidewalks as separate ways, so some "road" walking is really sidewalk walking drawn down the centreline. The durable fix is T1EAM-native sidewalk edges in the routing graph (backlog).
 
 **There and back:** Same turning-point bias (Loop first). Optional Casey graph on the outbound leg when cheap.
 
@@ -280,6 +283,7 @@ UI copy (Slice 1/2) stays complementary: “Edit walk and search again” remain
 
 | Date | Note |
 |------|------|
+| 17 Aug 2026 | Road-aware loop selection (mid-road lines fix): `/loop` draws every candidate pair (up to 5 damped resizes with a ping-pong guard), pools survivors and returns lowest road-centreline share first; >45% road only fills a two-card set. Vias must touch the path network. Montpelier night 30 min drops 58/64/65% road to 29/34/40%. Durable fix (T1EAM sidewalk edges in graph) stays on backlog. |
 | 16 Aug 2026 | Server `/loop` planner ships (backtracking fix): through-junction vias, cross-leg reuse penalty x4, calibration probe + damped resize. One HTTP call returns up to three distinct in-band circuits; client gates unchanged; Mapbox is fallback only. Montpelier revisit 0.15–0.21 down to 0.00–0.09; smoke battery 4 starts x 15/30 min all pass. |
 | 16 Aug 2026 | P4 lock: turning points scored with the trip blend; top quartile in the duration ring; Casey graph legs when they connect; Mapbox fallback. Montpelier 30 min Loop is the exit fixture. Prefer away stays ranking-only on loops. |
 | 16 Aug 2026 | P3: other pathish corridor (no prefix penalty, 1.20×) + optional away-from-roads. Dual Casey battery 5/13 ODs. Recap: [`ROUTING_NOTE_NIKKI_2026-08-16.md`](ROUTING_NOTE_NIKKI_2026-08-16.md). |
