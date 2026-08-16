@@ -65,6 +65,7 @@ import {
   type RoutePreferences,
   type WalkMode,
   clampImportance,
+  isScoreAwareStrategy,
   preferenceScore,
   prefSliderDescription,
   routeCardLabel,
@@ -75,6 +76,9 @@ import {
 } from "@/lib/routing/preferences";
 import type { LngLat, ScoredRoute } from "@/lib/routing/types";
 import { CASEY_BOUNDS } from "@/lib/scores";
+
+/** Beta QA affordance: show which engine drew each card. Flip off for launch. */
+const SHOW_ENGINE_BADGE = true;
 
 type PickMode = "idle" | "origin" | "destination";
 /** Type of walk — trip A→B vs timed outing from a start. */
@@ -1648,6 +1652,9 @@ export function ResidentApp() {
                             isNight={isNight}
                           />
                         )}
+                        {SHOW_ENGINE_BADGE ? (
+                          <EngineBadge route={r} isNight={isNight} />
+                        ) : null}
                       </div>
 
                       {(() => {
@@ -1824,6 +1831,42 @@ function scoreCoverageNote(score: {
   }
   // High coverage: no extra chrome
   return null;
+}
+
+/**
+ * Beta-only chip naming the routing engine behind a card (QA affordance).
+ * "Casey graph" = local challenger on the scored OSM network; "Mapbox" =
+ * Mapbox Directions walking. "edge paint" flags a Track 0 sidewalk nudge.
+ */
+function EngineBadge({
+  route,
+  isNight,
+}: {
+  route: ScoredRoute;
+  isNight: boolean;
+}) {
+  const casey = isScoreAwareStrategy(route.strategy);
+  const engine = casey ? "Casey graph" : "Mapbox";
+  const detail = casey
+    ? "Beta: geometry from YourWalk's Casey-scored walking network."
+    : route.paint_nudged
+      ? "Beta: geometry from Mapbox walking; the drawn line was shifted toward mapped sidewalks / the road edge (distance and time unchanged)."
+      : "Beta: geometry from Mapbox walking.";
+  return (
+    <span
+      title={`${detail}${route.strategy ? ` (${route.strategy})` : ""}`}
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${
+        isNight
+          ? "border-white/15 text-white/50"
+          : "border-slate-300 text-slate-500"
+      }`}
+    >
+      {engine}
+      {route.paint_nudged ? (
+        <span className="normal-case opacity-70">· edge paint</span>
+      ) : null}
+    </span>
+  );
 }
 
 function ScorePill({

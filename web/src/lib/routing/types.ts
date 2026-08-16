@@ -48,6 +48,13 @@ export type ScoredRoute = {
    * recomputed trip score that can disagree with card order).
    */
   match_score?: number;
+  /**
+   * Share of Streets probes that looked like road-centre footway before any
+   * sidewalk paint nudge (Track 0). Used as a soft match penalty.
+   */
+  centreline_look_share?: number;
+  /** True when Mapbox geometry was shifted toward mapped sidewalks for paint. */
+  paint_nudged?: boolean;
 };
 
 export type RankMode = "day" | "night" | "accessibility";

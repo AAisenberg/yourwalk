@@ -36,7 +36,15 @@ Outputs: `data/bakeoff/results/bakeoff_YYYYMMDD_HHMM.csv` + route GeoJSON.
 
 ### Hybrid trip mode (resident + lab)
 
-Serve the score-aware graph for the Next.js app (required for cul-de-sac cut-throughs Mapbox misses):
+**Repeatable local stack** (challenger `:8790` + Next `:3000`) from repo root:
+
+```bash
+./scripts/dev-up.sh      # start both if needed
+./scripts/dev-status.sh  # health checks
+./scripts/dev-down.sh    # stop pid-tracked processes
+```
+
+Or serve the score-aware graph alone:
 
 ```bash
 python bakeoff/serve_challenger.py --port 8790

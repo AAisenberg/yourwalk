@@ -250,7 +250,17 @@ export function tripRankScore(
     Math.max(0, efficiencyWeight ?? efficiencyWeightForPrefs(prefs, mode)),
   );
   const base = (1 - w) * pref + w * efficiency;
-  return base + sharedPathBonus(route, prefs);
+  // Track 0: soft demote centreline-looking Mapbox paint that still reads as
+  // mid-carriageway after (or without) sidewalk nudge — keeps score-aware ahead
+  // when both options exist (OD-12 Liara pattern). Score-aware challenger is
+  // exempt: it already passed the OSM path-safe gate, so any centreline look
+  // is an OSM drawing artifact (road way without separate sidewalk geometry),
+  // not evidence of a road walk.
+  const scoreAware = isScoreAwareStrategy(route.strategy);
+  const look = scoreAware ? 0 : (route.centreline_look_share ?? 0);
+  const nudged = route.paint_nudged ? 0.55 : 0;
+  const centrePenalty = Math.min(14, Math.max(0, look) * (1 - nudged) * 14);
+  return base + sharedPathBonus(route, prefs) - centrePenalty;
 }
 
 /** Dominant corridor stream for tiebreaks (highest importance slider in mode). */

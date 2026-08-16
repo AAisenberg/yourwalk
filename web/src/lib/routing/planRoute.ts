@@ -1,4 +1,7 @@
-import { isChallengerPathSafe } from "./carriageway";
+import {
+  isChallengerPathSafe,
+  nudgeGeometryTowardSidewalk,
+} from "./carriageway";
 import { fetchChallengerRoute } from "./challenger";
 import {
   fetchWalkingRouteCandidates,
@@ -76,6 +79,8 @@ function toScored(
     duration_s: number;
     geometry: GeoJSON.LineString;
     strategy?: string;
+    centreline_look_share?: number;
+    paint_nudged?: boolean;
   },
   index: number,
   segments: GeoJSON.Feature[],
@@ -88,6 +93,8 @@ function toScored(
     duration_s: r.duration_s,
     geometry: r.geometry,
     strategy: r.strategy,
+    centreline_look_share: r.centreline_look_share,
+    paint_nudged: r.paint_nudged,
     score: scoreRouteAgainstSegments(r.geometry, segments, r.distance_m),
   };
 }
@@ -95,6 +102,9 @@ function toScored(
 /**
  * Hybrid trip mode: Mapbox walking candidates + distinct score-aware path.
  * Challenger is retained when distinct even if that means dropping a Mapbox alt.
+ *
+ * Track 0: Mapbox polylines are sidewalk-nudged when Streets shows a centreline
+ * footway with a mapped sidewalk farther out (OD-12 Liara pattern).
  */
 export async function planScoredRoutes(
   origin: LngLat,
@@ -104,6 +114,7 @@ export async function planScoredRoutes(
   maxRoutes = 3,
   mode: "day" | "night" = "day",
   prefs?: RoutePreferences,
+  opts?: { challengerApiBase?: string },
 ): Promise<ScoredRoute[]> {
   if (!pointInCaseyBbox(origin) || !pointInCaseyBbox(destination)) {
     throw new Error("Origin and destination must be inside the Casey pilot area.");
@@ -121,6 +132,9 @@ export async function planScoredRoutes(
     fetchWalkingRouteCandidates(origin, destination, token, maxRoutes),
     fetchChallengerRoute(origin, destination, mode, {
       prefs: challengerPrefs,
+      ...(opts?.challengerApiBase
+        ? { apiBase: opts.challengerApiBase }
+        : {}),
     }),
   ]);
 
@@ -128,15 +142,21 @@ export async function planScoredRoutes(
 
   const mapbox: MapboxRoute[] = mapboxRaw;
   const scored: ScoredRoute[] = [];
+  let mapboxNeededNudge = false;
+
   for (let i = 0; i < mapbox.length; i++) {
-    const r = mapbox[i];
+    const r = mapbox[i]!;
+    const nudged = await nudgeGeometryTowardSidewalk(r.geometry, token);
+    if (nudged.nudged_share > 0) mapboxNeededNudge = true;
     scored.push(
       toScored(
         {
           distance_m: r.distance,
           duration_s: r.duration,
-          geometry: r.geometry,
+          geometry: nudged.geometry,
           strategy: r.strategy,
+          centreline_look_share: nudged.centreline_look_share,
+          paint_nudged: nudged.nudged_share > 0,
         },
         i,
         segments,
@@ -158,12 +178,22 @@ export async function planScoredRoutes(
     ) &&
     (await isChallengerPathSafe(challenger, token))
   ) {
+    // Same Track 0 paint treatment as Mapbox: OSM ways without separate
+    // sidewalk geometry draw at the road centreline (OD-12 Homestead Rd), so
+    // nudge to the casing edge. Distance/duration stay graph truth; the
+    // path-safe gate above already ran on the raw geometry.
+    const saNudged = await nudgeGeometryTowardSidewalk(
+      challenger.geometry,
+      token,
+    );
     const sa = toScored(
       {
         distance_m: challenger.distance_m,
         duration_s: challenger.duration_s,
-        geometry: challenger.geometry,
+        geometry: saNudged.geometry,
         strategy: challenger.strategy,
+        centreline_look_share: saNudged.centreline_look_share,
+        paint_nudged: saNudged.nudged_share > 0,
       },
       scored.length,
       segments,
@@ -171,7 +201,12 @@ export async function planScoredRoutes(
     );
     await yieldToUi();
     const mapboxKeep = Math.max(0, maxRoutes - 1);
-    const merged = [...scored.slice(0, mapboxKeep), sa];
+    // When Mapbox paint was centreline-ambiguous, lead with score-aware so
+    // Recommended defaults to the path-safer line before preference sort.
+    const mapboxCards = scored.slice(0, mapboxKeep);
+    const merged = mapboxNeededNudge
+      ? [sa, ...mapboxCards]
+      : [...mapboxCards, sa];
     return merged.map((r, i) => ({ ...r, index: i, id: r.id }));
   }
 

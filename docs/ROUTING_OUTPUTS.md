@@ -63,7 +63,7 @@ Forcing `walkway_bias=1` on the alternatives call collapsed both good options in
 **Implementation:** `web/src/lib/routing/carriageway.ts`
 
 1. Sample ~10 evenly spaced points along the candidate polyline.
-2. For each point, Mapbox Streets **tilequery** (`mapbox.mapbox-streets-v8`, layer `road`, radius ~22 m).
+2. For each point, Mapbox Streets **tilequery** (`mapbox.mapbox-streets-v8`, layer `road`, radius ~28 m).
 3. Classify nearest feature:
    - **Pathish:** `path`, `footway`, `sidewalk`, `pedestrian`, `crossing`, `steps`, `cycleway`, `track`, `bridleway`, `corridor` (class or type).
    - **Road / carriageway:** everything else with a street class (e.g. `street`, `primary`, `secondary`, `tertiary`, links).
@@ -71,7 +71,24 @@ Forcing `walkway_bias=1` on the alternatives call collapsed both good options in
 5. If tilequery fails (network / API): fail **open** for that candidate only when we already used path-preferring Mapbox strategies; still never reintroduce negative `walkway_bias`.
 6. If every candidate fails the gate: keep the single lowest carriageway-share candidate as last resort (should be rare).
 
-The same gate applies to the **score-aware challenger** before it is merged into the card list.
+The same gate applies to the **score-aware challenger** before it is merged into the card list (challenger may also pass via OSM pathish share — see P1).
+
+### 4b. Track 0 — carriageway truth / sidewalk paint (16 Aug 2026)
+
+**Problem:** Mapbox walking often returns a polyline that **looks** mid-carriageway on the basemap (e.g. Liara Blvd on OD-12) even when Streets tilequery reports a nearby `footway` / low road share. Google Maps draws the same corridor on the **edge** of the carriageway. Casey T1EAM shows offset footpaths; scoring alone does not fix the drawn line.
+
+**Ship rule (hybrid credibility):**
+
+1. **Sidewalk / edge nudge (Mapbox only):** Densify the polyline (~30 m steps, ≤70 probes) and tilequery Streets at each point. Compute a **lateral-only** signed offset per point: toward a mapped `sidewalk` when one exists 3–30 m away; otherwise, when the point sits inside the road casing (distance to the widest along-route road class below a per-class edge target — secondary ≈15 m, tertiary ≈11 m, street ≈7 m), push out to the casing edge, away from the centreline. **On-path guard:** a point already on a mapped footway/sidewalk (≤3 m) is left alone unless the road centreline is essentially coincident (≤4.5 m — the Streets "footway at centre" mislabel, e.g. Liara Blvd); genuinely offset footways (east Homestead Rd) keep their true alignment. **Side-certainty guard (centreline when unsure):** within each contiguous run of proposed shifts, the evidence must agree ≥80% on which side of the road to move; ambiguous runs (a line exactly on the road centreline gives noise-driven sides — Fordholm Rd) are not nudged at all, drawing the honest centreline instead of a weave. Offsets are capped at 9 m, damped through turns/roundabouts (heading change ≥45° → no shift, so the paint hugs corners instead of swinging into islands), median-filtered (rejects sign flips from side-street stubs at intersections), then lightly smoothed. Crossings suppress the shift. Endpoints stay fixed so From/To pins still meet the line. Distance/duration remain Mapbox routing truth.
+2. **Prefer score-aware when Mapbox needed a nudge:** If a path-safe distinct challenger merges and Mapbox paint was nudged, lead the card list with the challenger before preference ranking.
+3. **Soft match penalty:** Residual `centreline_look_share` on a card reduces match slightly so Recommended prefers path-safer geometry when scores are close. Score-aware challenger cards are **exempt** — they already passed the OSM path-safe gate, so a centreline look there is an OSM drawing artifact, not road-walk evidence.
+4. **Challenger paint gets the same nudge (16 Aug 2026):** OSM ways without separate sidewalk geometry draw at the road centreline (OD-12 Homestead Rd west of Bellevue Dr), so the merged challenger geometry runs through the same sidewalk/edge nudge after the path-safe gate. Distance/duration stay graph truth; genuinely offset footways are untouched by the on-path guard, and centreline stretches without clear side evidence stay on the centreline per the side-certainty guard. OD-12 challenger after guards: Liara 2.8→6.7 m mean off centreline (clear side), Homestead unchanged ~3.5 m (ambiguous → honest centreline), Bellevue footpath leg unchanged (11.1 m). Weave check: 0 side flips on OD-12 / OD-05 across both engines (`scripts/verify-no-weave.ts`).
+
+Evidence (OD-12, 16 Aug 2026): Liara Blvd samples were **on** the road centreline (`road@0`, no mapped sidewalk, cycleway ~9 m); Homestead Rd samples sat on a Streets `footway` only 5–9 m from a secondary centreline with the real north path mostly beyond the 35 m probe radius. After the nudge: Liara mean centreline distance 1.1 → 6.7 m (on-road probes 8/9 → 2/9), Homestead 7.4 → 9.6 m, max departure from the routed line capped at ~9 m.
+
+This does **not** invent a second fake option, and it does **not** replace T1EAM-native routing (north star). It closes the “teal line down the middle of Liara / Homestead” trust gap for the pilot hybrid.
+
+**QA:** `web/scripts/smoke-carriageway-truth.ts` (OD-12 + OD-CARRIAGE-01) · `web/scripts/verify-nudge-edges.ts` (before/after edge distances; writes `pipeline/data/qa/nudge_before_after.geojson`).
 
 ### 5. Challenger merge
 
@@ -130,6 +147,8 @@ Replay: start challenger, then `cd web && npx tsx scripts/smoke-trip-funnel.ts`.
 ## Honest limits
 
 - Mapbox + OSM path mapping can still be wrong locally; the gate reduces obvious centreline walks, it does not certify legal footpaths.
+- **Track 0 sidewalk nudge** moves paint toward mapped sidewalks / a short edge offset; it cannot fix basemap road casings that are drawn wider than the data, and it will not invent Casey park links Mapbox never routed.
+- **Side-of-road weaves are routing truth, not paint.** Where Mapbox's walking graph crosses to the other footway (e.g. Rogers Close on OD-12), the drawn jog reflects the routed OSM footway network. Google may keep the opposite footway because its graph differs. We do not repaint a line onto a footway the route never used.
 - Casey T1EAM proximity alone is **not** sufficient to detect carriageways (paths often run beside roads). Streets class tilequery is the pilot signal.
 - Fewer than 2–3 cards is acceptable when Mapbox only has one path-safe geometry. Prefer fewer honest options over a road line.
 - Missing Council crossings / kerb ramps still reduce **score confidence**; they are not imputed as zero (methodology v1.1).
