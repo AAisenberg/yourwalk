@@ -1,6 +1,6 @@
 # Preference-weighted pathfinding — north star spec
 
-**Status:** Accepted lean — P1–P3 shipped locally 16 Aug 2026. Hosted challenger still open.  
+**Status:** Accepted lean — P1–P3 shipped 16 Aug 2026. P4 outing bias locked 16 Aug 2026. Hosted challenger: Fly.io (ADR-010).  
 **Date:** 12 August 2026  
 **Product:** YourWalk · City of Casey pilot  
 **Related:** [`DECISIONS.md`](DECISIONS.md) ADR-001 · [`ROUTING_OUTPUTS.md`](ROUTING_OUTPUTS.md) · [`SCORING_SPEC_v1.1.md`](SCORING_SPEC_v1.1.md) §13 · `web/src/lib/routing/tripFunnel.ts`
@@ -78,7 +78,8 @@ Pills remain length-weighted Casey streams on whatever line is drawn. Match stil
 
 Given Loop / There and back within the ±5 min band:
 
-- Via / turn selection (or challenger legs between vias) should bias toward high-importance streams **before** Mapbox draws the waypoint walk — not only re-rank after the fact.
+- Turning points are chosen on Casey footpaths using the same preference blend as A→B **before** the circuit is drawn, not only re-ranked after the fact.
+- When the Casey graph can connect start → turn → turn → home, use those legs so the line matches A→B. If a leg is missing, Mapbox draws the same turning points.
 - Moving shade from low → high and **Edit walk → Find again** should be able to produce a **different circuit** when the local network allows, not only a different match number on the same loop.
 
 ### Honesty when the network cannot diversify
@@ -140,12 +141,30 @@ To make slider changes **visible** even when Mapbox returns one line:
 
 Minimum shippable: step 1 + 2. Step 3 is the trust amplifier for demos (“here is the shadier option vs the smoother option”).
 
-### 4.4 Outing
+### 4.4 Outing (P4 lock, 16 Aug 2026)
 
-1. Score candidate via points / segments with the same blended stream.
-2. Prefer vias in the top quartile of that blend within the duration annulus.
-3. Draw Mapbox waypoint geometry; apply loop quality gates (±5 min, revisit).
-4. Rank with outing match (prefs dominate inside the band).
+**Intent:** Around here uses the same Casey scores and slider blend as A→B, so Find again after a slider change can propose a different circuit.
+
+**How a loop is made**
+
+1. Build candidate turning-point pairs at about the right walking distance (compass bearings + amenity turns + Casey footpath points in that ring).
+2. Snap each turn onto a nearby Casey footpath when one is within ~90 m. Never impute a missing stream as zero; skip that part of the blend.
+3. Score each pair with the same day/night blend as the trip graph (Accessibility + Heat & Shade by day; Accessibility + Lighting by night, with Night Index fallback when lighting is missing).
+4. Prefer pairs in the **top quartile** of that blend. Keep a spread of directions so every turn is not in the same park. Then fill from the rest if the best ones fail quality gates.
+5. Draw start → first turn → second turn → home. Prefer three Casey graph legs (same `/route` prefs as A→B, away-from-roads **off**). If any leg fails, Mapbox draws that pair. Cap Casey-graph attempts so Find stays responsive.
+6. Apply existing loop quality gates (±5 min, same-path revisit, reverse-overlap, spur demote). Hard carriageway gate stays **off** for loops.
+7. Rank with outing match (prefs dominate inside the band). Prefer 2 cards; a third only if quality holds. One honest circuit if the network cannot diversify.
+
+**There and back:** Same turning-point bias (Loop first). Optional Casey graph on the outbound leg when cheap.
+
+**Not in this slice**
+
+- A full Casey-only circuit engine (T1EAM-native loops).
+- A second “opposite preference” loop search (P3 invert-stream is A→B only).
+- Prefer away from roads as a third loop search (ranking bonus only).
+- Turning the carriageway hard gate on for loops (emptied Montpelier / Berwick).
+
+**Acceptance fixture:** Montpelier start `[145.3485, -38.0405]`, 30 min, Loop, day. Shade max vs footpaths max, Find again each time: Recommended geometry changes **or** the existing one-circuit note. Night: same with lighting (Night Index fallback if the lighting join is missing).
 
 ---
 
@@ -187,7 +206,7 @@ Do not send Nikki to production until `/api/challenger-route` returns `"ok": tru
 | **P1 — Gate fix** | Challenger pathish classification so OD-11 can merge | ✅ Done 12 Aug 2026 — OSM pathish OR Streets; OD-11 + OD-12 dual cards; OD-CARRIAGE-01 unchanged |
 | **P2 — Pref costs (trip)** | Join streams; `/route` accepts prefs; one blended challenger | ✅ Done 12 Aug 2026 — Acc + derived Heat & Shade on graph; `smoke-prefs-pathfinding.ts` distinct on OD-01 + OD-12 (OD-11 single corridor) |
 | **P3 — Dual challenger (trip)** | Shade-max + footpaths-max variants when distinct; Prefer away from roads now requests an off-road-biased second challenger | ✅ Done 16 Aug 2026 — other pathish corridor (invert stream, no prefix penalty, 1.20×) plus away-from-roads variant (1.6×) |
-| **P4 — Outing bias** | Via selection uses blended stream | Montpelier-class loop: Find again after shade max changes circuit when network allows |
+| **P4 — Outing bias** | Turning points use blended Casey stream; Casey graph legs when they connect | Montpelier 30 min Loop: Find again after shade max changes circuit when the network allows |
 
 UI copy (Slice 1/2) stays complementary: “Edit walk and search again” remains true because pathfinding runs at Find time, not on every thumb move (unless we later add debounced live re-plan — out of scope for P2).
 
@@ -210,6 +229,15 @@ UI copy (Slice 1/2) stays complementary: “Edit walk and search again” remain
 - Then at least one card uses the neighbourhood cut-through (not only the Raleigh road loop)
 - And no card is a mid-carriageway centreline
 
+### Outing — prefs change the circuit
+
+- Given Montpelier `[145.3485, -38.0405]`, Around here, Loop, 30 min, day
+- When the resident plans with Heat & Shade at max and Footpaths at floor, then Find
+- And they invert those sliders and Find again
+- Then Recommended geometry changes **or** the existing one-circuit honesty note is shown
+- And loop quality gates still apply (±5 min, revisit, no carriageway hard gate)
+- And overlays stay out of the index
+
 ### Methodology guardrails
 
 - Given any preference blend
@@ -231,10 +259,11 @@ UI copy (Slice 1/2) stays complementary: “Edit walk and search again” remain
 
 ## 10. Open questions
 
-1. **Hosted challenger:** Fly.io / Railway / always-on VM vs “local only for lab, Mapbox-only prod” for Casey staff test?
+1. **Hosted challenger:** **Decided 16 Aug 2026:** Fly.io always-on Sydney (ADR-010).
 2. **Dual challenger cost:** Always two Dijkstra calls vs only when Mapbox pool size is 1? **Decided 16 Aug 2026:** always request the other pathish corridor; omit if not distinct. Cap 3 with optional away.
 3. **Heat & Shade on graph:** Persist `heat_shade_score` in parquet join vs derive at build time from Day/Acc?
 4. **Thumb vs Find:** Keep Find-to-search (recommended for P2) or debounced re-plan on results?
+5. **Outing Casey-graph legs:** **Decided 16 Aug 2026:** try Casey legs for shortlisted turning-point pairs; Mapbox fallback. Full Casey-only circuits stay deferred.
 
 ---
 
@@ -251,6 +280,7 @@ UI copy (Slice 1/2) stays complementary: “Edit walk and search again” remain
 
 | Date | Note |
 |------|------|
+| 16 Aug 2026 | P4 lock: turning points scored with the trip blend; top quartile in the duration ring; Casey graph legs when they connect; Mapbox fallback. Montpelier 30 min Loop is the exit fixture. Prefer away stays ranking-only on loops. |
 | 16 Aug 2026 | P3: other pathish corridor (no prefix penalty, 1.20×) + optional away-from-roads. Dual Casey battery 5/13 ODs. Recap: [`ROUTING_NOTE_NIKKI_2026-08-16.md`](ROUTING_NOTE_NIKKI_2026-08-16.md). |
 | 16 Aug 2026 | Prefer away from roads is generation-time (1.6× detour, trail-vs-sidewalk costs). Road-class 1.5–2× cost and OSM crossing-node edges shipped with it. |
 | 12 Aug 2026 | Spec opened from XYX feedback + trip funnel (challenger down vs up). |
