@@ -56,7 +56,7 @@ export const ICON_REVIEW: {
   { id: "moon", label: "Night", Icon: IconMoon, note: "Day/Night switch (icon-only)" },
   { id: "locate", label: "My location", Icon: IconLocate, note: "Map FAB" },
   { id: "trip", label: "A to B", Icon: IconTrip, note: "Corridor / trip" },
-  { id: "outing", label: "Around here", Icon: IconOuting, note: "Circuit / outing" },
+  { id: "outing", label: "Loop", Icon: IconOuting, note: "Circuit / outing" },
   { id: "loop", label: "Loop", Icon: IconLoop, note: "Shape" },
   {
     id: "out_and_back",

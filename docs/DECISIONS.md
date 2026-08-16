@@ -328,7 +328,7 @@ For v1 dusk / mixed routes, use the Night Index if any material part of the walk
 
 **Open Questions** (implementation detail; model locked):
 
-- What exact civil twilight library/API or astronomical calculation should be used in implementation?
+- Civil twilight: hand-rolled NOAA / Meeus solar elevation at the Casey centroid (`web/src/lib/caseyWhen.ts`). No weather API. Revisit if testers see a wrong dawn/dusk flip.
 - How much route overlap after dark counts as "material" for triggering the Night Index?
 - Should dusk blending be added after v1, and if so should it be time-weighted or segment-weighted?
 

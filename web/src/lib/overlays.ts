@@ -11,7 +11,7 @@ export type OverlayDef = {
    */
   url: string | null;
   color: string;
-  /** false = checkbox shown but layer not available yet */
+  /** false = row shown but layer not available yet */
   available: boolean;
   hint?: string;
 };

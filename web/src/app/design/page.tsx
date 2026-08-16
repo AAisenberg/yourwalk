@@ -71,6 +71,12 @@ export default function DesignPage() {
               isNight={isNight}
             />
             <Link
+              href="/design/planner"
+              className="text-sm font-semibold text-yw-blue hover:underline"
+            >
+              Planner mockup
+            </Link>
+            <Link
               href="/"
               className="text-sm font-semibold text-yw-blue hover:underline"
             >

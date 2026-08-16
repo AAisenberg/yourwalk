@@ -8,6 +8,7 @@ type Props = {
   value: WalkMode;
   onChange: (mode: WalkMode) => void;
   isNight: boolean;
+  className?: string;
 };
 
 const MODE_OPTIONS = [
@@ -20,8 +21,13 @@ const MODE_OPTIONS = [
   },
 ];
 
-/** Day ↔ night — full-width pill under When in the plan form. */
-export function WalkModeSwitch({ value, onChange, isNight }: Props) {
+/** Day ↔ night — compact in the header; full-width if className is omitted. */
+export function WalkModeSwitch({
+  value,
+  onChange,
+  isNight,
+  className = "mb-3",
+}: Props) {
   return (
     <SegmentedPill
       value={value}
@@ -29,7 +35,7 @@ export function WalkModeSwitch({ value, onChange, isNight }: Props) {
       onChange={onChange}
       isNight={isNight}
       ariaLabel="When are you walking?"
-      className="mb-3"
+      className={className}
     />
   );
 }

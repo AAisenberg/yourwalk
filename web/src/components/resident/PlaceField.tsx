@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { MdMyLocation, MdPlace } from "react-icons/md";
 
 import { searchPlaces, type PlaceResult } from "@/lib/routing/geocode";
 import type { LngLat } from "@/lib/routing/types";
@@ -14,6 +15,9 @@ type Props = {
   pickActive: boolean;
   onPickToggle: () => void;
   onPlace: (place: { center: LngLat; label: string }) => void;
+  showLocate?: boolean;
+  onLocate?: () => void;
+  geoBusy?: boolean;
 };
 
 export function PlaceField({
@@ -25,6 +29,9 @@ export function PlaceField({
   pickActive,
   onPickToggle,
   onPlace,
+  showLocate,
+  onLocate,
+  geoBusy,
 }: Props) {
   const listId = useId();
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -129,19 +136,43 @@ export function PlaceField({
             />
           )}
         </div>
+        {showLocate ? (
+          <button
+            type="button"
+            onClick={onLocate}
+            disabled={geoBusy}
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+              isNight
+                ? "bg-white/10 text-white/80"
+                : "bg-yw-day-surface text-yw-navy"
+            } disabled:opacity-40`}
+            aria-label={geoBusy ? "Getting location" : "Use my location"}
+            title="Use my location"
+          >
+            {geoBusy ? (
+              <span
+                className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-yw-teal border-t-transparent"
+                aria-hidden
+              />
+            ) : (
+              <MdMyLocation className="h-5 w-5" />
+            )}
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={onPickToggle}
-          className={`flex min-h-9 min-w-11 shrink-0 items-center justify-center rounded-xl px-2.5 text-[11px] font-semibold ${
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
             pickActive
               ? "bg-yw-blue text-white"
               : isNight
                 ? "bg-white/10 text-white/80"
-                : "bg-yw-day-surface text-slate-600"
+                : "bg-yw-day-surface text-yw-navy"
           }`}
-          title="Pick on map"
+          aria-label="Drop a pin on the map"
+          title="Drop pin"
         >
-          Map
+          <MdPlace className="h-5 w-5" />
         </button>
       </div>
 

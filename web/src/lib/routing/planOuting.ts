@@ -1091,7 +1091,7 @@ export async function planOutingRoutes(
     }
     if (shape === "loop") {
       throw new Error(
-        "Couldn’t find a loop within about 5 minutes of that length from this start. Try a start further inside Casey, There and back, or another duration.",
+        "Couldn’t find a loop within about 5 minutes of that length from this start. Try a start further inside Casey, or another duration.",
       );
     }
     throw new Error(

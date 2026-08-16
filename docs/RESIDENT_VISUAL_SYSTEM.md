@@ -1,6 +1,6 @@
 # Resident visual system
 
-Source of truth for the Casey resident routing app (`/`). North star: [`mobile-mockup/index.html`](../mobile-mockup/index.html). Live tokens: [`web/src/app/globals.css`](../web/src/app/globals.css). Preview: `/design`.
+Source of truth for the Casey resident routing app (`/`). North star: [`mobile-mockup/index.html`](../mobile-mockup/index.html). Live tokens: [`web/src/app/globals.css`](../web/src/app/globals.css). Token page: `/design`. Planner flow mockup: `/design/planner`.
 
 Product name: **YourWalk** (one word). Australian English. WCAG 2.1 AA. Mapbox GL JS only. Not a safety guarantee; never imply crime prediction.
 
@@ -10,10 +10,10 @@ Product name: **YourWalk** (one word). Australian English. WCAG 2.1 AA. Mapbox G
 |-------|-----|------|
 | `--yw-blue` | `#27AAE1` | Links, sky, night CTA, focus rings |
 | `--yw-navy` | `#292984` | Brand wordmark (day), day CTA, quiet day alts / LGA |
-| `--yw-teal` | `#00AAA6` | Recommended, selected route, primary accent actions |
+| `--yw-teal` | `#00AAA6` | Recommended / selected route by **day**; primary accent actions |
 | `--yw-lime` | `#8DC63F` | Shade stream / ranked route 3 |
 | `--yw-green` | `#009444` | Origin pin |
-| `--yw-amber` | `#FFCB1F` | Highlights / caution light |
+| `--yw-amber` | `#FFCB1F` | Night selected walk (lighting family); highlights |
 | `--yw-orange` | `#F6871F` | Night importance / dog bags accent |
 | `--yw-pink` | `#EC008C` | Destination pin |
 | `--yw-chartreuse` | `#D7DF23` | Sparse accent only |
@@ -43,10 +43,11 @@ Do not invent a new palette. Avoid purple-on-white CTA gradients, warm cream + t
 
 - Mark: [`web/public/brand/yourwalk-mark.svg`](../web/public/brand/yourwalk-mark.svg) (from `mobile-mockup/logo.svg`)
 - Header: mark (~32px) + **YourWalk** wordmark (navy day / white night) as the hero brand signal; subtitle **Connecting Casey walks**; quiet **Beta** pill (navy / muted, not teal)
-- Day/Night, A to B / Around here, and outing Shape: full-width **segmented pills** (`SegmentedPill`) under When / How. Choosing Night swaps preference streams (After dark vs Shade & heat) and the basemap. Not in the header.
+- Header: mark + **YourWalk** + compact **Day / Night** switch. Auto When reason sits under the wordmark. Choosing Night swaps preference streams (After dark vs Shade & heat) and the planned basemap look.
+- Type of walk in the sheet: **A to B | Loop** (`SegmentedPill`). No There and back row.
 - Checkboxes: custom `.yw-check` — navy (overlays) or stream blue (Prefer away from roads). Avoid teal ticks on blue preference cards; teal stays for selected route / primary accents.
 - Lab is not linked from the resident app (Lab stays at `/lab` for internal use)
-- Sheet product line: "Tell us about your walk". Do not overpower the brand with a marketing headline
+- Sheet product line: **Find your walk**. Not a survey. Do not overpower the brand with a marketing headline
 - Partner marks (Casey / Monash / CrowdLab): footer or about only, not in the walk sheet
 
 ## Icons
@@ -58,8 +59,7 @@ Material Design icons via `react-icons/md` (see [`web/src/components/resident/ic
 | Day | `MdWbSunny` |
 | Night | `MdNightlight` |
 | A to B | `MdRoute` (corridor) |
-| Around here | `MdLoop` (circuit) |
-| Loop / There and back | `MdLoop` / `MdSwapHoriz` (One way icon retained in code for Lab only) |
+| Loop | `MdLoop` (circuit) |
 | Drinking fountains / Benches / Toilets / Dog bags | `MdWaterDrop` / `MdChair` / `MdWc` / `MdPets` |
 
 ## Sheet snaps (mobile)
@@ -68,7 +68,7 @@ Three heights (Google Maps-style): **peek** (~22%), **half** (~48%), **full** (~
 
 ## Desktop (≥ md / 768px)
 
-Map-first split: **left panel** (~26rem) holds the plan / results form with internal scroll; map fills the remaining width. No peek/half snaps on desktop. Locate control sits on the map (bottom-right). Header keeps brand + **Beta** pill (Day/Night lives in the form).
+Map-first split: **left panel** (~26rem) holds the plan / results form with internal scroll; map fills the remaining width. No peek/half snaps on desktop. **Use my location** belongs on From / Start in the form. Map FAB (if kept) centres the map only. Header keeps brand + compact Day / Night.
 
 ## Beta chrome
 
@@ -88,16 +88,61 @@ Locally you can keep pointing at `/map-data/*` symlinks under `web/public`.
 
 ## Day / night rules
 
-Night is a **walk mode** (product state), not a designer dark-mode default.
+Night is a **walk mode** (product state), not a designer dark-mode default. The form stays **two** index states (Day / Night). The basemap may use **four** looks.
 
-| | Day | Night |
-|--|-----|-------|
+Auto When uses Casey civil twilight (ADR-009), not a clock hour. Basemap follows the **planned** When. Override at 2pm still paints dusk or night. See [`FLOWS/02_tell_us_about_your_walk.md`](FLOWS/02_tell_us_about_your_walk.md) § When.
+
+| Casey sun | Mapbox `lightPreset` | Index | App chrome |
+|-----------|----------------------|-------|------------|
+| Night (before dawn) | night | Night | Night surfaces |
+| Morning civil twilight | dawn | Day (lean) | Day surfaces |
+| Daylight | day | Day | Day surfaces |
+| Evening civil twilight | dusk | Night | Night surfaces |
+| Night (after dusk) | night | Night | Night surfaces |
+
+| | Day index | Night index |
+|--|-----------|-------------|
 | Chrome | White header, `#F5F7FA` surfaces | `#0B0C1A` chrome |
 | Sheet | White / light elevated | `#14152A` |
-| Map basemap | `streets-v12` | `dark-v11` |
+| Map basemap | YourWalk Standard style, `lightPreset` dawn or day (classic `streets-v12` fallback) | YourWalk Standard style, `lightPreset` dusk or night (classic `dark-v11` fallback) |
 | Primary CTA | Navy | Blue |
 | Results accent CTA | Teal | Teal |
 | Pref stream tints | Footpaths blue wash; shade lime wash | After dark amber wash; footpaths blue wash |
+
+**YourWalk Mapbox style:** `mapbox://styles/crowdspot1/cmsve8sql00ak01rgb6vn39pt` (Standard import, no custom layers yet). Resident map uses this URL and `setConfigProperty('basemap', 'lightPreset', …)` from planned When. Mapbox POI labels are off; YourWalk amenity overlays stay on Layers. Classic streets / dark is a fallback if the style cannot load. Track E4 (T1EAM footpath colour) is still later.
+
+### Mapbox Standard: what the API can and cannot do
+
+Classic styles (`streets-v12`, `dark-v11`) are frozen. Standard is the maintained style. You configure it with `map.setConfigProperty('basemap', key, value)` or `config.basemap` at init. You do **not** get classic per-layer paint edits on the imported basemap.
+
+**Can change via API (same keys in Studio):**
+
+- `lightPreset`: `dawn` | `day` | `dusk` | `night`
+- Label groups on/off: POIs, places, roads, transit (booleans). POI **density** 1–5. Fuel-station mode. Not “only parks” or “only toilets.”
+- Road colours: `colorMotorways`, `colorTrunks`, `colorRoads` (other roads as a group)
+- Land, water, greenspace, buildings, some label colours
+- `showPedestrianRoads`: show or hide paths/trails. There is **no** `colorPedestrianRoads`
+- Theme: default / faded / monochrome / custom LUT
+- Custom layers in slots: `bottom`, `middle`, `top`
+
+**Cannot do in Standard config:**
+
+- Pick POI categories (food vs parks vs toilets). All POIs or none, plus density
+- Recolour footpaths independently of other roads
+- Edit individual classic layer IDs (`road-path`, `road-pedestrian`, …)
+
+**POI categories:** hide Mapbox POIs (`showPointOfInterestLabels: false`) and draw YourWalk overlays (fountains, benches, toilets, dog bags). That is how we stay specific. Optionally hide individual Mapbox POIs at click time via the `poi` featureset `hide` state, which is not a category filter.
+
+### Process to make footpaths louder (recommended)
+
+Do this in order. Keep dawn / day / dusk / night as lighting only.
+
+1. **Playground first** — [Mapbox Standard Style Playground](https://docs.mapbox.com/playground/standard-style/). Set `lightPreset` through all four looks. Turn `showPedestrianRoads` on. Quiet motorways (`colorMotorways` toward the land colour). Note that paths still share Standard’s path styling; you cannot paint them teal here.
+2. **Studio style that imports Standard** — one YourWalk style URL. Same config. Add a **custom line layer** in the `middle` slot (above roads, under 3D). Source: Casey T1EAM footpaths (or a simplified path extract), not Mapbox’s path layer. Colour: YourWalk teal or navy, wider than Standard paths. Set `slot: "middle"` and `emissive-strength` so the line still reads at `night` and `dusk`.
+3. **Runtime** — one style; `setConfigProperty('basemap', 'lightPreset', …)` when When changes. Do not swap four style URLs. Hide Mapbox POIs; keep YourWalk amenity overlays.
+4. **Route geometry** — scored walk lines also go in `middle` or `top` with emissive-strength. Same four lighting presets, one paint rule.
+
+If Casey footpaths must be the basemap truth (side of street, missing OSM paths), step 2 is the product path. Recolouring Standard’s built-in pedestrian roads will not get us there.
 
 No choropleth on the resident map. No stats strip or pill-cluster clutter in the first viewport.
 
@@ -126,8 +171,9 @@ Keep the map visible while calculating. No spinner noise beyond the existing cal
 ## Cards and sections
 
 - Cards only when they hold an interaction (result route cards)
-- Preference rows = tinted sections, not a carded dashboard hero
-- One job per section: When / How / Along the way
+- Result cards show pills and the compare story on every option. Tap highlights the walk on the map
+- Preference rows = tinted sections, collapsed after first set; not a carded dashboard hero
+- One job per section: Type of walk / Places / When / Along the way / What matters most
 
 ## Accessibility
 
@@ -142,7 +188,7 @@ Capture at phone width (~375px) for broader Casey testing sign-off. Samples from
 
 | State | Day | Night |
 |-------|-----|-------|
-| Entry + plan sheet (brand + When / How) | [`resident-day-plan.png`](screenshots/resident-ux/resident-day-plan.png) | [`resident-night-plan.png`](screenshots/resident-ux/resident-night-plan.png) |
+| Entry + plan sheet (brand + type / places / When) | [`resident-day-plan.png`](screenshots/resident-ux/resident-day-plan.png) | [`resident-night-plan.png`](screenshots/resident-ux/resident-night-plan.png) |
 | Calculating (map still visible) | Verified in session (teal spinner, map stays up) | Same chrome rules |
 | Results (Recommended + alternatives) | [`resident-day-results.png`](screenshots/resident-ux/resident-day-results.png) | Toggle Night after a plan (clears results by design; re-run Find) |
 | Empty / error (honest copy) | Manual: force a failed plan outside Casey / unreachable | Same |
