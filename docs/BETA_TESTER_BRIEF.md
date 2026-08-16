@@ -38,7 +38,7 @@ If the map or footpath network looks blank: **hard-refresh** (Cmd+Shift+R). Larg
 - Pills stay Casey corridor scores. They do not change because you moved a slider.
 - Full recap (Cupples → Ashfield, tests, open issues): [`ROUTING_NOTE_NIKKI_2026-08-16.md`](ROUTING_NOTE_NIKKI_2026-08-16.md).
 
-The Casey graph must be running (local `serve_challenger.py` or a hosted `CHALLENGER_URL`). Without it you only see Mapbox.
+The Casey graph must be reachable (`CHALLENGER_URL` on the host, or local `serve_challenger.py`). Without it you only see Mapbox. Production host: [`HOSTING_CHALLENGER.md`](HOSTING_CHALLENGER.md).
 
 ## Routing honesty (beta)
 

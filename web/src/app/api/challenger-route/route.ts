@@ -28,9 +28,23 @@ function point(
 }
 
 /**
- * Proxy to local score-aware challenger (pipeline/bakeoff/serve_challenger.py).
- * Default: http://127.0.0.1:8790 — override with CHALLENGER_URL.
+ * Proxy to the score-aware challenger (pipeline/bakeoff/serve_challenger.py).
+ * Local default: http://127.0.0.1:8790. Production: CHALLENGER_URL (Fly).
+ * Optional CHALLENGER_SHARED_SECRET is sent as Bearer when set.
  */
+export const maxDuration = 30;
+
+function challengerHeaders(): HeadersInit {
+  const secret = process.env.CHALLENGER_SHARED_SECRET?.trim();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (secret) {
+    headers.Authorization = `Bearer ${secret}`;
+  }
+  return headers;
+}
+
 export async function POST(request: Request) {
   let body: Body;
   try {
@@ -57,7 +71,7 @@ export async function POST(request: Request) {
   try {
     const res = await fetch(`${base.replace(/\/$/, "")}/route`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: challengerHeaders(),
       body: JSON.stringify({
         origin,
         destination,

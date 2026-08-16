@@ -12,7 +12,7 @@ from typing import Any
 import networkx as nx
 from shapely.geometry import LineString, mapping
 
-from build_graph import (  # noqa: E402
+from graph_runtime import (  # noqa: E402
     MAX_DETOUR,
     MAX_DETOUR_AWAY,
     MAX_DETOUR_COMPLEMENT,

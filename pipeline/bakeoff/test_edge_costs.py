@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
-from build_graph import edge_cost, highway_cost_mult  # noqa: E402
+from graph_runtime import edge_cost, highway_cost_mult  # noqa: E402
 
 
 def main() -> int:

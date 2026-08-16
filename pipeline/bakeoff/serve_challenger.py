@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""Local HTTP service: score-aware challenger routes for the YourWalk web app.
+"""HTTP service: score-aware challenger routes for the YourWalk web app.
 
 Usage (from pipeline/ with venv):
 
     python bakeoff/serve_challenger.py --port 8790
+
+Production: HOST/PORT from the environment (Fly sets PORT=8080), graph path
+YOURWALK_GRAPH_PICKLE, optional CHALLENGER_SHARED_SECRET on /route.
+See docs/HOSTING_CHALLENGER.md.
 
 Web app proxies via POST /api/challenger-route → this service.
 Env override: CHALLENGER_URL (default http://127.0.0.1:8790).
@@ -13,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -24,6 +29,20 @@ sys.path.insert(0, str(ROOT))
 from challenger import load_graph, plan_challenger  # noqa: E402
 
 
+def _shared_secret() -> str:
+    return os.environ.get("CHALLENGER_SHARED_SECRET", "").strip()
+
+
+def _authorized(handler: BaseHTTPRequestHandler) -> bool:
+    expected = _shared_secret()
+    if not expected:
+        return True
+    auth = handler.headers.get("Authorization", "")
+    if auth == f"Bearer {expected}":
+        return True
+    return handler.headers.get("X-Challenger-Secret", "") == expected
+
+
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -33,7 +52,10 @@ class Handler(BaseHTTPRequestHandler):
     def _cors(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header(
+            "Access-Control-Allow-Headers",
+            "Content-Type, Authorization, X-Challenger-Secret",
+        )
 
     def _json(self, code: int, payload: dict) -> None:
         body = json.dumps(payload).encode("utf-8")
@@ -61,6 +83,7 @@ class Handler(BaseHTTPRequestHandler):
                         "service": "yourwalk-challenger",
                         "nodes": g.number_of_nodes(),
                         "edges": g.number_of_edges(),
+                        "auth_required": bool(_shared_secret()),
                     },
                 )
             except Exception as exc:  # noqa: BLE001
@@ -81,6 +104,9 @@ class Handler(BaseHTTPRequestHandler):
                     },
                 )
                 return
+            if not _authorized(self):
+                self._json(401, {"error": "Unauthorised"})
+                return
             mode = (qs.get("mode") or ["day"])[0]
             self._handle_route(olng, olat, dlng, dlat, mode, None)
             return
@@ -90,6 +116,9 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path not in ("/route", "/"):
             self._json(404, {"error": "Not found"})
+            return
+        if not _authorized(self):
+            self._json(401, {"error": "Unauthorised"})
             return
         length = int(self.headers.get("Content-Length") or 0)
         raw = self.rfile.read(length) if length else b"{}"
@@ -143,9 +172,14 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> int:
+    env_port = os.environ.get("PORT", "").strip()
+    env_host = os.environ.get("HOST", "").strip()
     parser = argparse.ArgumentParser(description="YourWalk score-aware challenger HTTP")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8790)
+    parser.add_argument(
+        "--host",
+        default=env_host or ("0.0.0.0" if env_port else "127.0.0.1"),
+    )
+    parser.add_argument("--port", type=int, default=int(env_port or 8790))
     args = parser.parse_args()
 
     print("Loading score-aware graph…", flush=True)

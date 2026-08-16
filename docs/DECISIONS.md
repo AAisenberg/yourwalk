@@ -42,7 +42,7 @@ Score-aware graph: NetworkX Dijkstra on OSM walkable ways joined to Casey scores
 
 **Product north star:**  
 Preference-weighted score-aware pathfinding (and T1EAM-native edges where OSM cannot connect scored cut-throughs). Mapbox remains map/geocode + useful candidate source, not the sole geometry authority.  
-**Spec (12 Aug 2026):** [`PREFS_IN_PATHFINDING.md`](PREFS_IN_PATHFINDING.md) — P1 gate + P2 preference-weighted challenger costs shipped locally. Sliders at Find time change score-aware geometry when the network allows; Mapbox pool + ranking remain. **P3 dual Casey (16 Aug 2026):** preference-best + the other pathish corridor (invert stream, no prefix penalty, 1.20×); Prefer away from roads remains an optional third card. Prod challenger host still open.
+**Spec (12 Aug 2026):** [`PREFS_IN_PATHFINDING.md`](PREFS_IN_PATHFINDING.md) — P1 gate + P2 preference-weighted challenger costs shipped locally. Sliders at Find time change score-aware geometry when the network allows; Mapbox pool + ranking remain. **P3 dual Casey (16 Aug 2026):** preference-best + the other pathish corridor (invert stream, no prefix penalty, 1.20×); Prefer away from roads remains an optional third card. **Prod host:** Fly.io (ADR-010, [`HOSTING_CHALLENGER.md`](HOSTING_CHALLENGER.md)).
 
 **Carriageway truth / Track 0 (16 Aug 2026):** Mapbox walking geometry can still **look** mid-road on the basemap (OD-12 Liara Blvd) while Streets tilequery reports pathish / low road share — Google draws the same walk on the carriageway edge. Hybrid now **sidewalk-nudges** Mapbox paint when a mapped sidewalk (or short synthetic edge offset) is available, prefers the score-aware challenger when Mapbox needed that nudge, and applies a soft match penalty for residual centreline look. An **on-path guard** leaves points already on a genuinely offset footway untouched (only centreline-coincident "footway" mislabels get pushed), so real footpath alignments like east Homestead Rd keep their true geometry. The **challenger geometry gets the same paint nudge** after its path-safe gate (OSM road ways without separate sidewalk geometry otherwise draw at the centreline — OD-12 Homestead Rd), and score-aware cards are exempt from the centreline-look match penalty since their path safety is proven by OSM evidence. **Side-certainty guard (product rule, 16 Aug 2026):** paint only moves off-centre when contiguous evidence agrees ≥80% on which side; when the side is unknown the line draws on the honest centreline — a squiggle weaving across the road (Fordholm Rd) is worse than an honest centreline. Detail: [`ROUTING_OUTPUTS.md`](ROUTING_OUTPUTS.md) §4b.
 
@@ -333,6 +333,32 @@ For v1 dusk / mixed routes, use the Night Index if any material part of the walk
 - Should dusk blending be added after v1, and if so should it be time-weighted or segment-weighted?
 
 **Resolved at v1.1 sign-off (3 Jul 2026):** Graffiti stays in shared Accessibility (not Night-only). Day pedestrian crashes not in Accessibility. Cellular not in index.
+
+---
+
+### ADR-010: Hosted score-aware challenger
+
+**Status**: Accepted (pilot lean) — 16 Aug 2026
+
+**Decision Question**: Where does the Casey OSM+score graph run so production / phone testers get dual Casey cards?
+
+**Options Considered**:
+
+1. **Vercel serverless Python** — cold start loads a ~102 MB pickle into NetworkX; first Find would miss the graph
+2. **Cloud Run / scale-to-zero** — same cold-start problem unless min instances = 1
+3. **Fly.io always-on 1 GB VM (Sydney)** — one warm process, Next proxies via `CHALLENGER_URL`
+4. **Railway / Render** — same shape as Fly; extra vendor if Fly is already the choice
+
+**Decision**: Host `serve_challenger.py` on **Fly.io** (`yourwalk-challenger`, region `syd`, 1 GB, `min_machines_running = 1`). Vercel Next stays the public app. Server-only `CHALLENGER_URL` + `CHALLENGER_SHARED_SECRET`. Browser never calls Fly.
+
+**Rationale**: App 0.2.0 dual Casey is the baseline Nikki will test. The graph is ~280 MB RAM and must stay warm. Vercel is the wrong runtime. Sydney keeps latency low for AU testers.
+
+**Consequences**:
+
+- Production without Fly (or a mismatched secret) is Mapbox-only
+- Graph pickle stays gitignored; `fly deploy` from a machine that has `score_aware_graph.gpickle`
+- Shared secret required on `/route`; `/health` stays open for Fly checks
+- Ops steps: [`HOSTING_CHALLENGER.md`](HOSTING_CHALLENGER.md)
 
 ---
 

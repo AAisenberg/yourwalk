@@ -54,6 +54,8 @@ python bakeoff/serve_challenger.py --port 8790
 
 Web proxies via `POST /api/challenger-route` (`CHALLENGER_URL`, default `http://127.0.0.1:8790`). Without this service, `/` and `/lab` fall back to Mapbox-only.
 
+**Production:** Fly.io always-on VM. You do account + secret + Vercel env; then `fly deploy` from a machine that has the graph pickle. See [`docs/HOSTING_CHALLENGER.md`](../../docs/HOSTING_CHALLENGER.md).
+
 ### Network fitness check
 
 ```bash

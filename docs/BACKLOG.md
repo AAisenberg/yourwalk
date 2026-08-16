@@ -153,7 +153,7 @@ Before a backlog item is considered complete, it must meet all of the following:
 
 **Dependencies**: Local/hosted `serve_challenger.py`; graph rebuild with stream scores
 
-**Status**: Now — P1 + P2 + P3 done 16 Aug 2026 (preference-best + other pathish corridor + optional away-from-roads; no-junk detour fallback). Dual Casey on 5/13 bake-off ODs; one honest card when the network has one corridor. Next: hosted challenger for phone/preview; side-of-street / heading-continuity; **P4** outing via bias; T1EAM-native geometry. Recap for XYX: [`ROUTING_NOTE_NIKKI_2026-08-16.md`](ROUTING_NOTE_NIKKI_2026-08-16.md)
+**Status**: Now — P1 + P2 + P3 done 16 Aug 2026 (preference-best + other pathish corridor + optional away-from-roads; no-junk detour fallback). Dual Casey on 5/13 bake-off ODs; one honest card when the network has one corridor. **Hosted challenger (ADR-010):** repo ready (`fly.toml`, [`HOSTING_CHALLENGER.md`](HOSTING_CHALLENGER.md)); Fly account + Vercel env still to do before Nikki phone test. Next after host: side-of-street / heading-continuity; **P4** outing via bias; T1EAM-native geometry. Recap for XYX: [`ROUTING_NOTE_NIKKI_2026-08-16.md`](ROUTING_NOTE_NIKKI_2026-08-16.md)
 
 ---
 

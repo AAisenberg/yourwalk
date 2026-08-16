@@ -168,14 +168,14 @@ Regression: OD-CARRIAGE-01 still shows no mid-carriageway Mapbox alt.
 
 ## 6. Ops prerequisite
 
-Hybrid is dead in production today (`CHALLENGER_URL` → nothing).
+Hybrid on Vercel needs a hosted Casey graph. Ops: [`HOSTING_CHALLENGER.md`](HOSTING_CHALLENGER.md) (Fly.io, ADR-010).
 
 | Environment | Requirement |
 |-------------|-------------|
 | Local demo / funnel | `python bakeoff/serve_challenger.py --port 8790` while Next runs |
-| Preview / production | Hosted challenger URL in `CHALLENGER_URL`, or document Mapbox-only degraded mode in the tester brief |
+| Preview / production | Fly `CHALLENGER_URL` + matching `CHALLENGER_SHARED_SECRET` on Vercel (Production and Preview) |
 
-Do not promise prefs-in-pathfinding on Vercel until the challenger is reachable from that deployment.
+Do not send Nikki to production until `/api/challenger-route` returns `"ok": true` on the live host.
 
 ---
 

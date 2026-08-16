@@ -123,7 +123,7 @@ Open the URL the script prints (often `http://localhost:3001` if CrashDash owns 
 
 **Demo walk:** 66 Cupples Crescent, Berwick → 2 Ashfield Drive, Berwick. Set Heat & Shade high, leave Prefer away from roads off, tap **Find**. You should see two Casey cards. Tick away and Find again for the third.
 
-**Production / phone:** Vercel does not yet host the challenger (`CHALLENGER_URL` still open). A production deploy of the Next app **without** that service will not show these Casey cards. Fastest phone check is the local stack on the same Wi-Fi, or a hosted challenger first. See [`PREFS_IN_PATHFINDING.md`](PREFS_IN_PATHFINDING.md) §6.
+**Production / phone:** Casey cards need the hosted challenger (Fly) plus `CHALLENGER_URL` on Vercel. Steps: [`HOSTING_CHALLENGER.md`](HOSTING_CHALLENGER.md). Until that URL is live, a production deploy is Mapbox-only. Local stack on the same Wi-Fi still works for a same-day check.
 
 ---
 
