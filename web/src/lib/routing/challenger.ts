@@ -40,6 +40,8 @@ type ChallengerResponse = {
 export type ChallengerLoop = ChallengerRoute & {
   /** Server-side same-path revisit ratio (same metric family as planOuting). */
   revisit?: number;
+  /** Share of circuit length on road-centreline OSM classes (drawn mid-road). */
+  road_share?: number;
   /** Turning points [lng, lat] the circuit was drawn through. */
   vias?: [number, number][];
 };

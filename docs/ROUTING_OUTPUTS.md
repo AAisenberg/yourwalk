@@ -200,6 +200,7 @@ Replay: start challenger, then `cd web && npx tsx scripts/smoke-trip-funnel.ts`.
 
 | Date | Change |
 |------|--------|
+| **17 Aug 2026** | Road-aware loop selection: `/loop` pools all candidate circuits (up to 5 damped via resizes each) and returns the lowest road-centreline share first; >45% road only fills a two-card set; vias must touch the path network. Client demotes roadier circuits in pool quality and tags road share in the QA suffix (`_rd28`). Montpelier night 30 min: 58/64/65% road down to 29/34/40%. |
 | **16 Aug 2026** | Loops move to the challenger `/loop` planner: through-junction turning points, cumulative cross-leg reuse penalty (x4), calibration probe + damped via resize for the ±5 min band. Fixes Montpelier backtracking (revisit 0.15–0.21 to 0.00–0.09). Mapbox waypoint drawing is now the fallback only. |
 | **16 Aug 2026** | P4 outing: turning points use the trip preference blend; Casey graph legs when they connect; Mapbox fallback. Montpelier 30 min Loop is the exit fixture. |
 | **16 Aug 2026** | Dual Casey cards: preference-best + other pathish corridor (invert stream, no prefix penalty, 1.20×). Pathish pref paths may keep up to 1.20× (OD-12 Bellevue). Prefer away from roads stays an optional third card. |
