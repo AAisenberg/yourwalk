@@ -140,11 +140,82 @@ function t1eamUnderlayColor(night: boolean): string {
   return night ? "#8B8DD9" : "#292984";
 }
 
+/** Fast planar distance in metres — fine at suburb scale. */
+function distM(a: [number, number], b: [number, number]): number {
+  const dx = (b[0] - a[0]) * 111_320 * Math.cos((a[1] * Math.PI) / 180);
+  const dy = (b[1] - a[1]) * 111_320;
+  return Math.hypot(dx, dy);
+}
+
+/** Initial bearing (degrees clockwise from north) from a to b. */
+function bearingDeg(a: [number, number], b: [number, number]): number {
+  const p1 = (a[1] * Math.PI) / 180;
+  const p2 = (b[1] * Math.PI) / 180;
+  const dl = ((b[0] - a[0]) * Math.PI) / 180;
+  const y = Math.sin(dl) * Math.cos(p2);
+  const x =
+    Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dl);
+  return (Math.atan2(y, x) * 180) / Math.PI;
+}
+
+/** Pin coords match a route endpoint within this distance = it's the stub. */
+const PIN_STUB_SNAP_M = 4;
+/** Only draw a connector when the pin sits meaningfully off the network. */
+const CONNECTOR_MIN_M = 6;
+
 /**
- * Quiet Casey walkable-network carpet. Preferred data is the centreline
- * artefact (`casey_paths_underlay.geojson` — graph pathish edges incl.
- * ADR-011 sidewalk offsets), drawn as lines. Raw T1EAM pavement polygons
- * remain the fallback but read as shards at street zooms.
+ * Split the address-pin stubs off a drawn route. The walk line starts and
+ * ends on the footpath network; a dotted grey connector covers pin ↔
+ * network so the route never appears to cut across houses or front yards.
+ */
+function splitPinStubs(
+  geometry: GeoJSON.LineString,
+  originPin: [number, number] | null,
+  endPin: [number, number] | null,
+): { line: GeoJSON.LineString; connectors: GeoJSON.LineString[] } {
+  let coords = geometry.coordinates as [number, number][];
+  const connectors: GeoJSON.LineString[] = [];
+  if (originPin && coords.length > 2 && distM(coords[0], originPin) <= PIN_STUB_SNAP_M) {
+    coords = coords.slice(1);
+  }
+  if (endPin && coords.length > 2 && distM(coords[coords.length - 1], endPin) <= PIN_STUB_SNAP_M) {
+    coords = coords.slice(0, -1);
+  }
+  if (originPin && coords.length >= 2 && distM(originPin, coords[0]) > CONNECTOR_MIN_M) {
+    connectors.push({ type: "LineString", coordinates: [originPin, coords[0]] });
+  }
+  if (endPin && coords.length >= 2) {
+    const last = coords[coords.length - 1];
+    if (distM(endPin, last) > CONNECTOR_MIN_M) {
+      // Loops: skip a duplicate when both ends leave from the same spot
+      const dup =
+        connectors.length > 0 &&
+        distM(last, connectors[0].coordinates[1] as [number, number]) <
+          CONNECTOR_MIN_M;
+      if (!dup) {
+        connectors.push({ type: "LineString", coordinates: [last, endPin] });
+      }
+    }
+  }
+  return { line: { type: "LineString", coordinates: coords }, connectors };
+}
+
+/**
+ * Sidewalk lines (ADR-011 offsets + OSM-mapped sidewalks) ring every
+ * block from both sides of each street — at map zooms they read as hollow
+ * polygons (17 Aug QA). Only genuine off-road paths render.
+ */
+const UNDERLAY_FILTER: mapboxgl.FilterSpecification = [
+  "!=",
+  ["get", "hw"],
+  "sidewalk",
+];
+
+/**
+ * Quiet Casey walkable-network carpet: the centreline artefact
+ * (`casey_paths_underlay.geojson` — graph pathish edges) drawn as lines,
+ * filtered to genuine off-road paths. Lines or nothing — the old T1EAM
+ * pavement polygons read as shards and are never rendered.
  */
 function ensureT1eamUnderlay(
   map: mapboxgl.Map,
@@ -152,9 +223,6 @@ function ensureT1eamUnderlay(
   night: boolean,
 ) {
   if (features.length === 0) return;
-  const isLines =
-    features[0]?.geometry?.type === "LineString" ||
-    features[0]?.geometry?.type === "MultiLineString";
   const data: GeoJSON.FeatureCollection = {
     type: "FeatureCollection",
     features,
@@ -173,46 +241,23 @@ function ensureT1eamUnderlay(
 
   const color = t1eamUnderlayColor(night);
   const before = map.getLayer("routes-alt") ? "routes-alt" : undefined;
-  if (isLines && map.getLayer(T1EAM_UNDERLAY_FILL)) {
+  if (map.getLayer(T1EAM_UNDERLAY_FILL)) {
     map.removeLayer(T1EAM_UNDERLAY_FILL);
-  }
-  if (!isLines) {
-    if (!map.getLayer(T1EAM_UNDERLAY_FILL)) {
-      map.addLayer(
-        {
-          id: T1EAM_UNDERLAY_FILL,
-          type: "fill",
-          source: T1EAM_UNDERLAY_SRC,
-          slot: "middle",
-          minzoom: 12,
-          paint: {
-            "fill-color": color,
-            "fill-opacity": night ? 0.28 : 0.2,
-            "fill-emissive-strength": night ? 0.4 : 0,
-          },
-        },
-        before,
-      );
-    } else {
-      map.setPaintProperty(T1EAM_UNDERLAY_FILL, "fill-color", color);
-      map.setPaintProperty(
-        T1EAM_UNDERLAY_FILL,
-        "fill-opacity",
-        night ? 0.28 : 0.2,
-      );
-      map.setPaintProperty(
-        T1EAM_UNDERLAY_FILL,
-        "fill-emissive-strength",
-        night ? 0.4 : 0,
-      );
-    }
   }
   // Grow with zoom so the footpath network stays present at street level
   // (a fixed hairline vanished at z16+ — 17 Aug QA).
-  const lineWidth: mapboxgl.Expression | number = isLines
-    ? ["interpolate", ["linear"], ["zoom"], 12, 1, 14.5, 1.8, 17, 3.2]
-    : 0.8;
-  const lineOpacity = isLines ? (night ? 0.55 : 0.42) : night ? 0.42 : 0.3;
+  const lineWidth: mapboxgl.Expression = [
+    "interpolate",
+    ["linear"],
+    ["zoom"],
+    12,
+    1,
+    14.5,
+    1.8,
+    17,
+    3.2,
+  ];
+  const lineOpacity = night ? 0.55 : 0.42;
   if (!map.getLayer(T1EAM_UNDERLAY_LINE)) {
     map.addLayer(
       {
@@ -221,6 +266,7 @@ function ensureT1eamUnderlay(
         source: T1EAM_UNDERLAY_SRC,
         slot: "middle",
         minzoom: 12,
+        filter: UNDERLAY_FILTER,
         layout: { "line-cap": "round", "line-join": "round" },
         paint: {
           "line-color": color,
@@ -232,6 +278,7 @@ function ensureT1eamUnderlay(
       before,
     );
   } else {
+    map.setFilter(T1EAM_UNDERLAY_LINE, UNDERLAY_FILTER);
     map.setPaintProperty(T1EAM_UNDERLAY_LINE, "line-color", color);
     map.setPaintProperty(T1EAM_UNDERLAY_LINE, "line-width", lineWidth);
     map.setPaintProperty(T1EAM_UNDERLAY_LINE, "line-opacity", lineOpacity);
@@ -292,6 +339,29 @@ function installMapChrome(
         "line-opacity": 1,
         "line-dasharray": [0.12, 1.65],
         "line-emissive-strength": opts.night ? 1 : 0.2,
+      },
+    });
+  }
+  if (!map.getSource("route-connectors")) {
+    map.addSource("route-connectors", {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: [] },
+    });
+  }
+  if (!map.getLayer("route-connectors-line")) {
+    // Quiet dotted grey pin ↔ network connector (not part of the walk)
+    map.addLayer({
+      id: "route-connectors-line",
+      type: "line",
+      source: "route-connectors",
+      slot: "top",
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: {
+        "line-color": opts.night ? "#cbd5e1" : "#64748b",
+        "line-width": 2.4,
+        "line-opacity": 0.85,
+        "line-dasharray": [0.1, 1.9],
+        "line-emissive-strength": opts.night ? 0.9 : 0.1,
       },
     });
   }
@@ -356,7 +426,7 @@ export function ResidentApp() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const featuresRef = useRef<GeoJSON.Feature[]>([]);
-  /** Centreline underlay artefact; falls back to segment polygons when null. */
+  /** Centreline underlay artefact; layer stays off until it loads. */
   const underlayRef = useRef<GeoJSON.Feature[] | null>(null);
   const pickModeRef = useRef<PickMode>("idle");
   const originMarkerRef = useRef<mapboxgl.Marker | null>(null);
@@ -397,6 +467,10 @@ export function ResidentApp() {
   const [layersReady, setLayersReady] = useState(false);
   /** True after “Use this route” — map focused on the selected walk. */
   const [routeLocked, setRouteLocked] = useState(false);
+  /** Locked camera: street-level commence view or whole-walk overview. */
+  const [lockedView, setLockedView] = useState<"commence" | "overview">(
+    "commence",
+  );
   const [geoBusy, setGeoBusy] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const sheetDragRef = useRef<{
@@ -482,6 +556,16 @@ export function ResidentApp() {
     walkModeRef.current = walkMode;
   }, [walkMode]);
 
+  // Leaving the locked walk: flatten the commence-view camera tilt.
+  // lockedView needs no reset — every lock click sets it explicitly.
+  useEffect(() => {
+    if (routeLocked) return;
+    const map = mapRef.current;
+    if (map && map.getPitch() > 0) {
+      map.easeTo({ pitch: 0, bearing: 0, duration: 600 });
+    }
+  }, [routeLocked]);
+
   const clearResults = useCallback(() => {
     setRoutes([]);
     setSelectedId(null);
@@ -555,21 +639,50 @@ export function ResidentApp() {
       const src = map?.getSource("routes") as mapboxgl.GeoJSONSource | undefined;
       if (!src) return;
       const colors = routeColors(walkMode === "night");
+      const originPin: [number, number] | null = origin
+        ? [origin.lng, origin.lat]
+        : null;
+      const end = destination ?? origin; // loops end back at the start pin
+      const endPin: [number, number] | null = end ? [end.lng, end.lat] : null;
+      const connectorFeatures: GeoJSON.Feature[] = [];
       // selected as 0/1 — Mapbox property filters are more reliable than booleans
       src.setData({
         type: "FeatureCollection",
-        features: list.map((r, i) => ({
-          type: "Feature",
-          properties: {
-            id: r.id,
-            color: colors[i % colors.length],
-            selected: r.id === selected ? 1 : 0,
-          },
-          geometry: r.geometry,
-        })),
+        features: list.map((r, i) => {
+          const { line, connectors } = splitPinStubs(
+            r.geometry,
+            originPin,
+            endPin,
+          );
+          if (r.id === selected) {
+            for (const c of connectors) {
+              connectorFeatures.push({
+                type: "Feature",
+                properties: {},
+                geometry: c,
+              });
+            }
+          }
+          return {
+            type: "Feature",
+            properties: {
+              id: r.id,
+              color: colors[i % colors.length],
+              selected: r.id === selected ? 1 : 0,
+            },
+            geometry: line,
+          };
+        }),
+      });
+      const connSrc = map?.getSource("route-connectors") as
+        | mapboxgl.GeoJSONSource
+        | undefined;
+      connSrc?.setData({
+        type: "FeatureCollection",
+        features: connectorFeatures,
       });
     },
-    [walkMode],
+    [walkMode, origin, destination],
   );
 
   /** Re-attach amenity overlay layers (needed after basemap style swap). */
@@ -661,6 +774,19 @@ export function ResidentApp() {
     });
     mapRef.current = map;
 
+    // One-shot "check in" location: tap to see where you are relative to
+    // the route. No continuous tracking; the fix never leaves the device.
+    map.addControl(
+      new mapboxgl.GeolocateControl({
+        positionOptions: { enableHighAccuracy: true },
+        trackUserLocation: false,
+        showUserHeading: false,
+        showAccuracyCircle: true,
+        fitBoundsOptions: { maxZoom: 16.5 },
+      }),
+      "bottom-right",
+    );
+
     // Basemap first — do not block on the segment GeoJSON download
     map.on("load", () => {
       map.resize();
@@ -743,7 +869,7 @@ export function ResidentApp() {
             lgaDataRef.current = lga;
             installMapChrome(map, {
               lga,
-              t1eam: underlayRef.current ?? featuresRef.current,
+              t1eam: underlayRef.current ?? undefined,
               night: walkModeRef.current === "night",
             });
           } catch {
@@ -756,11 +882,6 @@ export function ResidentApp() {
           const body = await fetchSegmentsGeoJSON(resolveGeoJsonUrl());
           if (!mapRef.current) return;
           featuresRef.current = body.features ?? [];
-          ensureT1eamUnderlay(
-            map,
-            underlayRef.current ?? featuresRef.current,
-            walkModeRef.current === "night",
-          );
           setNetworkReady(true);
           setNetworkStatus("Ready to plan a walk");
         } catch (err) {
@@ -813,7 +934,7 @@ export function ResidentApp() {
       map.once("style.load", () => {
         installMapChrome(map, {
           lga: lgaDataRef.current,
-          t1eam: underlayRef.current ?? featuresRef.current,
+          t1eam: underlayRef.current ?? undefined,
           night: walkMode === "night",
         });
         paintRoutes(routesRef.current, selectedIdRef.current);
@@ -848,12 +969,8 @@ export function ResidentApp() {
         walkMode === "night" ? "#8B8DD9" : "#292984",
       );
     }
-    if (map.getSource(T1EAM_UNDERLAY_SRC)) {
-      ensureT1eamUnderlay(
-        map,
-        underlayRef.current ?? featuresRef.current,
-        walkMode === "night",
-      );
+    if (underlayRef.current && map.getSource(T1EAM_UNDERLAY_SRC)) {
+      ensureT1eamUnderlay(map, underlayRef.current, walkMode === "night");
     }
   }, [walkMode, whenOverridden, mapReady, paintRoutes, syncOverlayLayers]);
 
@@ -2053,20 +2170,52 @@ export function ResidentApp() {
                 const r = routes.find((x) => x.id === selectedId);
                 const map = mapRef.current;
                 if (!r || !map) return;
-                const bounds = new mapboxgl.LngLatBounds();
-                for (const c of r.geometry.coordinates) {
-                  bounds.extend(c as [number, number]);
+                if (!routeLocked || lockedView === "overview") {
+                  // Commence view: stand at the start, facing down the
+                  // first leg — like turning to face the way you'll walk.
+                  const coords = r.geometry.coordinates as [number, number][];
+                  const start: [number, number] = origin
+                    ? [origin.lng, origin.lat]
+                    : coords[0];
+                  let acc = 0;
+                  let i = 0;
+                  while (i < coords.length - 1 && acc < 30) {
+                    acc += distM(coords[i], coords[i + 1]);
+                    i += 1;
+                  }
+                  const ahead = coords[Math.min(i, coords.length - 1)];
+                  map.flyTo({
+                    center: start,
+                    zoom: 16.75,
+                    pitch: 55,
+                    bearing: bearingDeg(start, ahead),
+                    duration: 1800,
+                    essential: true,
+                  });
+                  setLockedView("commence");
+                } else {
+                  const bounds = new mapboxgl.LngLatBounds();
+                  for (const c of r.geometry.coordinates) {
+                    bounds.extend(c as [number, number]);
+                  }
+                  map.fitBounds(bounds, {
+                    padding: 80,
+                    maxZoom: 16,
+                    duration: 900,
+                    pitch: 0,
+                    bearing: 0,
+                  });
+                  setLockedView("overview");
                 }
-                map.fitBounds(bounds, {
-                  padding: 80,
-                  maxZoom: 16,
-                  duration: 600,
-                });
                 setRouteLocked(true);
                 if (!isDesktop) setSheetSnap("peek");
               }}
             >
-              {routeLocked ? "Looking at this walk" : "Use this route"}
+              {!routeLocked
+                ? "Use this route"
+                : lockedView === "commence"
+                  ? "See the whole walk"
+                  : "Back to the start"}
             </button>
           ) : null}
 
