@@ -140,13 +140,21 @@ function t1eamUnderlayColor(night: boolean): string {
   return night ? "#8B8DD9" : "#292984";
 }
 
-/** Quiet Casey footpath carpet — polygons, not Mapbox pedestrian dots. */
+/**
+ * Quiet Casey walkable-network carpet. Preferred data is the centreline
+ * artefact (`casey_paths_underlay.geojson` — graph pathish edges incl.
+ * ADR-011 sidewalk offsets), drawn as lines. Raw T1EAM pavement polygons
+ * remain the fallback but read as shards at street zooms.
+ */
 function ensureT1eamUnderlay(
   map: mapboxgl.Map,
   features: GeoJSON.Feature[],
   night: boolean,
 ) {
   if (features.length === 0) return;
+  const isLines =
+    features[0]?.geometry?.type === "LineString" ||
+    features[0]?.geometry?.type === "MultiLineString";
   const data: GeoJSON.FeatureCollection = {
     type: "FeatureCollection",
     features,
@@ -158,42 +166,49 @@ function ensureT1eamUnderlay(
     map.addSource(T1EAM_UNDERLAY_SRC, {
       type: "geojson",
       data,
-      // Underlay only — a little simplify keeps 27k polygons cheaper
+      // Underlay only — a little simplify keeps the network cheaper
       tolerance: 0.4,
     });
   }
 
   const color = t1eamUnderlayColor(night);
   const before = map.getLayer("routes-alt") ? "routes-alt" : undefined;
-  if (!map.getLayer(T1EAM_UNDERLAY_FILL)) {
-    map.addLayer(
-      {
-        id: T1EAM_UNDERLAY_FILL,
-        type: "fill",
-        source: T1EAM_UNDERLAY_SRC,
-        slot: "middle",
-        minzoom: 12,
-        paint: {
-          "fill-color": color,
-          "fill-opacity": night ? 0.28 : 0.2,
-          "fill-emissive-strength": night ? 0.4 : 0,
-        },
-      },
-      before,
-    );
-  } else {
-    map.setPaintProperty(T1EAM_UNDERLAY_FILL, "fill-color", color);
-    map.setPaintProperty(
-      T1EAM_UNDERLAY_FILL,
-      "fill-opacity",
-      night ? 0.28 : 0.2,
-    );
-    map.setPaintProperty(
-      T1EAM_UNDERLAY_FILL,
-      "fill-emissive-strength",
-      night ? 0.4 : 0,
-    );
+  if (isLines && map.getLayer(T1EAM_UNDERLAY_FILL)) {
+    map.removeLayer(T1EAM_UNDERLAY_FILL);
   }
+  if (!isLines) {
+    if (!map.getLayer(T1EAM_UNDERLAY_FILL)) {
+      map.addLayer(
+        {
+          id: T1EAM_UNDERLAY_FILL,
+          type: "fill",
+          source: T1EAM_UNDERLAY_SRC,
+          slot: "middle",
+          minzoom: 12,
+          paint: {
+            "fill-color": color,
+            "fill-opacity": night ? 0.28 : 0.2,
+            "fill-emissive-strength": night ? 0.4 : 0,
+          },
+        },
+        before,
+      );
+    } else {
+      map.setPaintProperty(T1EAM_UNDERLAY_FILL, "fill-color", color);
+      map.setPaintProperty(
+        T1EAM_UNDERLAY_FILL,
+        "fill-opacity",
+        night ? 0.28 : 0.2,
+      );
+      map.setPaintProperty(
+        T1EAM_UNDERLAY_FILL,
+        "fill-emissive-strength",
+        night ? 0.4 : 0,
+      );
+    }
+  }
+  const lineWidth = isLines ? 1.4 : 0.8;
+  const lineOpacity = isLines ? (night ? 0.5 : 0.35) : night ? 0.42 : 0.3;
   if (!map.getLayer(T1EAM_UNDERLAY_LINE)) {
     map.addLayer(
       {
@@ -205,8 +220,8 @@ function ensureT1eamUnderlay(
         layout: { "line-cap": "round", "line-join": "round" },
         paint: {
           "line-color": color,
-          "line-width": 0.8,
-          "line-opacity": night ? 0.42 : 0.3,
+          "line-width": lineWidth,
+          "line-opacity": lineOpacity,
           "line-emissive-strength": night ? 0.3 : 0,
         },
       },
@@ -214,11 +229,8 @@ function ensureT1eamUnderlay(
     );
   } else {
     map.setPaintProperty(T1EAM_UNDERLAY_LINE, "line-color", color);
-    map.setPaintProperty(
-      T1EAM_UNDERLAY_LINE,
-      "line-opacity",
-      night ? 0.42 : 0.3,
-    );
+    map.setPaintProperty(T1EAM_UNDERLAY_LINE, "line-width", lineWidth);
+    map.setPaintProperty(T1EAM_UNDERLAY_LINE, "line-opacity", lineOpacity);
     map.setPaintProperty(
       T1EAM_UNDERLAY_LINE,
       "line-emissive-strength",
@@ -327,11 +339,21 @@ function resolveLgaUrl(): string | null {
   return "/api/map-data/casey_lga_boundary.geojson";
 }
 
+/** Walkable-network centrelines (sibling artefact of the segments file). */
+function resolveUnderlayUrl(): string {
+  const segments = resolveGeoJsonUrl();
+  const cut = segments.lastIndexOf("/");
+  const dir = cut >= 0 ? segments.slice(0, cut) : "/api/map-data";
+  return `${dir}/casey_paths_underlay.geojson`;
+}
+
 export function ResidentApp() {
   const isDesktop = useMediaQuery(MD_UP);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const featuresRef = useRef<GeoJSON.Feature[]>([]);
+  /** Centreline underlay artefact; falls back to segment polygons when null. */
+  const underlayRef = useRef<GeoJSON.Feature[] | null>(null);
   const pickModeRef = useRef<PickMode>("idle");
   const originMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const destMarkerRef = useRef<mapboxgl.Marker | null>(null);
@@ -688,6 +710,27 @@ export function ResidentApp() {
       setMapReady(true);
 
       void (async () => {
+        // Centreline underlay (preferred look) — segments polygons stay the
+        // fallback if this artefact is missing from the release.
+        try {
+          const res = await fetch(resolveUnderlayUrl());
+          if (res.ok) {
+            const fc = (await res.json()) as GeoJSON.FeatureCollection;
+            if (fc.features?.length && mapRef.current) {
+              underlayRef.current = fc.features;
+              ensureT1eamUnderlay(
+                map,
+                fc.features,
+                walkModeRef.current === "night",
+              );
+            }
+          }
+        } catch {
+          /* optional */
+        }
+      })();
+
+      void (async () => {
         const lgaUrl = resolveLgaUrl();
         if (lgaUrl) {
           try {
@@ -696,7 +739,7 @@ export function ResidentApp() {
             lgaDataRef.current = lga;
             installMapChrome(map, {
               lga,
-              t1eam: featuresRef.current,
+              t1eam: underlayRef.current ?? featuresRef.current,
               night: walkModeRef.current === "night",
             });
           } catch {
@@ -711,7 +754,7 @@ export function ResidentApp() {
           featuresRef.current = body.features ?? [];
           ensureT1eamUnderlay(
             map,
-            featuresRef.current,
+            underlayRef.current ?? featuresRef.current,
             walkModeRef.current === "night",
           );
           setNetworkReady(true);
@@ -766,7 +809,7 @@ export function ResidentApp() {
       map.once("style.load", () => {
         installMapChrome(map, {
           lga: lgaDataRef.current,
-          t1eam: featuresRef.current,
+          t1eam: underlayRef.current ?? featuresRef.current,
           night: walkMode === "night",
         });
         paintRoutes(routesRef.current, selectedIdRef.current);
@@ -801,10 +844,10 @@ export function ResidentApp() {
         walkMode === "night" ? "#8B8DD9" : "#292984",
       );
     }
-    if (map.getLayer(T1EAM_UNDERLAY_FILL)) {
+    if (map.getSource(T1EAM_UNDERLAY_SRC)) {
       ensureT1eamUnderlay(
         map,
-        featuresRef.current,
+        underlayRef.current ?? featuresRef.current,
         walkMode === "night",
       );
     }

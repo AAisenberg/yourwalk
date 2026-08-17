@@ -362,6 +362,33 @@ For v1 dusk / mixed routes, use the Night Index if any material part of the walk
 
 ---
 
+### ADR-011: T1EAM sidewalk-aware routing graph
+
+**Status**: Accepted — 17 Aug 2026
+
+**Decision Question**: Routes drew down road centrelines because OSM Berwick rarely maps residential sidewalks as separate ways. How does the routing graph learn where footpaths actually are?
+
+**Options Considered**:
+
+1. **Skeletonise T1EAM pavement polygons into standalone graph edges** — true sidewalk topology, but medial-axis extraction over 30k irregular polygons (driveway crossovers, bulb-outs) is fragile, and connecting a second parallel network needs synthetic kerb crossings everywhere
+2. **Convert road edges that have a T1EAM pavement alongside into "sidewalk" edges** — same topology (junction connectivity keeps working), footway cost, geometry offset ~4.5 m to the pavement side for honest drawing
+3. **OSM gap-fill (map the sidewalks into OSM)** — blocked pending licensing review; long lead time
+4. **Cost multipliers only** — cannot help where no footway alternative exists in the graph (~84% of road walking in the Hobart Ave audit)
+
+**Decision**: Option 2. At build time (`build_graph.py convert_sidewalk_edges`), a road-class edge within 12 m of a Casey T1EAM footpath or shared-use pavement polygon becomes `highway="sidewalk"`: pathish cost, Casey scores kept, drawn geometry offset 4.5 m toward the pavement. The offset side is voted per OSM way (length-weighted) so lines do not flip sides mid-block. Roads without Council pavement keep road cost and remain honestly drawn on the centreline.
+
+**Evidence**: 95,797 of ~150k road edges converted citywide. 34 Hobart Ave 25 min loops: best available went from 49–60% road-centreline walking to three circuits at 0% footpath-less-road. Montpelier night 30 min: 29–40% → 0–9%. A→B challenger pathish share at Hobart: 0.39 → 1.0, so Casey cards pass the trip funnel gate again.
+
+**Consequences**:
+
+- Graph rebuild required whenever T1EAM footpath data updates; parquets must be present at build time (conversion skips gracefully if missing)
+- `road_share` in the loop planner now means "share on roads with no Council footpath" — the honest residual
+- Sidewalk edges are `sidewalk` in `osm_highway_m`; client carriageway PATHISH list already includes it
+- Underlay artefact (`casey_paths_underlay.geojson`, welded centrelines incl. sidewalk offsets) replaces T1EAM pavement polygon rendering on the resident map
+- Side-of-street is still approximate: one drawn side per way, side changes only at junctions; park paths in T1EAM but absent from OSM stay unroutable pending OSM gap-fill licensing review
+
+---
+
 ## Decision Process
 
 1. **Identify need**: Decision required when multiple viable options exist
