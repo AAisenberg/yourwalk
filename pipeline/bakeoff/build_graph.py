@@ -32,11 +32,44 @@ from graph_runtime import (  # noqa: E402
     norm_highway,
     reset_node_index,
 )
-from paths import GRAPH_PICKLE, OSM_CROSSINGS, OSM_JOINED, ensure_bakeoff_dirs  # noqa: E402
+from paths import (  # noqa: E402
+    GRAPH_PICKLE,
+    OSM_CROSSINGS,
+    OSM_JOINED,
+    T1EAM_FOOTPATHS_PLY,
+    T1EAM_SHAREDUSE_PLY,
+    ensure_bakeoff_dirs,
+)
 
 # Connect sidewalk nodes to a node-tagged crossing within this radius
 CROSSING_CONNECT_M = 22.0
 CROSSING_MAX_EDGES = 6
+
+# --- T1EAM sidewalk-aware conversion (ADR-011) -------------------------------
+# OSM Berwick rarely maps residential sidewalks as separate ways, so walking
+# routes drew down road centrelines. Where a Casey T1EAM footpath pavement
+# polygon runs alongside a road edge, the edge is converted to a "sidewalk":
+# footway cost, geometry offset to the pavement side. Roads without Council
+# pavement keep their road cost — the only roads a route still uses.
+SIDEWALKABLE_HIGHWAYS = frozenset(
+    {
+        "residential",
+        "unclassified",
+        "living_street",
+        "tertiary",
+        "tertiary_link",
+        "secondary",
+        "secondary_link",
+        "primary",
+        "primary_link",
+    }
+)
+# Pavement polygon must be within this of the road centreline (typical Casey
+# verge: kerb ~3-4 m + nature strip). 12 m also matched 77% of road metres in
+# the Hobart Ave audit without pulling in paths across parkland.
+SIDEWALK_MATCH_M = 12.0
+# Draw offset toward the pavement side. Visual only — length stays the road's.
+SIDEWALK_OFFSET_M = 4.5
 
 
 def build_graph(edges: gpd.GeoDataFrame) -> nx.Graph:
@@ -166,6 +199,100 @@ def build_graph(edges: gpd.GeoDataFrame) -> nx.Graph:
     return g
 
 
+def convert_sidewalk_edges(g: nx.Graph) -> int:
+    """Convert road edges with a T1EAM pavement alongside into sidewalk edges.
+
+    Side selection is voted per OSM way (length-weighted) so the drawn line
+    stays on one consistent side of a street instead of flipping mid-block —
+    residents read a mid-block flip as "crossing where there is no crossing".
+    """
+    from pyproj import Transformer
+    from shapely import STRtree
+    from shapely.ops import nearest_points
+
+    geoms = []
+    for p in (T1EAM_FOOTPATHS_PLY, T1EAM_SHAREDUSE_PLY):
+        if not p.exists():
+            continue
+        gdf = gpd.read_parquet(p)
+        gdf = gdf.to_crs(7855) if gdf.crs and gdf.crs.to_epsg() != 7855 else gdf
+        geoms.extend(x for x in gdf.geometry.values if x is not None and not x.is_empty)
+    if not geoms:
+        print("T1EAM pavement parquet missing — sidewalk conversion skipped")
+        return 0
+    tree = STRtree(geoms)
+    to_m = Transformer.from_crs("EPSG:4326", "EPSG:7855", always_xy=True)
+    to_deg = Transformer.from_crs("EPSG:7855", "EPSG:4326", always_xy=True)
+
+    # Pass 1: match road edges to the nearest pavement polygon + side sign.
+    hits: list[tuple[dict, float, tuple[float, float], tuple[float, float]]] = []
+    votes: dict[int, float] = {}
+    for u, v, d in g.edges(data=True):
+        if norm_highway(d.get("highway")) not in SIDEWALKABLE_HIGHWAYS:
+            continue
+        a = to_m.transform(u[0], u[1])
+        b = to_m.transform(v[0], v[1])
+        line = LineString([a, b])
+        try:
+            idxs = tree.query(line, predicate="dwithin", distance=SIDEWALK_MATCH_M)
+        except TypeError:  # older shapely without dwithin
+            idxs = [
+                i
+                for i in tree.query(line.buffer(SIDEWALK_MATCH_M))
+                if geoms[int(i)].distance(line) <= SIDEWALK_MATCH_M
+            ]
+        best = None
+        for i in idxs:
+            poly = geoms[int(i)]
+            dist = poly.distance(line)
+            if dist <= SIDEWALK_MATCH_M and (best is None or dist < best[0]):
+                best = (dist, poly)
+        if best is None:
+            continue
+        p_line, p_poly = nearest_points(line, best[1])
+        ex, ey = b[0] - a[0], b[1] - a[1]
+        cross = ex * (p_poly.y - p_line.y) - ey * (p_poly.x - p_line.x)
+        side = 1.0 if cross >= 0 else -1.0
+        hits.append((d, side, a, b))
+        oid = d.get("osm_id")
+        if oid is not None:
+            votes[oid] = votes.get(oid, 0.0) + side * float(d.get("length_m") or 1.0)
+
+    # Pass 2: convert, with the way-level side vote deciding the offset.
+    day_p10, day_p90 = float(g.graph["day_p10"]), float(g.graph["day_p90"])
+    night_p10, night_p90 = float(g.graph["night_p10"]), float(g.graph["night_p90"])
+    converted = 0
+    for d, side, a, b in hits:
+        oid = d.get("osm_id")
+        use = side
+        if oid is not None and votes.get(oid):
+            use = 1.0 if votes[oid] >= 0 else -1.0
+        ex, ey = b[0] - a[0], b[1] - a[1]
+        length = hypot(ex, ey) or 1.0
+        ox, oy = (-ey / length, ex / length) if use >= 0 else (ey / length, -ex / length)
+        a2 = to_deg.transform(a[0] + ox * SIDEWALK_OFFSET_M, a[1] + oy * SIDEWALK_OFFSET_M)
+        b2 = to_deg.transform(b[0] + ox * SIDEWALK_OFFSET_M, b[1] + oy * SIDEWALK_OFFSET_M)
+        d["sidewalk_of"] = norm_highway(d.get("highway"))
+        d["highway"] = "sidewalk"
+        d["geometry"] = LineString([a2, b2])
+        d["cost_day"] = edge_cost(
+            float(d.get("length_m") or 1.0),
+            d.get("day_index_score"),
+            p10=day_p10,
+            p90=day_p90,
+            highway="sidewalk",
+        )
+        d["cost_night"] = edge_cost(
+            float(d.get("length_m") or 1.0),
+            d.get("night_index_score"),
+            p10=night_p10,
+            p90=night_p90,
+            highway="sidewalk",
+        )
+        converted += 1
+    return converted
+
+
 def _node_has_pathish(g: nx.Graph, n: tuple[float, float]) -> bool:
     for _, _, data in g.edges(n, data=True):
         if norm_highway(data.get("highway")) in PATHISH_HIGHWAYS:
@@ -278,6 +405,8 @@ def main() -> int:
         return 1
     edges = gpd.read_file(OSM_JOINED)
     g = build_graph(edges)
+    n_side = convert_sidewalk_edges(g)
+    print(f"Sidewalk-converted road edges (T1EAM pavement alongside): {n_side}")
     crossings = load_or_fetch_crossings()
     n_cross = synthesise_crossing_edges(
         g,

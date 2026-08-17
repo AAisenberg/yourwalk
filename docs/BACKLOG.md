@@ -153,7 +153,7 @@ Before a backlog item is considered complete, it must meet all of the following:
 
 **Dependencies**: Local/hosted `serve_challenger.py`; graph rebuild with stream scores
 
-**Status**: Now — P1 + P2 + P3 + P4 done 16 Aug 2026. Loops now draw on the Casey graph via the challenger `/loop` planner (through-junction vias, cross-leg reuse penalty, adaptive sizing) — fixes Montpelier backtracking; Mapbox waypoints are fallback only. Road-aware selection added 17 Aug 2026: `/loop` returns the least road-centreline circuits first (Montpelier night 58/64/65% road down to 29/34/40%). Hosted challenger live (ADR-010). Next: **T1EAM-native sidewalk edges in the routing graph** (durable mid-road fix — OSM Berwick rarely maps sidewalks); side-of-street / heading-continuity. Recap for XYX: [`ROUTING_NOTE_NIKKI_2026-08-16.md`](ROUTING_NOTE_NIKKI_2026-08-16.md)
+**Status**: Now — P1 + P2 + P3 + P4 done 16 Aug 2026. Loops draw on the Casey graph via the challenger `/loop` planner (through-junction vias, cross-leg reuse penalty, adaptive sizing, road-aware selection). **Sidewalk-aware graph shipped 17 Aug 2026 (ADR-011)**: 95,797 road edges with T1EAM pavement alongside become sidewalk edges — Hobart loops 49–60% road → 0% footpath-less road, Hobart A→B pathish 0.39 → 1.0 (Casey trip cards return), resident underlay switches to welded centrelines. Hosted challenger live (ADR-010). Next: side-of-street / heading-continuity refinement; OSM gap-fill for T1EAM-only park paths (pending licensing review). Recap for XYX: [`ROUTING_NOTE_NIKKI_2026-08-16.md`](ROUTING_NOTE_NIKKI_2026-08-16.md)
 
 ---
 

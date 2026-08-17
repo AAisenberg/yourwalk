@@ -13,6 +13,9 @@ const ALLOWED = new Set([
   "segment_scores.geojson",
   "casey_lga_boundary.geojson",
   "segment_scores.meta.json",
+  // Walkable-network centrelines (graph pathish edges incl. ADR-011
+  // sidewalk offsets) — resident underlay, replaces polygon shards
+  "casey_paths_underlay.geojson",
   // Amenity overlays (resident “Along the way”) — same release as map scores
   "fountains.geojson",
   "benches.geojson",

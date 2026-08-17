@@ -31,6 +31,9 @@ PATHISH_HIGHWAYS = frozenset(
         "track",
         "cycleway",
         "crossing",
+        # Road edge with a Casey T1EAM footpath alongside (ADR-011): the walk
+        # is really on the sidewalk, so it costs like a footway.
+        "sidewalk",
     }
 )
 MILD_ROAD_MULT = 1.25
@@ -99,7 +102,8 @@ def highway_cost_mult(highway: object, *, prefer_away: bool = False) -> float:
             return AWAY_TRAIL_MULT
         if hw == "crossing":
             return AWAY_CROSSING_MULT
-        if hw in {"footway", "steps", "corridor"}:
+        # Sidewalks run beside carriageways — not "away from roads".
+        if hw in {"footway", "steps", "corridor", "sidewalk"}:
             return AWAY_FOOTWAY_MULT
         return AWAY_ROAD_COST_MULT.get(hw, AWAY_DEFAULT_ROAD_MULT)
     if hw in PATHISH_HIGHWAYS:

@@ -157,7 +157,7 @@ Minimum shippable: step 1 + 2. Step 3 is the trust amplifier for demos (“here 
 8. Mapbox waypoint drawing (Casey-scored turning points, P4) is the fallback when `/loop` returns nothing or the challenger is down.
 9. Rank with outing match (prefs dominate inside the band). Prefer 2 cards; a third only if quality holds. One honest circuit if the network cannot diversify.
 
-**Known limit:** OSM Berwick rarely maps residential sidewalks as separate ways, so some "road" walking is really sidewalk walking drawn down the centreline. The durable fix is T1EAM-native sidewalk edges in the routing graph (backlog).
+**Sidewalk-aware graph (ADR-011, 17 Aug 2026):** road edges with a Casey T1EAM pavement polygon alongside are converted at build time to `sidewalk` edges — footway cost, drawn geometry offset 4.5 m to the pavement side (side voted per OSM way, so lines do not flip mid-block). Loop `road_share` now means the honest residual: walking on roads with **no** Council footpath. Hobart Ave 25 min went from 49–60% road to three circuits at 0%; A→B pathish share there went 0.39 → 1.0, so Casey trip cards pass the funnel gate again. Park paths in T1EAM but missing from OSM remain unroutable pending the OSM gap-fill licensing review.
 
 **There and back:** Same turning-point bias (Loop first). Optional Casey graph on the outbound leg when cheap.
 
@@ -283,6 +283,7 @@ UI copy (Slice 1/2) stays complementary: “Edit walk and search again” remain
 
 | Date | Note |
 |------|------|
+| 17 Aug 2026 | Sidewalk-aware graph ships (ADR-011): 95,797 road edges with T1EAM pavement alongside become `sidewalk` edges (footway cost, 4.5 m draw offset, way-level side vote). Hobart 25 min loops 49–60% road → all 0% footpath-less road; Montpelier night 29–40% → 0–9%; Hobart A→B pathish 0.39 → 1.0 (Casey cards return). Resident underlay switches to welded centrelines (`casey_paths_underlay.geojson`) — no more pavement-polygon shards. |
 | 17 Aug 2026 | Road-aware loop selection (mid-road lines fix): `/loop` draws every candidate pair (up to 5 damped resizes with a ping-pong guard), pools survivors and returns lowest road-centreline share first; >45% road only fills a two-card set. Vias must touch the path network. Montpelier night 30 min drops 58/64/65% road to 29/34/40%. Durable fix (T1EAM sidewalk edges in graph) stays on backlog. |
 | 16 Aug 2026 | Server `/loop` planner ships (backtracking fix): through-junction vias, cross-leg reuse penalty x4, calibration probe + damped resize. One HTTP call returns up to three distinct in-band circuits; client gates unchanged; Mapbox is fallback only. Montpelier revisit 0.15–0.21 down to 0.00–0.09; smoke battery 4 starts x 15/30 min all pass. |
 | 16 Aug 2026 | P4 lock: turning points scored with the trip blend; top quartile in the duration ring; Casey graph legs when they connect; Mapbox fallback. Montpelier 30 min Loop is the exit fixture. Prefer away stays ranking-only on loops. |

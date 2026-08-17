@@ -184,6 +184,8 @@ OSM_PATHISH_HIGHWAYS = frozenset(
         "service",
         "living_street",
         "crossing",
+        # T1EAM-confirmed sidewalk beside a road (ADR-011, build-time convert)
+        "sidewalk",
     }
 )
 

@@ -13,6 +13,9 @@ BAKEOFF_DATA = DATA_ROOT / "bakeoff"
 
 SCORES_PARQUET = DATA_ROOT / "intermediate" / "segment_scores.parquet"
 LGA_BOUNDARY = DATA_ROOT / "raw" / "caseylga_boundary.geojson"
+# T1EAM pavement polygons drive sidewalk-aware edge conversion (ADR-011)
+T1EAM_FOOTPATHS_PLY = DATA_ROOT / "intermediate" / "footpaths_ply_t1eam.parquet"
+T1EAM_SHAREDUSE_PLY = DATA_ROOT / "intermediate" / "sharedusepaths_ply_t1eam.parquet"
 OD_FIXTURE = REPO_ROOT / "docs" / "fixtures" / "bakeoff_od_sample.json"
 
 SCORES_EXPORT = BAKEOFF_DATA / "casey_scores_lean.geojson"

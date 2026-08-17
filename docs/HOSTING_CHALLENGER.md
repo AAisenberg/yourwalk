@@ -91,8 +91,10 @@ Leave `CHALLENGER_URL=http://127.0.0.1:8790` in `web/.env.local`. Leave `CHALLEN
 ## Rebuild the graph later
 
 1. `cd pipeline && source .venv/bin/activate && python bakeoff/build_graph.py`
-2. `fly deploy` from repo root (sends the new pickle).
-3. Bump app version if testers need to know the graph changed.
+   - Sidewalk conversion (ADR-011) needs `data/intermediate/footpaths_ply_t1eam.parquet` and `sharedusepaths_ply_t1eam.parquet`; it skips with a warning if missing (routes revert to centreline drawing).
+2. `python bakeoff/export_paths_underlay.py`, then `gh release upload map-data-v1 data/bakeoff/casey_paths_underlay.geojson --clobber` (resident map underlay must match the graph).
+3. `fly deploy` from repo root (sends the new pickle).
+4. Bump app version if testers need to know the graph changed.
 
 Optional durable copy: GitHub release `challenger-graph-v1` (same pattern as `map-data-v1`). Not required for the first Fly deploy.
 
