@@ -6,6 +6,7 @@ import type { IconType } from "react-icons";
 import {
   MdArrowForward,
   MdChair,
+  MdInfoOutline,
   MdLoop,
   MdMyLocation,
   MdNightlight,
@@ -36,6 +37,7 @@ export const IconToilet = MdWc;
 export const IconDogBag = MdPets;
 export const IconEye = MdVisibility;
 export const IconEyeOff = MdVisibilityOff;
+export const IconAbout = MdInfoOutline;
 
 export const OVERLAY_ICONS: Record<OverlayId, IconType> = {
   fountains: IconFountain,
