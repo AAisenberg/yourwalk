@@ -135,6 +135,7 @@ function applyStandardLook(map: mapboxgl.Map, preset: LightPreset) {
 const T1EAM_UNDERLAY_SRC = "t1eam-underlay";
 const T1EAM_UNDERLAY_FILL = "t1eam-underlay-fill";
 const T1EAM_UNDERLAY_LINE = "t1eam-underlay-line";
+const T1EAM_UNDERLAY_SW = "t1eam-underlay-sidewalks";
 
 function t1eamUnderlayColor(night: boolean): string {
   return night ? "#8B8DD9" : "#292984";
@@ -202,20 +203,29 @@ function splitPinStubs(
 
 /**
  * Sidewalk lines (ADR-011 offsets + OSM-mapped sidewalks) ring every
- * block from both sides of each street — at map zooms they read as hollow
- * polygons (17 Aug QA). Only genuine off-road paths render.
+ * block from both sides of each street — at neighbourhood zooms they read
+ * as hollow polygons (17 Aug QA). Staged reveal: genuine off-road paths
+ * render from z12; sidewalks fade in from z15.5, where a single street
+ * fills the view and pavement lines read as pavements.
  */
-const UNDERLAY_FILTER: mapboxgl.FilterSpecification = [
+const PATHS_FILTER: mapboxgl.FilterSpecification = [
   "!=",
   ["get", "hw"],
   "sidewalk",
 ];
+const SIDEWALKS_FILTER: mapboxgl.FilterSpecification = [
+  "==",
+  ["get", "hw"],
+  "sidewalk",
+];
+const SIDEWALK_MINZOOM = 15.5;
 
 /**
  * Quiet Casey walkable-network carpet: the centreline artefact
- * (`casey_paths_underlay.geojson` — graph pathish edges) drawn as lines,
- * filtered to genuine off-road paths. Lines or nothing — the old T1EAM
- * pavement polygons read as shards and are never rendered.
+ * (`casey_paths_underlay.geojson` — graph pathish edges) drawn as two
+ * line layers (paths always, sidewalks at street zooms). Lines or
+ * nothing — the old T1EAM pavement polygons read as shards and are never
+ * rendered.
  */
 function ensureT1eamUnderlay(
   map: mapboxgl.Map,
@@ -244,49 +254,91 @@ function ensureT1eamUnderlay(
   if (map.getLayer(T1EAM_UNDERLAY_FILL)) {
     map.removeLayer(T1EAM_UNDERLAY_FILL);
   }
-  // Grow with zoom so the footpath network stays present at street level
-  // (a fixed hairline vanished at z16+ — 17 Aug QA).
-  const lineWidth: mapboxgl.Expression = [
-    "interpolate",
-    ["linear"],
-    ["zoom"],
-    12,
-    1,
-    14.5,
-    1.8,
-    17,
-    3.2,
+
+  type LayerSpec = {
+    id: string;
+    filter: mapboxgl.FilterSpecification;
+    minzoom: number;
+    width: mapboxgl.Expression;
+    opacity: mapboxgl.Expression | number;
+    emissive: number;
+  };
+  const layers: LayerSpec[] = [
+    {
+      // Genuine off-road paths — the walking network you cannot infer
+      // from the street grid. Present at all planning zooms.
+      id: T1EAM_UNDERLAY_LINE,
+      filter: PATHS_FILTER,
+      minzoom: 12,
+      width: [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        12,
+        1.2,
+        14.5,
+        2.2,
+        17,
+        3.6,
+      ],
+      opacity: night ? 0.65 : 0.55,
+      emissive: night ? 0.35 : 0,
+    },
+    {
+      // Sidewalks: thin and faint, street zooms only, easing in over
+      // half a zoom level so the reveal is not a pop.
+      id: T1EAM_UNDERLAY_SW,
+      filter: SIDEWALKS_FILTER,
+      minzoom: SIDEWALK_MINZOOM,
+      width: [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        SIDEWALK_MINZOOM,
+        0.8,
+        18,
+        2,
+      ],
+      opacity: [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        SIDEWALK_MINZOOM,
+        0,
+        SIDEWALK_MINZOOM + 0.5,
+        night ? 0.42 : 0.35,
+      ],
+      emissive: night ? 0.3 : 0,
+    },
   ];
-  const lineOpacity = night ? 0.55 : 0.42;
-  if (!map.getLayer(T1EAM_UNDERLAY_LINE)) {
-    map.addLayer(
-      {
-        id: T1EAM_UNDERLAY_LINE,
-        type: "line",
-        source: T1EAM_UNDERLAY_SRC,
-        slot: "middle",
-        minzoom: 12,
-        filter: UNDERLAY_FILTER,
-        layout: { "line-cap": "round", "line-join": "round" },
-        paint: {
-          "line-color": color,
-          "line-width": lineWidth,
-          "line-opacity": lineOpacity,
-          "line-emissive-strength": night ? 0.3 : 0,
+
+  for (const spec of layers) {
+    if (!map.getLayer(spec.id)) {
+      map.addLayer(
+        {
+          id: spec.id,
+          type: "line",
+          source: T1EAM_UNDERLAY_SRC,
+          slot: "middle",
+          minzoom: spec.minzoom,
+          filter: spec.filter,
+          layout: { "line-cap": "round", "line-join": "round" },
+          paint: {
+            "line-color": color,
+            "line-width": spec.width,
+            "line-opacity": spec.opacity,
+            "line-emissive-strength": spec.emissive,
+          },
         },
-      },
-      before,
-    );
-  } else {
-    map.setFilter(T1EAM_UNDERLAY_LINE, UNDERLAY_FILTER);
-    map.setPaintProperty(T1EAM_UNDERLAY_LINE, "line-color", color);
-    map.setPaintProperty(T1EAM_UNDERLAY_LINE, "line-width", lineWidth);
-    map.setPaintProperty(T1EAM_UNDERLAY_LINE, "line-opacity", lineOpacity);
-    map.setPaintProperty(
-      T1EAM_UNDERLAY_LINE,
-      "line-emissive-strength",
-      night ? 0.3 : 0,
-    );
+        before,
+      );
+    } else {
+      map.setFilter(spec.id, spec.filter);
+      map.setPaintProperty(spec.id, "line-color", color);
+      map.setPaintProperty(spec.id, "line-width", spec.width);
+      map.setPaintProperty(spec.id, "line-opacity", spec.opacity);
+      map.setPaintProperty(spec.id, "line-emissive-strength", spec.emissive);
+    }
   }
 }
 
