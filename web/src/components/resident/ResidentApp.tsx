@@ -12,7 +12,14 @@ import {
   type ReactNode,
 } from "react";
 
-import { IconEye, IconEyeOff, IconOuting, IconTrip } from "@/components/resident/icons";
+import {
+  IconAbout,
+  IconEye,
+  IconEyeOff,
+  IconLocate,
+  IconOuting,
+  IconTrip,
+} from "@/components/resident/icons";
 import { PlaceField } from "@/components/resident/PlaceField";
 import { RingedAmenityIcon } from "@/components/resident/RingedAmenityIcon";
 import {
@@ -96,7 +103,7 @@ type WalkIntent = "trip" | "outing";
 /** Bottom sheet snap — Google Maps-style peek / half / full. */
 type SheetSnap = "peek" | "half" | "full";
 
-const WELCOME_STORAGE_KEY = "yw-resident-welcome-v2";
+const ABOUT_STORAGE_KEY = "yw-resident-about-v1";
 const PREFS_STORAGE_KEY = "yw-resident-prefs-v1";
 const LAYERS_STORAGE_KEY = "yw-resident-layers-v1";
 const LAYERS_TIP_KEY = "yw-resident-layers-tip-v1";
@@ -134,6 +141,12 @@ const SHEET_SNAP_CLASS: Record<SheetSnap, string> = {
   peek: "h-[22%] max-h-[22%]",
   half: "h-[48%] max-h-[48%]",
   full: "h-[72%] max-h-[72%]",
+};
+/** Keep in sync with SHEET_SNAP_CLASS — used for camera padding maths. */
+const SHEET_SNAP_FRACTION: Record<SheetSnap, number> = {
+  peek: 0.22,
+  half: 0.48,
+  full: 0.72,
 };
 
 const YOURWALK_STYLE =
@@ -538,7 +551,12 @@ export function ResidentApp() {
   const [mapReady, setMapReady] = useState(false);
   const [networkReady, setNetworkReady] = useState(false);
   const [networkStatus, setNetworkStatus] = useState("Loading footpath network…");
-  const [error, setError] = useState<string | null>(null);
+  // NEXT_PUBLIC_ env is inlined at build time, identical on server + client
+  const [error, setError] = useState<string | null>(() =>
+    process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+      ? null
+      : "Mapbox token missing — set NEXT_PUBLIC_MAPBOX_TOKEN in web/.env.local",
+  );
   const [walkMode, setWalkMode] = useState<WalkMode>("day");
   const [whenOverridden, setWhenOverridden] = useState(false);
   const [whenHint, setWhenHint] = useState("Day · daylight in Casey now");
@@ -569,17 +587,25 @@ export function ResidentApp() {
     "commence",
   );
   const [geoBusy, setGeoBusy] = useState(false);
-  const [showWelcome, setShowWelcome] = useState(false);
+  /** About / welcome modal — auto-opens once per device, then via header. */
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const aboutDialogRef = useRef<HTMLDialogElement | null>(null);
+  /** Pulsing "you are here" dot for the one-shot location check-in. */
+  const locateMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  /** Dismissible notice shown beside the check-in button (e.g. outside Casey). */
+  const [locateNotice, setLocateNotice] = useState<string | null>(null);
   const sheetDragRef = useRef<{
     startY: number;
     startSnap: SheetSnap;
   } | null>(null);
 
+  /* eslint-disable react-hooks/set-state-in-effect -- one-time client
+     hydration from localStorage; cannot be lazy-initialised under SSR */
   useEffect(() => {
     let storedPrefs: string | null = null;
     try {
-      if (window.localStorage.getItem(WELCOME_STORAGE_KEY) !== "1") {
-        setShowWelcome(true);
+      if (window.localStorage.getItem(ABOUT_STORAGE_KEY) !== "1") {
+        setAboutOpen(true);
       }
       setShowLayersTip(window.localStorage.getItem(LAYERS_TIP_KEY) !== "1");
       storedPrefs = window.localStorage.getItem(PREFS_STORAGE_KEY);
@@ -603,7 +629,7 @@ export function ResidentApp() {
         setOverlays({ ...DEFAULT_OVERLAYS, ...parsed });
       }
     } catch {
-      setShowWelcome(true);
+      setAboutOpen(true);
     }
     const auto = resolveCaseyWhen();
     setWalkMode(auto.walkMode);
@@ -614,6 +640,7 @@ export function ResidentApp() {
     setPrefsReady(true);
     setLayersReady(true);
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     if (!prefsReady) return;
@@ -636,14 +663,22 @@ export function ResidentApp() {
     }
   }, [overlays, layersReady]);
 
-  const dismissWelcome = useCallback(() => {
-    setShowWelcome(false);
+  const closeAbout = useCallback(() => {
+    setAboutOpen(false);
     try {
-      window.localStorage.setItem(WELCOME_STORAGE_KEY, "1");
+      window.localStorage.setItem(ABOUT_STORAGE_KEY, "1");
     } catch {
       /* ignore quota / private mode */
     }
   }, []);
+
+  // Native <dialog> gives focus trap + Escape for free (WCAG 2.1 AA).
+  useEffect(() => {
+    const dialog = aboutDialogRef.current;
+    if (!dialog) return;
+    if (aboutOpen && !dialog.open) dialog.showModal();
+    if (!aboutOpen && dialog.open) dialog.close();
+  }, [aboutOpen]);
 
   useEffect(() => {
     pickModeRef.current = pickMode;
@@ -674,15 +709,125 @@ export function ResidentApp() {
 
   /**
    * Camera padding that keeps walks clear of the chrome: the 27rem results
-   * panel on desktop, the peeked bottom sheet on mobile.
+   * panel on desktop; on mobile the bottom sheet at its *current* expansion
+   * (peek/half/full), so a fitted walk never hides behind the sheet.
+   * `snapOverride` covers callers that change the snap in the same tick.
    */
   const walkCameraPadding = useCallback(
-    () =>
-      isDesktop
-        ? { top: 80, bottom: 80, left: 432 + 48, right: 80 }
-        : { top: 70, bottom: 190, left: 40, right: 40 },
-    [isDesktop],
+    (snapOverride?: SheetSnap) => {
+      if (isDesktop) return { top: 80, bottom: 80, left: 432 + 48, right: 80 };
+      const mapH =
+        mapRef.current?.getContainer().clientHeight ?? window.innerHeight;
+      const frac = SHEET_SNAP_FRACTION[snapOverride ?? sheetSnap];
+      // Never let padding swallow the map — Mapbox rejects oversized padding.
+      const bottom = Math.max(
+        120,
+        Math.min(Math.round(mapH * frac) + 24, mapH - 70 - 90),
+      );
+      return { top: 70, bottom, left: 40, right: 40 };
+    },
+    [isDesktop, sheetSnap],
   );
+
+  /**
+   * flyTo offset that lands a point in the middle of the *visible* map area:
+   * right of the desktop panel, above the mobile sheet at its current snap.
+   */
+  const visibleCenterOffset = useCallback((): [number, number] => {
+    if (isDesktop) return [216, 0]; // half the 27rem side panel
+    const mapH =
+      mapRef.current?.getContainer().clientHeight ?? window.innerHeight;
+    return [0, -Math.round((mapH * SHEET_SNAP_FRACTION[sheetSnap]) / 2)];
+  }, [isDesktop, sheetSnap]);
+
+  /**
+   * One-shot "where am I?" check-in: drops a pulsing brand dot (not an
+   * endpoint pin) at the device position and eases the camera to it. No
+   * tracking — the fix never leaves the device (ADR-004 stance).
+   */
+  const checkInLocation = useCallback(() => {
+    setLocateNotice(null);
+    if (!navigator.geolocation) {
+      setLocateNotice("Location isn’t available in this browser.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const map = mapRef.current;
+        if (!map) return;
+        const lngLat: [number, number] = [
+          pos.coords.longitude,
+          pos.coords.latitude,
+        ];
+        // Outside the pilot area: leave the map where it is, no dot
+        if (!pointInCaseyBbox({ lng: lngLat[0], lat: lngLat[1] })) {
+          setLocateNotice(
+            "Looks like you’re outside the City of Casey, so we’ve left the map where it is.",
+          );
+          return;
+        }
+        if (!locateMarkerRef.current) {
+          const el = document.createElement("div");
+          el.className = "yw-locate-dot";
+          el.setAttribute("aria-label", "Your current location");
+          locateMarkerRef.current = new mapboxgl.Marker({ element: el })
+            .setLngLat(lngLat)
+            .addTo(map);
+        } else {
+          locateMarkerRef.current.setLngLat(lngLat);
+        }
+        map.easeTo({
+          center: lngLat,
+          zoom: Math.min(Math.max(map.getZoom(), 15.5), 17),
+          offset: visibleCenterOffset(),
+          duration: 800,
+        });
+      },
+      () =>
+        setLocateNotice(
+          "Couldn’t get your location. Allow location access to check in.",
+        ),
+      { enableHighAccuracy: true, timeout: 12000 },
+    );
+  }, [visibleCenterOffset]);
+
+  /** Fit the camera to one walk (whole-walk view, flat). */
+  const focusWholeWalk = useCallback(
+    (r: ScoredRoute) => {
+      const map = mapRef.current;
+      if (!map || r.geometry.coordinates.length < 2) return;
+      const bounds = new mapboxgl.LngLatBounds();
+      for (const c of r.geometry.coordinates) {
+        bounds.extend(c as [number, number]);
+      }
+      map.fitBounds(bounds, {
+        padding: walkCameraPadding(),
+        maxZoom: 16,
+        duration: 800,
+        pitch: 0,
+        bearing: 0,
+      });
+    },
+    [walkCameraPadding],
+  );
+
+  /** Selection made by re-ranking, not the resident — skip the camera move. */
+  const quietSelectRef = useRef(false);
+  const prevSelectedRef = useRef<string | null>(null);
+
+  // Picking a different walk (card, chip, or line tap) zooms to that whole
+  // walk. Skips the first auto-selection after Find (results fit all walks).
+  useEffect(() => {
+    const prev = prevSelectedRef.current;
+    prevSelectedRef.current = selectedId;
+    if (quietSelectRef.current) {
+      quietSelectRef.current = false;
+      return;
+    }
+    if (!selectedId || prev === null || prev === selectedId) return;
+    const r = routes.find((x) => x.id === selectedId);
+    if (r) focusWholeWalk(r);
+  }, [selectedId, routes, focusWholeWalk]);
 
   /** Pavement fill features: skip polygons a path line already draws. */
   const pavementFeatures = useCallback(() => {
@@ -746,13 +891,15 @@ export function ResidentApp() {
     selectedIdRef.current = selectedId;
   }, [selectedId]);
 
-  useEffect(() => {
-    if (walkIntent === "outing") {
+  /** Loops have no destination — clear it when switching to outing mode. */
+  const onWalkIntentChange = useCallback((intent: WalkIntent) => {
+    setWalkIntent(intent);
+    if (intent === "outing") {
       setDestination(null);
       setDestLabel("");
       setPickMode((m) => (m === "destination" ? "idle" : m));
     }
-  }, [walkIntent]);
+  }, []);
 
   const paintRoutes = useCallback(
     (list: ScoredRoute[], selected: string | null) => {
@@ -937,10 +1084,7 @@ export function ResidentApp() {
 
   useEffect(() => {
     const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-    if (!token) {
-      setError("Mapbox token missing — set NEXT_PUBLIC_MAPBOX_TOKEN in web/.env.local");
-      return;
-    }
+    if (!token) return; // `error` state is pre-set at initialisation
     if (!containerRef.current || mapRef.current) return;
 
     mapboxgl.accessToken = token;
@@ -957,18 +1101,6 @@ export function ResidentApp() {
     });
     mapRef.current = map;
 
-    // One-shot "check in" location: tap to see where you are relative to
-    // the route. No continuous tracking; the fix never leaves the device.
-    map.addControl(
-      new mapboxgl.GeolocateControl({
-        positionOptions: { enableHighAccuracy: true },
-        trackUserLocation: false,
-        showUserHeading: false,
-        showAccuracyCircle: true,
-        fitBoundsOptions: { maxZoom: 16.5 },
-      }),
-      "bottom-right",
-    );
 
     // Basemap first — do not block on the segment GeoJSON download
     map.on("load", () => {
@@ -1114,6 +1246,8 @@ export function ResidentApp() {
       window.removeEventListener("resize", onResize);
       originMarkerRef.current?.remove();
       destMarkerRef.current?.remove();
+      locateMarkerRef.current?.remove();
+      locateMarkerRef.current = null;
       map.remove();
       mapRef.current = null;
     };
@@ -1217,6 +1351,24 @@ export function ResidentApp() {
     }
   }, [origin, destination]);
 
+  // Once both endpoints are set (second pin dropped, address typed, or a pin
+  // moved), pull the camera out so origin and destination are both in view
+  // for tweaking before "Find my route".
+  useEffect(() => {
+    if (!origin || !destination) return;
+    const map = mapRef.current;
+    if (!map) return;
+    const bounds = new mapboxgl.LngLatBounds();
+    bounds.extend([origin.lng, origin.lat]);
+    bounds.extend([destination.lng, destination.lat]);
+    map.fitBounds(bounds, {
+      padding: walkCameraPadding(),
+      maxZoom: 15.5,
+      duration: 700,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- endpoints only; a sheet-snap change must not re-trigger the fit
+  }, [origin, destination]);
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -1230,15 +1382,24 @@ export function ResidentApp() {
   }, [overlays, mapReady, syncOverlayLayers]);
 
   // Importance sliders only — same geometries, new ranking (not Day/Night flip)
+  /* eslint-disable react-hooks/set-state-in-effect -- re-ranks stored results
+     in place when preferences change; sliders fire many events mid-drag so
+     ranking in render would thrash */
   useEffect(() => {
     if (!routes.length || sheetMode !== "results") return;
     const ranked = sortRoutesByPreferences(routes, prefs, walkMode);
     setRoutes(ranked);
-    setSelectedId(ranked[0]?.id ?? null);
+    const nextId = ranked[0]?.id ?? null;
+    // Quiet only when the id actually changes, or the flag would swallow
+    // the camera move of the resident's next real pick
+    if (nextId !== prevSelectedRef.current) quietSelectRef.current = true;
+    setSelectedId(nextId);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-rank in place when prefs change
   }, [prefs]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
-  const useMyLocation = useCallback(async () => {
+  // Named without a `use` prefix: this is a plain callback, not a hook
+  const locateMe = useCallback(async () => {
     const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
     if (!token) return;
     if (!navigator.geolocation) {
@@ -1264,11 +1425,15 @@ export function ResidentApp() {
           setOrigin(point);
           setOriginLabel(label || "Current location");
           setPickMode("idle");
-          mapRef.current?.flyTo({
-            center: [point.lng, point.lat],
-            zoom: 14,
-            duration: 600,
-          });
+          // Destination already set (marker exists) → fit-both effect frames
+          if (!destMarkerRef.current) {
+            mapRef.current?.flyTo({
+              center: [point.lng, point.lat],
+              zoom: 14,
+              offset: visibleCenterOffset(),
+              duration: 600,
+            });
+          }
         } catch (err) {
           setRouteError(
             err instanceof Error ? err.message : "Couldn’t label this location",
@@ -1285,7 +1450,7 @@ export function ResidentApp() {
       },
       { enableHighAccuracy: true, timeout: 12000 },
     );
-  }, []);
+  }, [visibleCenterOffset]);
 
   const onFindWalk = async () => {
     const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
@@ -1375,7 +1540,8 @@ export function ResidentApp() {
         bounds.extend([origin.lng, origin.lat]);
         if (destination) bounds.extend([destination.lng, destination.lat]);
         map.fitBounds(bounds, {
-          padding: walkCameraPadding(),
+          // Snap was just set to "half" above; state hasn't re-rendered yet
+          padding: walkCameraPadding("half"),
           maxZoom: 15,
           duration: 700,
         });
@@ -1398,12 +1564,32 @@ export function ResidentApp() {
   const isNight = walkMode === "night";
   /** Desktop uses a full-height side panel — ignore mobile peek/half snaps. */
   const sheetExpanded = isDesktop || sheetSnap !== "peek";
-  const shortLabel = (s: string) =>
-    s ? s.split(",").slice(0, 2).join(",").trim() : "";
+  /** "66 Cupples Cr, Berwick Victoria 3806, Australia" → "66 Cupples Cr, Berwick" */
+  const shortLabel = (s: string) => {
+    if (!s) return "";
+    const parts = s.split(",").map((p) => p.trim());
+    const street = parts[0] ?? "";
+    const locality = (parts[1] ?? "")
+      .replace(/\s*(Victoria|VIC)(\s+\d{4})?\s*$/i, "")
+      .trim();
+    return locality ? `${street}, ${locality}` : street;
+  };
 
+  /** Trip heading with both endpoints; a shared suburb is said only once. */
+  const tripHeading = () => {
+    const a = shortLabel(originLabel) || "From";
+    const b = shortLabel(destLabel) || "To";
+    const aLoc = a.split(", ")[1];
+    const bLoc = b.split(", ")[1];
+    return aLoc && aLoc === bLoc
+      ? `${a.split(", ")[0]} → ${b}`
+      : `${a} → ${b}`;
+  };
+
+  // Desktop swaps the sheet for a side panel; snap is ignored there and the
+  // resident's last mobile snap is kept for when the viewport shrinks back.
   useEffect(() => {
     if (!isDesktop) return;
-    setSheetSnap("full");
     const map = mapRef.current;
     if (!map) return;
     requestAnimationFrame(() => map.resize());
@@ -1494,6 +1680,19 @@ export function ResidentApp() {
             {whenHint}
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => setAboutOpen(true)}
+          aria-label="About YourWalk"
+          title="About YourWalk"
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
+            isNight
+              ? "text-white/70 ring-1 ring-white/20 hover:bg-white/10"
+              : "text-yw-navy/70 ring-1 ring-yw-navy/15 hover:bg-yw-navy/5"
+          }`}
+        >
+          <IconAbout className="h-[18px] w-[18px]" aria-hidden />
+        </button>
         <div className="w-[138px] shrink-0">
           <WalkModeSwitch
             value={walkMode}
@@ -1601,6 +1800,49 @@ export function ResidentApp() {
         >
           <MdLayers className="h-5 w-5" />
         </button>
+
+        <button
+          type="button"
+          onClick={checkInLocation}
+          className={`absolute z-[8] flex h-11 w-11 items-center justify-center rounded-full shadow-lg ring-1 ${
+            isDesktop ? "left-[28.25rem] top-16" : "left-3 top-16"
+          } ${
+            isNight
+              ? "bg-yw-night-panel text-white ring-white/15"
+              : "bg-white text-yw-navy ring-black/10"
+          }`}
+          aria-label="Show my location on the map"
+          title="Where am I?"
+        >
+          <IconLocate className="h-5 w-5" />
+        </button>
+
+        {locateNotice ? (
+          <div
+            role="status"
+            className={`absolute z-[8] flex max-w-[15.5rem] items-start gap-1.5 rounded-xl py-2 pl-2.5 pr-1.5 text-[11px] font-semibold leading-snug shadow-lg ring-1 ${
+              isDesktop ? "left-[31.5rem] top-16" : "left-16 top-16"
+            } ${
+              isNight
+                ? "bg-yw-night-panel text-white ring-white/15"
+                : "bg-white text-yw-navy ring-black/10"
+            }`}
+          >
+            <span className="min-w-0 pt-px">{locateNotice}</span>
+            <button
+              type="button"
+              onClick={() => setLocateNotice(null)}
+              aria-label="Dismiss"
+              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
+                isNight
+                  ? "text-white/60 hover:bg-white/10"
+                  : "text-slate-400 hover:bg-slate-100"
+              }`}
+            >
+              <MdClose className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          </div>
+        ) : null}
 
         {showLayersTip && !layersOpen && pickMode === "idle" ? (
           <p
@@ -1832,10 +2074,10 @@ export function ResidentApp() {
               className="yw-sheet-panel mb-3 flex items-center justify-between gap-2"
             >
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">
+                <p className="text-sm font-semibold leading-snug">
                   {walkIntent === "outing"
                     ? `${shortLabel(originLabel) || "Start"} · ~${outingMinutes} min loop`
-                    : `${shortLabel(originLabel) || "From"} → ${shortLabel(destLabel) || "To"}`}
+                    : tripHeading()}
                 </p>
                 <p
                   className={`text-[11px] ${
@@ -1898,33 +2140,8 @@ export function ResidentApp() {
                 </p>
               ) : null}
 
-              {showWelcome ? (
-                <div
-                  className={`mb-3 rounded-xl px-3 py-2 ${
-                    isNight ? "bg-white/10" : "bg-yw-day-surface"
-                  }`}
-                >
-                  <p
-                    className={`text-[12px] leading-snug ${
-                      isNight ? "text-white/70" : "text-slate-600"
-                    }`}
-                  >
-                    Casey footpaths, ranked for shade, smoother paths, or
-                    lighting after dark. Not just the shortest way.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={dismissWelcome}
-                    className={`mt-1.5 text-[11px] font-semibold ${
-                      isNight ? "text-yw-blue" : "text-yw-navy"
-                    }`}
-                  >
-                    Got it
-                  </button>
-                </div>
-              ) : (
-                <div className="mb-3" />
-              )}
+              {/* Intro copy lives in the About modal (header info button). */}
+              <div className="mb-3" />
 
               <section>
                 <p
@@ -1936,7 +2153,7 @@ export function ResidentApp() {
                 </p>
                 <SegmentedPill
                   value={walkIntent}
-                  onChange={setWalkIntent}
+                  onChange={onWalkIntentChange}
                   isNight={isNight}
                   ariaLabel="Type of walk"
                   className="mb-3"
@@ -1969,17 +2186,21 @@ export function ResidentApp() {
                       setPickMode((m) => (m === "origin" ? "idle" : "origin"))
                     }
                     showLocate
-                    onLocate={() => void useMyLocation()}
+                    onLocate={() => void locateMe()}
                     geoBusy={geoBusy}
                     onPlace={({ center, label }) => {
                       setOrigin(center);
                       setOriginLabel(label);
                       setPickMode("idle");
-                      mapRef.current?.flyTo({
-                        center: [center.lng, center.lat],
-                        zoom: 14,
-                        duration: 600,
-                      });
+                      // With both endpoints set, the fit-both effect frames them
+                      if (!destination) {
+                        mapRef.current?.flyTo({
+                          center: [center.lng, center.lat],
+                          zoom: 14,
+                          offset: visibleCenterOffset(),
+                          duration: 600,
+                        });
+                      }
                     }}
                   />
                   <PlaceField
@@ -1998,11 +2219,15 @@ export function ResidentApp() {
                       setDestination(center);
                       setDestLabel(label);
                       setPickMode("idle");
-                      mapRef.current?.flyTo({
-                        center: [center.lng, center.lat],
-                        zoom: 14,
-                        duration: 600,
-                      });
+                      // With both endpoints set, the fit-both effect frames them
+                      if (!origin) {
+                        mapRef.current?.flyTo({
+                          center: [center.lng, center.lat],
+                          zoom: 14,
+                          offset: visibleCenterOffset(),
+                          duration: 600,
+                        });
+                      }
                     }}
                   />
                 </div>
@@ -2019,7 +2244,7 @@ export function ResidentApp() {
                       setPickMode((m) => (m === "origin" ? "idle" : "origin"))
                     }
                     showLocate
-                    onLocate={() => void useMyLocation()}
+                    onLocate={() => void locateMe()}
                     geoBusy={geoBusy}
                     onPlace={({ center, label }) => {
                       setOrigin(center);
@@ -2028,6 +2253,7 @@ export function ResidentApp() {
                       mapRef.current?.flyTo({
                         center: [center.lng, center.lat],
                         zoom: 14,
+                        offset: visibleCenterOffset(),
                         duration: 600,
                       });
                     }}
@@ -2414,7 +2640,8 @@ export function ResidentApp() {
                     bounds.extend(c as [number, number]);
                   }
                   map.fitBounds(bounds, {
-                    padding: walkCameraPadding(),
+                    // Sheet collapses to "peek" below, in this same click
+                    padding: walkCameraPadding("peek"),
                     maxZoom: 16,
                     duration: 900,
                     pitch: 0,
@@ -2486,6 +2713,140 @@ export function ResidentApp() {
           ) : null}
         </div>
       </div>
+
+      {/* About / welcome modal — native <dialog> for focus trap + Escape */}
+      <dialog
+        ref={aboutDialogRef}
+        onClose={closeAbout}
+        onClick={(e) => {
+          // Click on the backdrop (the dialog element itself) closes
+          if (e.target === aboutDialogRef.current) closeAbout();
+        }}
+        aria-labelledby="yw-about-title"
+        className={`m-auto w-[min(92vw,26rem)] rounded-2xl border-0 p-0 shadow-2xl backdrop:bg-slate-900/60 sm:w-[min(88vw,34rem)] ${
+          isNight ? "bg-yw-night-surface text-white" : "bg-white text-slate-900"
+        }`}
+      >
+        <div className="max-h-[84dvh] overflow-y-auto px-5 pb-5 pt-4 sm:px-7 sm:pb-7 sm:pt-6">
+          <div className="mb-3 flex items-center gap-2.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand/yourwalk-mark.svg"
+              alt=""
+              width={36}
+              height={28}
+              className="h-8 w-auto shrink-0"
+              aria-hidden
+            />
+            <h2
+              id="yw-about-title"
+              className={`min-w-0 flex-1 text-lg font-extrabold tracking-tight sm:text-2xl ${
+                isNight ? "text-white" : "text-yw-navy"
+              }`}
+            >
+              Welcome to YourWalk
+            </h2>
+            <button
+              type="button"
+              onClick={closeAbout}
+              aria-label="Close"
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                isNight
+                  ? "text-white/70 hover:bg-white/10"
+                  : "text-slate-500 hover:bg-slate-100"
+              }`}
+            >
+              <MdClose className="h-5 w-5" aria-hidden />
+            </button>
+          </div>
+
+          <p
+            className={`text-[13px] leading-relaxed sm:text-[15px] ${
+              isNight ? "text-white/80" : "text-slate-700"
+            }`}
+          >
+            YourWalk helps Casey residents find walking routes that fit what
+            matters to you: smoother footpaths, more shade on hot days, or
+            better-lit streets after dark. Not just the shortest way.
+          </p>
+
+          <h3
+            className={`mb-1.5 mt-4 text-[13px] font-bold sm:mt-5 sm:text-[15px] ${
+              isNight ? "text-white/90" : "text-yw-navy"
+            }`}
+          >
+            How it works
+          </h3>
+          <ul
+            className={`list-disc space-y-1.5 pl-4 text-[12px] leading-relaxed sm:text-[14px] ${
+              isNight ? "text-white/75" : "text-slate-600"
+            }`}
+          >
+            <li>
+              Casey&apos;s footpaths are scored street by street from Council
+              asset data and OpenStreetMap: surface, continuity, tree canopy,
+              lighting and more.
+            </li>
+            <li>
+              Plan an A to B walk or a loop from home, set what matters most,
+              and YourWalk ranks the options for day or night walking.
+            </li>
+            <li>
+              Scores describe conditions in the data, with more Council
+              datasets on the way. They are not a safety guarantee.
+            </li>
+          </ul>
+
+          <h3
+            className={`mb-1.5 mt-4 text-[13px] font-bold sm:mt-5 sm:text-[15px] ${
+              isNight ? "text-white/90" : "text-yw-navy"
+            }`}
+          >
+            Who&apos;s behind it
+          </h3>
+          <p
+            className={`text-[12px] leading-relaxed sm:text-[14px] ${
+              isNight ? "text-white/75" : "text-slate-600"
+            }`}
+          >
+            YourWalk is a City of Casey Connecting Grant pilot, built by
+            CrowdLab in partnership with Monash University&apos;s XYX Lab.
+          </p>
+
+          <h3
+            className={`mb-1.5 mt-4 text-[13px] font-bold sm:mt-5 sm:text-[15px] ${
+              isNight ? "text-white/90" : "text-yw-navy"
+            }`}
+          >
+            Your privacy
+          </h3>
+          <p
+            className={`text-[12px] leading-relaxed sm:text-[14px] ${
+              isNight ? "text-white/75" : "text-slate-600"
+            }`}
+          >
+            Anonymous by default: no account, no sign-in, no tracking. If you
+            use the locate button, your position stays on your device.
+          </p>
+
+          <button
+            type="button"
+            onClick={closeAbout}
+            className={`mt-5 flex min-h-11 w-full items-center justify-center rounded-2xl text-sm font-bold text-white sm:min-h-12 sm:text-[15px] ${
+              isNight ? "bg-yw-blue" : "bg-yw-teal"
+            }`}
+          >
+            Start exploring
+          </button>
+          <p
+            className={`mt-2.5 text-center text-[10px] sm:text-[11px] ${
+              isNight ? "text-white/40" : "text-slate-400"
+            }`}
+          >
+            {betaVersionTitle()} · {betaVersionDetail()}
+          </p>
+        </div>
+      </dialog>
     </div>
   );
 }
