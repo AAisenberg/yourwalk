@@ -387,6 +387,8 @@ For v1 dusk / mixed routes, use the Night Index if any material part of the walk
 - Underlay artefact (`casey_paths_underlay.geojson`, welded centrelines incl. sidewalk offsets) replaces T1EAM pavement polygon rendering on the resident map
 - Side-of-street is still approximate: one drawn side per way, side changes only at junctions; park paths in T1EAM but absent from OSM stay unroutable pending OSM gap-fill licensing review
 
+**Amendment (17 Aug 2026 pm — drawing defects fixed):** the first build voted sides from `g.edges()` iteration, whose undirected orientations are arbitrary — votes cancelled and offsets flipped edge-by-edge (sawtooth on Fairholme Blvd), 529 roundabout rings converted to walkable "sidewalks", and 2,045 partially matched ways drew mid-block doglegs. Fixed by voting in way draw order (weak votes defer to a street-name vote), skipping closed rings < 150 m, filling interior pavement-match gaps (driveway breaks) while leaving genuine pavement ends as road, welding offset joints in `path_to_route` (≤ 10 m gaps join at the midpoint), and collapsing out-and-back spurs at loop leg joints (Denmark Hill Rd). Zigzag spikes per Hobart loop: 39/45/31 → 0-2; rings converted: 529 → 3; road share and A→B pathish unchanged.
+
 ---
 
 ## Decision Process
