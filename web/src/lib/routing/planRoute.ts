@@ -11,7 +11,7 @@ import {
   type MapboxRoute,
 } from "./directions";
 import { pointInCaseyBbox } from "./geo";
-import { isScoreAwareStrategy, type RoutePreferences } from "./preferences";
+import { type RoutePreferences } from "./preferences";
 import { scoreRouteAgainstSegments } from "./scoreRoute";
 import type { LngLat, RankMode, ScoredRoute } from "./types";
 
@@ -27,15 +27,29 @@ function samplePoints(
   if (coords.length === 1) {
     return Array(n).fill(coords[0]) as [number, number][];
   }
+  // Uniform by distance along the line, not vertex index. Vertex density
+  // differs between raw and sidewalk-nudged copies of the same path, and
+  // index sampling let an identical complement read as distinct (17 Aug QA,
+  // Cupples Cr duplicate "More shade" card).
+  const cum: number[] = [0];
+  for (let i = 1; i < coords.length; i++) {
+    const [ax, ay] = coords[i - 1];
+    const [bx, by] = coords[i];
+    const kx = Math.cos((((ay + by) / 2) * Math.PI) / 180);
+    cum.push(cum[i - 1] + Math.hypot((bx - ax) * kx, by - ay));
+  }
+  const total = cum[cum.length - 1];
+  if (total === 0) return Array(n).fill(coords[0]) as [number, number][];
   const out: [number, number][] = [];
+  let seg = 1;
   for (let i = 0; i < n; i++) {
-    const t = i / (n - 1);
-    const idx = t * (coords.length - 1);
-    const lo = Math.floor(idx);
-    const hi = Math.min(coords.length - 1, lo + 1);
-    const f = idx - lo;
-    const a = coords[lo];
-    const b = coords[hi];
+    const target = (i / (n - 1)) * total;
+    while (seg < cum.length - 1 && cum[seg] < target) seg++;
+    const t0 = cum[seg - 1];
+    const t1 = cum[seg];
+    const f = t1 > t0 ? (target - t0) / (t1 - t0) : 0;
+    const a = coords[seg - 1];
+    const b = coords[seg];
     out.push([a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f]);
   }
   return out;
@@ -188,13 +202,10 @@ export async function planScoredRoutes(
     await yieldToUi();
   }
 
-  const caseyExisting = () =>
-    scored
-      .filter((r) => isScoreAwareStrategy(r.strategy))
-      .map((r) => ({
-        geometry: r.geometry,
-        distance_m: r.distance_m,
-      }));
+  // Raw (pre-nudge) Casey geometries for dedupe. The stored cards are
+  // sidewalk-nudged, and raw-vs-nudged comparison let an identical
+  // complement slip through as a second card (17 Aug QA, Cupples Cr).
+  const caseyRaw: { geometry: GeoJSON.LineString; distance_m: number }[] = [];
 
   const tryMergeChallenger = async (
     candidate: ChallengerRoute | null,
@@ -204,11 +215,7 @@ export async function planScoredRoutes(
     // Dedupe Casey only against other Casey cards. A Mapbox lookalike
     // must not hide Bellevue / Fieldhouse; that Mapbox is dropped below.
     if (
-      !isGeometryDistinct(
-        candidate.geometry,
-        candidate.distance_m,
-        caseyExisting(),
-      )
+      !isGeometryDistinct(candidate.geometry, candidate.distance_m, caseyRaw)
     ) {
       return null;
     }
@@ -234,6 +241,10 @@ export async function planScoredRoutes(
       idPrefix,
     );
     await yieldToUi();
+    caseyRaw.push({
+      geometry: candidate.geometry,
+      distance_m: candidate.distance_m,
+    });
     scored.push(sa);
     return sa;
   };

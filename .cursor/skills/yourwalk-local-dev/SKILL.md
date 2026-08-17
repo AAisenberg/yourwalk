@@ -49,6 +49,7 @@ Without the challenger, the UI silently falls back to Mapbox-only (often one car
 | Missing `score_aware_graph.gpickle` | `cd pipeline && source .venv/bin/activate && python bakeoff/build_graph.py` |
 | Next up, proxy not OK | Ensure `web/.env.local` has `CHALLENGER_URL=http://127.0.0.1:8790`, then restart Next |
 | Port in use, stale | `./scripts/dev-down.sh` then `./scripts/dev-up.sh`; or inspect `lsof -i :3000 -i :8790` |
+| Footpath underlay missing locally (map shows no path network) | `.env.local` serves map data from `web/public/map-data/` symlinks, not the API proxy. Ensure `casey_paths_underlay.geojson` is symlinked: `ln -sf "$PWD/pipeline/data/bakeoff/casey_paths_underlay.geojson" web/public/map-data/` |
 
 Logs/pids: `.dev-pids/` (gitignored).
 
