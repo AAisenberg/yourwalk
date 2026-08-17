@@ -101,12 +101,33 @@ const PREFS_STORAGE_KEY = "yw-resident-prefs-v1";
 const LAYERS_STORAGE_KEY = "yw-resident-layers-v1";
 const LAYERS_TIP_KEY = "yw-resident-layers-tip-v1";
 
-const ROUTE_COLORS_DAY = ["#00AAA6", "#27AAE1", "#8DC63F"] as const;
-/** Night: lighting-family yellows so walks pop on the dark Standard basemap. */
-const ROUTE_COLORS_NIGHT = ["#FFCB1F", "#F6871F", "#D7DF23"] as const;
+/**
+ * Semantic walk colours (17 Aug 2026): a walk keeps its colour by meaning,
+ * not list position. "Best for you" is always teal, "Away from roads" is
+ * always green; the remaining options (Neighbourhood links, Another loop,
+ * Shortest...) take warm ambers so nothing clashes with the teal brand or
+ * the blue-grey basemap roads. Night variants are brighter for the dark
+ * Standard basemap but stay in the same hue family.
+ */
+const ROUTE_EXTRA_COLORS_DAY = ["#F59E0B", "#E8654F"] as const;
+const ROUTE_EXTRA_COLORS_NIGHT = ["#FFCB1F", "#F6871F"] as const;
 
-function routeColors(night: boolean): readonly [string, string, string] {
-  return night ? ROUTE_COLORS_NIGHT : ROUTE_COLORS_DAY;
+function routeColorFor(
+  route: ScoredRoute,
+  ranked: ScoredRoute[],
+  night: boolean,
+): string {
+  const label = routeCardLabel(route, ranked);
+  if (label === "Best for you") return night ? "#2DE0D8" : "#00AAA6";
+  if (label === "Away from roads") return night ? "#A3E635" : "#43A047";
+  // Other options keep a stable warm colour by their position among peers
+  const extras = ranked.filter((r) => {
+    const l = routeCardLabel(r, ranked);
+    return l !== "Best for you" && l !== "Away from roads";
+  });
+  const pos = extras.findIndex((r) => r.id === route.id);
+  const palette = night ? ROUTE_EXTRA_COLORS_NIGHT : ROUTE_EXTRA_COLORS_DAY;
+  return palette[Math.max(0, pos) % palette.length];
 }
 const SHEET_SNAPS: SheetSnap[] = ["peek", "half", "full"];
 const SHEET_SNAP_CLASS: Record<SheetSnap, string> = {
@@ -133,12 +154,15 @@ function applyStandardLook(map: mapboxgl.Map, preset: LightPreset) {
 }
 
 const T1EAM_UNDERLAY_SRC = "t1eam-underlay";
+const T1EAM_PAVEMENT_SRC = "t1eam-pavement";
 const T1EAM_UNDERLAY_FILL = "t1eam-underlay-fill";
 const T1EAM_UNDERLAY_LINE = "t1eam-underlay-line";
 const T1EAM_UNDERLAY_SW = "t1eam-underlay-sidewalks";
 
 function t1eamUnderlayColor(night: boolean): string {
-  return night ? "#8B8DD9" : "#292984";
+  // Day: light grey-lavender that blends into the Standard basemap
+  // (the old dark navy shouted over it — 17 Aug QA). Night unchanged.
+  return night ? "#8B8DD9" : "#9BA1C4";
 }
 
 /** Fast planar distance in metres — fine at suburb scale. */
@@ -201,143 +225,154 @@ function splitPinStubs(
   return { line: { type: "LineString", coordinates: coords }, connectors };
 }
 
-/**
- * Sidewalk lines (ADR-011 offsets + OSM-mapped sidewalks) ring every
- * block from both sides of each street — at neighbourhood zooms they read
- * as hollow polygons (17 Aug QA). Staged reveal: genuine off-road paths
- * render from z12; sidewalks fade in from z15.5, where a single street
- * fills the view and pavement lines read as pavements.
- */
+/** Guards against stale cached artefacts that still carry sidewalk lines. */
 const PATHS_FILTER: mapboxgl.FilterSpecification = [
   "!=",
   ["get", "hw"],
   "sidewalk",
 ];
-const SIDEWALKS_FILTER: mapboxgl.FilterSpecification = [
-  "==",
-  ["get", "hw"],
-  "sidewalk",
-];
-const SIDEWALK_MINZOOM = 15.5;
+/** Street zoom: a single street fills the view, pavement reads as pavement. */
+const PAVEMENT_MINZOOM = 15.5;
 
 /**
- * Quiet Casey walkable-network carpet: the centreline artefact
- * (`casey_paths_underlay.geojson` — graph pathish edges) drawn as two
- * line layers (paths always, sidewalks at street zooms). Lines or
- * nothing — the old T1EAM pavement polygons read as shards and are never
- * rendered.
+ * Two-part footpath underlay (17 Aug QA):
+ * - Off-road path centrelines (park links, reserves, laneways) from the
+ *   `casey_paths_underlay.geojson` artefact — always visible from z12.
+ *   Derived sidewalk lines were messy at roundabouts/crossings and are
+ *   no longer drawn as lines at any zoom.
+ * - T1EAM pavement polygons (already client-side for scoring) as a quiet
+ *   outline-free fill from z15.5 — authoritative Council shapes that
+ *   wrap roundabouts correctly and never cross carriageways.
  */
 function ensureT1eamUnderlay(
   map: mapboxgl.Map,
-  features: GeoJSON.Feature[],
+  lines: GeoJSON.Feature[] | null,
+  pavement: GeoJSON.Feature[] | null,
   night: boolean,
 ) {
-  if (features.length === 0) return;
-  const data: GeoJSON.FeatureCollection = {
-    type: "FeatureCollection",
-    features,
-  };
-  const existing = map.getSource(T1EAM_UNDERLAY_SRC);
-  if (existing && existing.type === "geojson") {
-    existing.setData(data);
-  } else {
-    map.addSource(T1EAM_UNDERLAY_SRC, {
-      type: "geojson",
-      data,
-      // Underlay only — a little simplify keeps the network cheaper
-      tolerance: 0.4,
-    });
-  }
-
   const color = t1eamUnderlayColor(night);
-  const before = map.getLayer("routes-alt") ? "routes-alt" : undefined;
-  if (map.getLayer(T1EAM_UNDERLAY_FILL)) {
-    map.removeLayer(T1EAM_UNDERLAY_FILL);
+  // Retired layer from earlier sessions/bundles
+  if (map.getLayer(T1EAM_UNDERLAY_SW)) map.removeLayer(T1EAM_UNDERLAY_SW);
+  // Paths + pavement live in the Standard "bottom" slot: above land and
+  // water but below the road ribbons, so paths visually duck under
+  // carriageways instead of painting across roundabouts (17 Aug QA).
+  // Slot is fixed at creation, so migrate any layer added with the old slot.
+  for (const id of [T1EAM_UNDERLAY_LINE, T1EAM_UNDERLAY_FILL]) {
+    const layer = map.getLayer(id);
+    if (layer && layer.slot !== "bottom") map.removeLayer(id);
   }
 
-  type LayerSpec = {
-    id: string;
-    filter: mapboxgl.FilterSpecification;
-    minzoom: number;
-    width: mapboxgl.Expression;
-    opacity: mapboxgl.Expression | number;
-    emissive: number;
-  };
-  const layers: LayerSpec[] = [
-    {
-      // Genuine off-road paths — the walking network you cannot infer
-      // from the street grid. Present at all planning zooms.
-      id: T1EAM_UNDERLAY_LINE,
-      filter: PATHS_FILTER,
-      minzoom: 12,
-      width: [
-        "interpolate",
-        ["linear"],
-        ["zoom"],
-        12,
-        1.2,
-        14.5,
-        2.2,
-        17,
-        3.6,
-      ],
-      opacity: night ? 0.65 : 0.55,
-      emissive: night ? 0.35 : 0,
-    },
-    {
-      // Sidewalks: thin and faint, street zooms only, easing in over
-      // half a zoom level so the reveal is not a pop.
-      id: T1EAM_UNDERLAY_SW,
-      filter: SIDEWALKS_FILTER,
-      minzoom: SIDEWALK_MINZOOM,
-      width: [
-        "interpolate",
-        ["linear"],
-        ["zoom"],
-        SIDEWALK_MINZOOM,
-        0.8,
-        18,
-        2,
-      ],
-      opacity: [
-        "interpolate",
-        ["linear"],
-        ["zoom"],
-        SIDEWALK_MINZOOM,
-        0,
-        SIDEWALK_MINZOOM + 0.5,
-        night ? 0.42 : 0.35,
-      ],
-      emissive: night ? 0.3 : 0,
-    },
-  ];
+  if (lines?.length) {
+    const data: GeoJSON.FeatureCollection = {
+      type: "FeatureCollection",
+      features: lines,
+    };
+    const existing = map.getSource(T1EAM_UNDERLAY_SRC);
+    if (existing && existing.type === "geojson") {
+      existing.setData(data);
+    } else {
+      map.addSource(T1EAM_UNDERLAY_SRC, {
+        type: "geojson",
+        data,
+        // Underlay only — a little simplify keeps the network cheaper
+        tolerance: 0.4,
+      });
+    }
+    const width: mapboxgl.Expression = [
+      "interpolate",
+      ["linear"],
+      ["zoom"],
+      12,
+      1.2,
+      14.5,
+      2.2,
+      17,
+      3.6,
+    ];
+    if (!map.getLayer(T1EAM_UNDERLAY_LINE)) {
+      map.addLayer({
+        id: T1EAM_UNDERLAY_LINE,
+        type: "line",
+        source: T1EAM_UNDERLAY_SRC,
+        slot: "bottom",
+        minzoom: 12,
+        filter: PATHS_FILTER,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": color,
+          "line-width": width,
+          "line-opacity": night ? 0.65 : 0.55,
+          "line-emissive-strength": night ? 0.35 : 0,
+        },
+      });
+    } else {
+      map.setPaintProperty(T1EAM_UNDERLAY_LINE, "line-color", color);
+      map.setPaintProperty(T1EAM_UNDERLAY_LINE, "line-width", width);
+      map.setPaintProperty(
+        T1EAM_UNDERLAY_LINE,
+        "line-opacity",
+        night ? 0.65 : 0.55,
+      );
+      map.setPaintProperty(
+        T1EAM_UNDERLAY_LINE,
+        "line-emissive-strength",
+        night ? 0.35 : 0,
+      );
+    }
+  }
 
-  for (const spec of layers) {
-    if (!map.getLayer(spec.id)) {
+  if (pavement?.length) {
+    const data: GeoJSON.FeatureCollection = {
+      type: "FeatureCollection",
+      features: pavement,
+    };
+    const existing = map.getSource(T1EAM_PAVEMENT_SRC);
+    if (existing && existing.type === "geojson") {
+      existing.setData(data);
+    } else {
+      map.addSource(T1EAM_PAVEMENT_SRC, {
+        type: "geojson",
+        data,
+        tolerance: 0.4,
+      });
+    }
+    const fillOpacity: mapboxgl.Expression = [
+      "interpolate",
+      ["linear"],
+      ["zoom"],
+      PAVEMENT_MINZOOM,
+      0,
+      PAVEMENT_MINZOOM + 0.7,
+      night ? 0.3 : 0.24,
+    ];
+    // Draw the pavement fill under the path lines
+    const fillBefore = map.getLayer(T1EAM_UNDERLAY_LINE)
+      ? T1EAM_UNDERLAY_LINE
+      : undefined;
+    if (!map.getLayer(T1EAM_UNDERLAY_FILL)) {
       map.addLayer(
         {
-          id: spec.id,
-          type: "line",
-          source: T1EAM_UNDERLAY_SRC,
-          slot: "middle",
-          minzoom: spec.minzoom,
-          filter: spec.filter,
-          layout: { "line-cap": "round", "line-join": "round" },
+          id: T1EAM_UNDERLAY_FILL,
+          type: "fill",
+          source: T1EAM_PAVEMENT_SRC,
+          slot: "bottom",
+          minzoom: PAVEMENT_MINZOOM,
           paint: {
-            "line-color": color,
-            "line-width": spec.width,
-            "line-opacity": spec.opacity,
-            "line-emissive-strength": spec.emissive,
+            "fill-color": color,
+            "fill-opacity": fillOpacity,
+            "fill-emissive-strength": night ? 0.3 : 0,
           },
         },
-        before,
+        fillBefore,
       );
     } else {
-      map.setFilter(spec.id, spec.filter);
-      map.setPaintProperty(spec.id, "line-color", color);
-      map.setPaintProperty(spec.id, "line-width", spec.width);
-      map.setPaintProperty(spec.id, "line-opacity", spec.opacity);
-      map.setPaintProperty(spec.id, "line-emissive-strength", spec.emissive);
+      map.setPaintProperty(T1EAM_UNDERLAY_FILL, "fill-color", color);
+      map.setPaintProperty(T1EAM_UNDERLAY_FILL, "fill-opacity", fillOpacity);
+      map.setPaintProperty(
+        T1EAM_UNDERLAY_FILL,
+        "fill-emissive-strength",
+        night ? 0.3 : 0,
+      );
     }
   }
 }
@@ -348,6 +383,7 @@ function installMapChrome(
   opts: {
     lga?: GeoJSON.FeatureCollection | null;
     t1eam?: GeoJSON.Feature[];
+    pavement?: GeoJSON.Feature[];
     night: boolean;
   },
 ) {
@@ -437,8 +473,13 @@ function installMapChrome(
     );
   }
 
-  if (opts.t1eam?.length) {
-    ensureT1eamUnderlay(map, opts.t1eam, opts.night);
+  if (opts.t1eam?.length || opts.pavement?.length) {
+    ensureT1eamUnderlay(
+      map,
+      opts.t1eam ?? null,
+      opts.pavement ?? null,
+      opts.night,
+    );
   }
 }
 
@@ -480,6 +521,10 @@ export function ResidentApp() {
   const featuresRef = useRef<GeoJSON.Feature[]>([]);
   /** Centreline underlay artefact; layer stays off until it loads. */
   const underlayRef = useRef<GeoJSON.Feature[] | null>(null);
+  /** T1EAM segments already drawn as path lines — skipped by the fill. */
+  const pathCoveredIdsRef = useRef<Set<string | number> | null>(null);
+  /** Floating time/distance chips, one per walk (HTML markers). */
+  const routeChipsRef = useRef<mapboxgl.Marker[]>([]);
   const pickModeRef = useRef<PickMode>("idle");
   const originMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const destMarkerRef = useRef<mapboxgl.Marker | null>(null);
@@ -627,6 +672,30 @@ export function ResidentApp() {
     setPickMode("idle");
   }, []);
 
+  /**
+   * Camera padding that keeps walks clear of the chrome: the 27rem results
+   * panel on desktop, the peeked bottom sheet on mobile.
+   */
+  const walkCameraPadding = useCallback(
+    () =>
+      isDesktop
+        ? { top: 80, bottom: 80, left: 432 + 48, right: 80 }
+        : { top: 70, bottom: 190, left: 40, right: 40 },
+    [isDesktop],
+  );
+
+  /** Pavement fill features: skip polygons a path line already draws. */
+  const pavementFeatures = useCallback(() => {
+    const ids = pathCoveredIdsRef.current;
+    const feats = featuresRef.current;
+    if (!ids) return feats;
+    return feats.filter((f) => {
+      const id = (f.properties as { segment_id?: string | number } | null)
+        ?.segment_id;
+      return id === undefined || !ids.has(id);
+    });
+  }, []);
+
   const editWalk = useCallback(() => {
     clearResults();
     setWhenStale(false);
@@ -690,7 +759,7 @@ export function ResidentApp() {
       const map = mapRef.current;
       const src = map?.getSource("routes") as mapboxgl.GeoJSONSource | undefined;
       if (!src) return;
-      const colors = routeColors(walkMode === "night");
+      const night = walkMode === "night";
       const originPin: [number, number] | null = origin
         ? [origin.lng, origin.lat]
         : null;
@@ -700,7 +769,7 @@ export function ResidentApp() {
       // selected as 0/1 — Mapbox property filters are more reliable than booleans
       src.setData({
         type: "FeatureCollection",
-        features: list.map((r, i) => {
+        features: list.map((r) => {
           const { line, connectors } = splitPinStubs(
             r.geometry,
             originPin,
@@ -719,7 +788,7 @@ export function ResidentApp() {
             type: "Feature",
             properties: {
               id: r.id,
-              color: colors[i % colors.length],
+              color: routeColorFor(r, list, night),
               selected: r.id === selected ? 1 : 0,
             },
             geometry: line,
@@ -803,6 +872,68 @@ export function ResidentApp() {
   useEffect(() => {
     paintRoutes(routes, selectedId);
   }, [routes, selectedId, walkMode, paintRoutes]);
+
+  // Google-style info chips: time + distance floated on each walk line.
+  // Tapping a chip selects that walk.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    for (const m of routeChipsRef.current) m.remove();
+    routeChipsRef.current = [];
+    if (!routes.length) return;
+    const night = walkMode === "night";
+    routes.forEach((r, i) => {
+      const coords = r.geometry.coordinates as [number, number][];
+      if (coords.length < 2) return;
+      // Stagger anchors (~1/3, 1/2, 2/3 along the walk) so chips don't stack
+      const frac = 0.32 + 0.18 * (i % 3);
+      const cum: number[] = [0];
+      let total = 0;
+      for (let k = 1; k < coords.length; k++) {
+        total += distM(coords[k - 1], coords[k]);
+        cum.push(total);
+      }
+      let idx = cum.findIndex((d) => d >= total * frac);
+      if (idx < 0) idx = coords.length - 1;
+
+      const selected = r.id === selectedId;
+      const color = routeColorFor(r, routes, night);
+      const el = document.createElement("button");
+      el.type = "button";
+      el.textContent = `${Math.max(1, Math.round(r.duration_s / 60))} min · ${(
+        r.distance_m / 1000
+      ).toFixed(1)} km`;
+      Object.assign(el.style, {
+        font: "700 11px/1 var(--font-sans, system-ui)",
+        whiteSpace: "nowrap",
+        padding: "5px 9px",
+        borderRadius: "999px",
+        cursor: "pointer",
+        border: "none",
+        boxShadow: "0 1px 4px rgba(15,23,42,0.3)",
+        background: selected
+          ? color
+          : night
+            ? "rgba(15,23,42,0.92)"
+            : "rgba(255,255,255,0.95)",
+        color: selected ? "#ffffff" : night ? "#e2e8f0" : "#334155",
+        outline: selected ? "none" : `1.5px solid ${color}`,
+      });
+      el.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        setRouteLocked(false);
+        setSelectedId(r.id);
+      });
+      const marker = new mapboxgl.Marker({
+        element: el,
+        anchor: "bottom",
+        offset: [0, -8],
+      })
+        .setLngLat(coords[Math.min(idx, coords.length - 1)])
+        .addTo(map);
+      routeChipsRef.current.push(marker);
+    });
+  }, [routes, selectedId, walkMode, mapReady]);
 
   useEffect(() => {
     const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
@@ -892,17 +1023,24 @@ export function ResidentApp() {
       setMapReady(true);
 
       void (async () => {
-        // Centreline underlay (preferred look) — segments polygons stay the
-        // fallback if this artefact is missing from the release.
+        // Off-road path centrelines (always-visible underlay layer)
         try {
           const res = await fetch(resolveUnderlayUrl());
           if (res.ok) {
-            const fc = (await res.json()) as GeoJSON.FeatureCollection;
+            const fc = (await res.json()) as GeoJSON.FeatureCollection & {
+              path_covered_segment_ids?: (string | number)[];
+            };
             if (fc.features?.length && mapRef.current) {
               underlayRef.current = fc.features;
+              if (fc.path_covered_segment_ids?.length) {
+                pathCoveredIdsRef.current = new Set(
+                  fc.path_covered_segment_ids,
+                );
+              }
               ensureT1eamUnderlay(
                 map,
                 fc.features,
+                pavementFeatures(),
                 walkModeRef.current === "night",
               );
             }
@@ -922,6 +1060,7 @@ export function ResidentApp() {
             installMapChrome(map, {
               lga,
               t1eam: underlayRef.current ?? undefined,
+              pavement: pavementFeatures(),
               night: walkModeRef.current === "night",
             });
           } catch {
@@ -934,6 +1073,13 @@ export function ResidentApp() {
           const body = await fetchSegmentsGeoJSON(resolveGeoJsonUrl());
           if (!mapRef.current) return;
           featuresRef.current = body.features ?? [];
+          // Street-zoom pavement fill uses these same polygons
+          ensureT1eamUnderlay(
+            map,
+            underlayRef.current,
+            pavementFeatures(),
+            walkModeRef.current === "night",
+          );
           setNetworkReady(true);
           setNetworkStatus("Ready to plan a walk");
         } catch (err) {
@@ -971,6 +1117,7 @@ export function ResidentApp() {
       map.remove();
       mapRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pavementFeatures is a stable ref-only callback; the map must init exactly once
   }, []);
 
   // Planned When → Standard lightPreset (no full style swap)
@@ -987,6 +1134,7 @@ export function ResidentApp() {
         installMapChrome(map, {
           lga: lgaDataRef.current,
           t1eam: underlayRef.current ?? undefined,
+          pavement: pavementFeatures(),
           night: walkMode === "night",
         });
         paintRoutes(routesRef.current, selectedIdRef.current);
@@ -1021,10 +1169,22 @@ export function ResidentApp() {
         walkMode === "night" ? "#8B8DD9" : "#292984",
       );
     }
-    if (underlayRef.current && map.getSource(T1EAM_UNDERLAY_SRC)) {
-      ensureT1eamUnderlay(map, underlayRef.current, walkMode === "night");
+    if (underlayRef.current || featuresRef.current.length) {
+      ensureT1eamUnderlay(
+        map,
+        underlayRef.current,
+        pavementFeatures(),
+        walkMode === "night",
+      );
     }
-  }, [walkMode, whenOverridden, mapReady, paintRoutes, syncOverlayLayers]);
+  }, [
+    walkMode,
+    whenOverridden,
+    mapReady,
+    paintRoutes,
+    syncOverlayLayers,
+    pavementFeatures,
+  ]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1214,7 +1374,11 @@ export function ResidentApp() {
         }
         bounds.extend([origin.lng, origin.lat]);
         if (destination) bounds.extend([destination.lng, destination.lat]);
-        map.fitBounds(bounds, { padding: 72, maxZoom: 15, duration: 700 });
+        map.fitBounds(bounds, {
+          padding: walkCameraPadding(),
+          maxZoom: 15,
+          duration: 700,
+        });
       }
     } catch (err) {
       setRoutes([]);
@@ -2037,8 +2201,7 @@ export function ResidentApp() {
                   ranked ?? preferenceScore(r, prefs, walkMode),
                 );
                 const label = routeCardLabel(r, routes);
-                const colors = routeColors(isNight);
-                const color = colors[i % colors.length];
+                const color = routeColorFor(r, routes, isNight);
                 return (
                   <li key={r.id}>
                     <button
@@ -2251,7 +2414,7 @@ export function ResidentApp() {
                     bounds.extend(c as [number, number]);
                   }
                   map.fitBounds(bounds, {
-                    padding: 80,
+                    padding: walkCameraPadding(),
                     maxZoom: 16,
                     duration: 900,
                     pitch: 0,
