@@ -207,8 +207,12 @@ function ensureT1eamUnderlay(
       );
     }
   }
-  const lineWidth = isLines ? 1.4 : 0.8;
-  const lineOpacity = isLines ? (night ? 0.5 : 0.35) : night ? 0.42 : 0.3;
+  // Grow with zoom so the footpath network stays present at street level
+  // (a fixed hairline vanished at z16+ — 17 Aug QA).
+  const lineWidth: mapboxgl.Expression | number = isLines
+    ? ["interpolate", ["linear"], ["zoom"], 12, 1, 14.5, 1.8, 17, 3.2]
+    : 0.8;
+  const lineOpacity = isLines ? (night ? 0.55 : 0.42) : night ? 0.42 : 0.3;
   if (!map.getLayer(T1EAM_UNDERLAY_LINE)) {
     map.addLayer(
       {

@@ -411,10 +411,27 @@ def _circuit(
         )
     except (nx.NetworkXNoPath, nx.NodeNotFound):
         return None
-    node_path = leg1 + leg2[1:] + leg3[1:]
+    node_path = _collapse_backtracks(leg1 + leg2[1:] + leg3[1:])
     if len(node_path) < 3:
         return None
     return path_to_route(g, node_path, strategy=strategy)
+
+
+def _collapse_backtracks(path: list[Node]) -> list[Node]:
+    """Remove out-and-back spurs (…a, b, a…) at leg joints.
+
+    Legs are individually simple, but when both legs into a via approach it
+    from the same neighbour the stitched circuit walks a few metres up a
+    side street and straight back (Denmark Hill Rd, 17 Aug QA). Nested
+    spurs collapse too because each pop re-exposes the outer pair.
+    """
+    out: list[Node] = []
+    for n in path:
+        if len(out) >= 2 and out[-2] == n:
+            out.pop()
+        else:
+            out.append(n)
+    return out
 
 
 def plan_loops(

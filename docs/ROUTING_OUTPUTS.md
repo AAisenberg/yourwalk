@@ -200,6 +200,7 @@ Replay: start challenger, then `cd web && npx tsx scripts/smoke-trip-funnel.ts`.
 
 | Date | Change |
 |------|--------|
+| **17 Aug 2026** | Sidewalk drawing fix (ADR-011 amendment): draw-order side votes, roundabout rings excluded, interior pavement gaps filled, offset joints welded, loop spurs collapsed. Kills the Fairholme sawtooth, roundabout boxes, mid-block doglegs and the Denmark Hill out-and-back without giving up 0-1% road share. |
 | **17 Aug 2026** | Sidewalk-aware graph (ADR-011): road edges with T1EAM pavement alongside become `sidewalk` edges (footway cost, geometry offset to the pavement side, side voted per way). Loops and A→B stop walking down centrelines wherever Casey has a footpath; `road_share` now counts only footpath-less roads. Resident map underlay switches from pavement polygons to welded centrelines. |
 | **17 Aug 2026** | Road-aware loop selection: `/loop` pools all candidate circuits (up to 5 damped via resizes each) and returns the lowest road-centreline share first; >45% road only fills a two-card set; vias must touch the path network. Client demotes roadier circuits in pool quality and tags road share in the QA suffix (`_rd28`). Montpelier night 30 min: 58/64/65% road down to 29/34/40%. |
 | **16 Aug 2026** | Loops move to the challenger `/loop` planner: through-junction turning points, cumulative cross-leg reuse penalty (x4), calibration probe + damped via resize for the ±5 min band. Fixes Montpelier backtracking (revisit 0.15–0.21 to 0.00–0.09). Mapbox waypoint drawing is now the fallback only. |

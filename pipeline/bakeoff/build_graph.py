@@ -70,6 +70,13 @@ SIDEWALKABLE_HIGHWAYS = frozenset(
 SIDEWALK_MATCH_M = 12.0
 # Draw offset toward the pavement side. Visual only — length stays the road's.
 SIDEWALK_OFFSET_M = 4.5
+# Closed ways shorter than this are roundabouts / court bulbs: never convert
+# the carriageway ring to a sidewalk (17 Aug regression drew walkers around
+# the Fairholme Blvd roundabout ring).
+RING_SKIP_M = 150.0
+# |way side vote| below this share of matched length is ambiguous (pavement
+# both sides) — defer to the street-name vote for cross-way continuity.
+WEAK_VOTE_SHARE = 0.6
 
 
 def build_graph(edges: gpd.GeoDataFrame) -> nx.Graph:
@@ -199,12 +206,24 @@ def build_graph(edges: gpd.GeoDataFrame) -> nx.Graph:
     return g
 
 
-def convert_sidewalk_edges(g: nx.Graph) -> int:
+def convert_sidewalk_edges(g: nx.Graph, edges: gpd.GeoDataFrame) -> int:
     """Convert road edges with a T1EAM pavement alongside into sidewalk edges.
 
-    Side selection is voted per OSM way (length-weighted) so the drawn line
-    stays on one consistent side of a street instead of flipping mid-block —
-    residents read a mid-block flip as "crossing where there is no crossing".
+    Works in **way draw order** (the source GeoDataFrame rows), not
+    ``g.edges()`` iteration: NetworkX yields undirected edges in arbitrary
+    orientation, which made side votes cancel and offsets flip edge-by-edge
+    (the 17 Aug sawtooth on Fairholme Blvd).
+
+    Rules:
+    - Roundabout-sized closed rings (< RING_SKIP_M) stay roads — walkers
+      cross the arms, they do not walk the carriageway ring.
+    - Side is voted per way (length-weighted); weak votes defer to the
+      street-name vote so a boulevard split into many OSM ways keeps one
+      side instead of flipping at every way boundary.
+    - Interior match gaps (pavement polygons break at driveways) are
+      filled so the drawn line does not dogleg back to the centreline
+      mid-block. Leading/trailing unmatched runs stay roads (the pavement
+      genuinely ends there).
     """
     from pyproj import Transformer
     from shapely import STRtree
@@ -224,72 +243,120 @@ def convert_sidewalk_edges(g: nx.Graph) -> int:
     to_m = Transformer.from_crs("EPSG:4326", "EPSG:7855", always_xy=True)
     to_deg = Transformer.from_crs("EPSG:7855", "EPSG:4326", always_xy=True)
 
-    # Pass 1: match road edges to the nearest pavement polygon + side sign.
-    hits: list[tuple[dict, float, tuple[float, float], tuple[float, float]]] = []
-    votes: dict[int, float] = {}
-    for u, v, d in g.edges(data=True):
-        if norm_highway(d.get("highway")) not in SIDEWALKABLE_HIGHWAYS:
-            continue
-        a = to_m.transform(u[0], u[1])
-        b = to_m.transform(v[0], v[1])
-        line = LineString([a, b])
-        try:
-            idxs = tree.query(line, predicate="dwithin", distance=SIDEWALK_MATCH_M)
-        except TypeError:  # older shapely without dwithin
-            idxs = [
-                i
-                for i in tree.query(line.buffer(SIDEWALK_MATCH_M))
-                if geoms[int(i)].distance(line) <= SIDEWALK_MATCH_M
-            ]
-        best = None
-        for i in idxs:
-            poly = geoms[int(i)]
-            dist = poly.distance(line)
-            if dist <= SIDEWALK_MATCH_M and (best is None or dist < best[0]):
-                best = (dist, poly)
-        if best is None:
-            continue
-        p_line, p_poly = nearest_points(line, best[1])
-        ex, ey = b[0] - a[0], b[1] - a[1]
-        cross = ex * (p_poly.y - p_line.y) - ey * (p_poly.x - p_line.x)
-        side = 1.0 if cross >= 0 else -1.0
-        hits.append((d, side, a, b))
-        oid = d.get("osm_id")
-        if oid is not None:
-            votes[oid] = votes.get(oid, 0.0) + side * float(d.get("length_m") or 1.0)
+    # Pass 1: per way (row), per consecutive vertex pair in draw order:
+    # pavement match + signed side (left of draw direction = +1).
+    Pair = tuple  # (u, v, a_m, b_m, length, matched)
+    way_pairs: dict[object, list[Pair]] = {}
+    way_vote: dict[object, float] = {}
+    way_matched_len: dict[object, float] = {}
+    name_vote: dict[str, float] = {}
+    way_name: dict[object, str | None] = {}
 
-    # Pass 2: convert, with the way-level side vote deciding the offset.
+    for idx, row in edges.iterrows():
+        if norm_highway(row.get("highway")) not in SIDEWALKABLE_HIGHWAYS:
+            continue
+        geom = row.geometry
+        if geom is None or geom.is_empty or geom.geom_type != "LineString":
+            continue
+        coords = list(geom.coords)
+        if len(coords) < 2:
+            continue
+        if coords[0] == coords[-1] and float(row.get("length_m") or 0) < RING_SKIP_M:
+            continue  # roundabout ring
+        name = row.get("name")
+        name = str(name) if name and name == name else None
+        way_name[idx] = name
+        pairs: list[Pair] = []
+        for i in range(len(coords) - 1):
+            u = node_key(*coords[i])
+            v = node_key(*coords[i + 1])
+            if u == v or not g.has_edge(u, v):
+                continue
+            a = to_m.transform(coords[i][0], coords[i][1])
+            b = to_m.transform(coords[i + 1][0], coords[i + 1][1])
+            line = LineString([a, b])
+            try:
+                idxs = tree.query(line, predicate="dwithin", distance=SIDEWALK_MATCH_M)
+            except TypeError:  # older shapely without dwithin
+                idxs = [
+                    j
+                    for j in tree.query(line.buffer(SIDEWALK_MATCH_M))
+                    if geoms[int(j)].distance(line) <= SIDEWALK_MATCH_M
+                ]
+            best = None
+            for j in idxs:
+                poly = geoms[int(j)]
+                dist = poly.distance(line)
+                if dist <= SIDEWALK_MATCH_M and (best is None or dist < best[0]):
+                    best = (dist, poly)
+            length = hypot(b[0] - a[0], b[1] - a[1]) or 1.0
+            if best is not None:
+                p_line, p_poly = nearest_points(line, best[1])
+                ex, ey = b[0] - a[0], b[1] - a[1]
+                cross = ex * (p_poly.y - p_line.y) - ey * (p_poly.x - p_line.x)
+                side = 1.0 if cross >= 0 else -1.0
+                way_vote[idx] = way_vote.get(idx, 0.0) + side * length
+                way_matched_len[idx] = way_matched_len.get(idx, 0.0) + length
+                if name:
+                    name_vote[name] = name_vote.get(name, 0.0) + side * length
+                pairs.append((u, v, a, b, length, True))
+            else:
+                pairs.append((u, v, a, b, length, False))
+        if pairs:
+            way_pairs[idx] = pairs
+
+    # Pass 2: apply. Interior gaps between matched pairs convert too.
     day_p10, day_p90 = float(g.graph["day_p10"]), float(g.graph["day_p90"])
     night_p10, night_p90 = float(g.graph["night_p10"]), float(g.graph["night_p90"])
     converted = 0
-    for d, side, a, b in hits:
-        oid = d.get("osm_id")
-        use = side
-        if oid is not None and votes.get(oid):
-            use = 1.0 if votes[oid] >= 0 else -1.0
-        ex, ey = b[0] - a[0], b[1] - a[1]
-        length = hypot(ex, ey) or 1.0
-        ox, oy = (-ey / length, ex / length) if use >= 0 else (ey / length, -ex / length)
-        a2 = to_deg.transform(a[0] + ox * SIDEWALK_OFFSET_M, a[1] + oy * SIDEWALK_OFFSET_M)
-        b2 = to_deg.transform(b[0] + ox * SIDEWALK_OFFSET_M, b[1] + oy * SIDEWALK_OFFSET_M)
-        d["sidewalk_of"] = norm_highway(d.get("highway"))
-        d["highway"] = "sidewalk"
-        d["geometry"] = LineString([a2, b2])
-        d["cost_day"] = edge_cost(
-            float(d.get("length_m") or 1.0),
-            d.get("day_index_score"),
-            p10=day_p10,
-            p90=day_p90,
-            highway="sidewalk",
-        )
-        d["cost_night"] = edge_cost(
-            float(d.get("length_m") or 1.0),
-            d.get("night_index_score"),
-            p10=night_p10,
-            p90=night_p90,
-            highway="sidewalk",
-        )
-        converted += 1
+    for idx, pairs in way_pairs.items():
+        matched_idx = [i for i, p in enumerate(pairs) if p[5]]
+        if not matched_idx:
+            continue
+        vote = way_vote.get(idx, 0.0)
+        matched_len = way_matched_len.get(idx, 1.0)
+        name = way_name.get(idx)
+        if abs(vote) < WEAK_VOTE_SHARE * matched_len and name and name_vote.get(name):
+            use = 1.0 if name_vote[name] >= 0 else -1.0
+        else:
+            use = 1.0 if vote >= 0 else -1.0
+        lo, hi = matched_idx[0], matched_idx[-1]
+        for i in range(lo, hi + 1):
+            u, v, a, b, length_m, _matched = pairs[i]
+            d = g.edges[u, v]
+            if norm_highway(d.get("highway")) not in SIDEWALKABLE_HIGHWAYS:
+                continue  # deduped edge already converted via another way
+            ex, ey = b[0] - a[0], b[1] - a[1]
+            seg_len = hypot(ex, ey) or 1.0
+            ox, oy = (
+                (-ey / seg_len, ex / seg_len)
+                if use >= 0
+                else (ey / seg_len, -ex / seg_len)
+            )
+            a2 = to_deg.transform(
+                a[0] + ox * SIDEWALK_OFFSET_M, a[1] + oy * SIDEWALK_OFFSET_M
+            )
+            b2 = to_deg.transform(
+                b[0] + ox * SIDEWALK_OFFSET_M, b[1] + oy * SIDEWALK_OFFSET_M
+            )
+            d["sidewalk_of"] = norm_highway(d.get("highway"))
+            d["highway"] = "sidewalk"
+            d["geometry"] = LineString([a2, b2])
+            d["cost_day"] = edge_cost(
+                float(d.get("length_m") or 1.0),
+                d.get("day_index_score"),
+                p10=day_p10,
+                p90=day_p90,
+                highway="sidewalk",
+            )
+            d["cost_night"] = edge_cost(
+                float(d.get("length_m") or 1.0),
+                d.get("night_index_score"),
+                p10=night_p10,
+                p90=night_p90,
+                highway="sidewalk",
+            )
+            converted += 1
     return converted
 
 
@@ -405,7 +472,7 @@ def main() -> int:
         return 1
     edges = gpd.read_file(OSM_JOINED)
     g = build_graph(edges)
-    n_side = convert_sidewalk_edges(g)
+    n_side = convert_sidewalk_edges(g, edges)
     print(f"Sidewalk-converted road edges (T1EAM pavement alongside): {n_side}")
     crossings = load_or_fetch_crossings()
     n_cross = synthesise_crossing_edges(

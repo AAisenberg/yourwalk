@@ -231,6 +231,11 @@ def _near(
     return abs(p[0] - q[0]) <= eps and abs(p[1] - q[1]) <= eps
 
 
+# Consecutive edge geometries that miss by up to this are welded at the
+# midpoint: two opposing 4.5 m sidewalk offsets plus bend divergence.
+WELD_GAP_M = 10.0
+
+
 def path_to_route(
     g: nx.Graph,
     path: list,
@@ -268,9 +273,20 @@ def path_to_route(
         if _near(coords[-1], seg[0]):
             coords.extend(seg[1:])
         else:
-            # Rare topology snap miss — still follow path direction
-            coords.append(seg[0])
-            coords.extend(seg[1:])
+            gap_m = _haversine_m(coords[-1], seg[0])
+            if gap_m <= WELD_GAP_M:
+                # Offset sidewalk joints (ADR-011) don't coincide at bends
+                # and junctions — weld at the midpoint instead of drawing a
+                # micro backtrack spike.
+                coords[-1] = (
+                    (coords[-1][0] + seg[0][0]) / 2,
+                    (coords[-1][1] + seg[0][1]) / 2,
+                )
+                coords.extend(seg[1:])
+            else:
+                # Rare topology snap miss — still follow path direction
+                coords.append(seg[0])
+                coords.extend(seg[1:])
 
     if len(coords) < 2:
         return None
