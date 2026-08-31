@@ -110,7 +110,7 @@ Auto When uses Casey civil twilight (ADR-009), not a clock hour. Basemap follows
 | Results accent CTA | Teal | Teal |
 | Pref stream tints | Footpaths blue wash; shade lime wash | After dark amber wash; footpaths blue wash |
 
-**YourWalk Mapbox style:** `mapbox://styles/crowdspot1/cmsve8sql00ak01rgb6vn39pt` (Standard import). Resident map uses this URL and `setConfigProperty('basemap', 'lightPreset', …)` from planned When. Mapbox POI labels are off; Mapbox pedestrian roads are off. Casey T1EAM footpaths paint as a quiet underlay (navy by day, `--yw-night-quiet` by night) from zoom 12, under walk lines. Not a score choropleth. YourWalk amenity overlays stay on Layers. Classic streets / dark is a fallback if the style cannot load.
+**YourWalk Mapbox style:** `mapbox://styles/crowdspot1/cmsve8sql00ak01rgb6vn39pt` (Standard import). Resident map uses this URL and `setConfigProperty('basemap', 'lightPreset', …)` from planned When. Mapbox POI labels are off; Mapbox pedestrian roads are off. Casey off-road path **centrelines** paint as a quiet underlay (navy by day, `--yw-night-quiet` by night) from zoom 12, under walk lines. T1EAM pavement polygons are scoring-only and are not drawn on `/`. Not a score choropleth. YourWalk amenity overlays stay on Layers. Classic streets / dark is a fallback if the style cannot load.
 
 ### Mapbox Standard: what the API can and cannot do
 
@@ -139,9 +139,9 @@ Classic styles (`streets-v12`, `dark-v11`) are frozen. Standard is the maintaine
 Do this in order. Keep dawn / day / dusk / night as lighting only.
 
 1. **Playground first** — [Mapbox Standard Style Playground](https://docs.mapbox.com/playground/standard-style/). Set `lightPreset` through all four looks. Turn `showPedestrianRoads` on. Quiet motorways (`colorMotorways` toward the land colour). Note that paths still share Standard’s path styling; you cannot paint them teal here.
-2. **Runtime T1EAM underlay (E4, shipped)** — paint Casey footpath **polygons** from the scoring GeoJSON already loaded for routing. Slot `middle`, quiet navy / night-quiet, no index colours. Do not stroke polygons as line-only (rings look like shards). Studio tileset later if 27k client features need a perf pass.
+2. **Runtime T1EAM underlay (E4, shipped)** — off-road path **centrelines** from `casey_paths_underlay.geojson`, slot `bottom`, quiet navy / night-quiet, no index colours. Pavement polygons stay in scoring GeoJSON only; they are not painted on `/` (testers read them as unexplained shards). Studio tileset later if client features need a perf pass.
 3. **Runtime lighting** — one style; `setConfigProperty('basemap', 'lightPreset', …)` when When changes. Do not swap four style URLs. Hide Mapbox POIs and pedestrian roads; keep YourWalk amenity overlays.
-4. **Route geometry** — scored walk lines in `top` with emissive-strength. Same four lighting presets, one paint rule.
+4. **Route geometry** — scored walk lines in `top` with emissive-strength. Same four lighting presets, one paint rule. Selected walk: dotted teal, full opacity, wide white (or night-navy) casing. Unselected walks: same hue, quieter (about half opacity by day) so parks and water do not compete with the chosen line.
 
 Recolouring Standard’s built-in pedestrian roads will not get us there. Routes may sit a metre or two off the underlay until T1EAM-native route paint lands.
 

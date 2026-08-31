@@ -2,13 +2,13 @@
 
 **Audience:** Nikki (XYX Lab) and internal CrowdLab testers  
 **Product:** YourWalk resident routing (`/`) — City of Casey pilot only  
-**App version:** `0.2.0` (header shows **Beta** · app version · scores **1.1.3**)  
+**App version:** `0.3.0` (header shows **Beta** · app version · scores **1.1.3**)  
 **Map data:** GitHub release `map-data-v1` (interim CDN until Supabase returns)
 
 ## Link
 
-**Preview (branch `feat/resident-ux-ui`):**  
-https://yourwalk-git-feat-resident-ux-ui-anthony-3110s-projects.vercel.app
+**Preview (branch `feat/xyx-resident-ux-polish`):**  
+https://yourwalk-git-feat-xyx-resident-ux-polish-anthony-3110s-projects.vercel.app
 
 If the map or footpath network looks blank: **hard-refresh** (Cmd+Shift+R). Large GeoJSON can take a short moment on first load.
 
@@ -16,12 +16,13 @@ If the map or footpath network looks blank: **hard-refresh** (Cmd+Shift+R). Larg
 
 ## What to try
 
-1. **Day / Night** — under **When** in the plan form. Night switches basemap and preference streams (Lighting after dark vs Heat & Shade).
-2. **A to B** — set From / To inside Casey (search or tap Map), then Find my route.
-3. **Around here** — start point, duration, Loop / There and back. Loops aim to avoid walking the **same footpath** twice (opposite kerb OK); 1–2 clean options is fine.
-4. **Along the way** — toggle drinking fountains, benches, toilets, dog bags. Points should appear on the map. On Around here they also soft-bias route ranking; they do **not** change corridor score pills.
-5. **Results** — pills are **Footpaths** then **Heat & Shade** (or Lighting at night). **Match** is mostly those streams from your importance ratings; Around here only gently uses time inside the ±5 min band.
-6. **Desktop** — widen the window: plan form becomes a left panel; map fills the rest. Phone layout keeps the bottom sheet.
+1. **Day / Night** — in the header (auto from Casey civil twilight). Night switches basemap and preference streams (Lighting after dark vs Heat & Shade).
+2. **A to B** — set From / To inside Casey (search, **Use my location** on From, tap the empty map, or the pin icon to replace a set place), then Find my route.
+3. **Loop** — start plus about how long. First empty-map tap fills Start if it is empty. Loops aim to return on a **different** path (opposite kerb OK); 1–2 clean options is fine.
+4. **Layers** — toggle drinking fountains, benches, toilets, dog bags. Points show on the map. On Loop they also soft-bias ranking; they do **not** change corridor score pills. On a phone, opening Layers peeks the sheet; Expand closes Layers. Tap a marker for name / reserve from Casey fields.
+5. **Where am I?** — the map target button (top left) zooms to you and drops a pulsing teal dot. It does **not** fill From. Use **Use my location** on the field for that.
+6. **Results** — pills are **Footpaths** then **Heat & Shade** (or Lighting at night). **Match** is mostly those streams from your importance ratings. Map taps on results select a walk or open an amenity; they do not rewrite From / To.
+7. **Desktop** — widen the window: plan form becomes a left panel; map fills the rest. Phone layout keeps the bottom sheet.
 
 ## How to read scores
 

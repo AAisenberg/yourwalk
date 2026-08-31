@@ -57,7 +57,7 @@ There and back is **not** a resident choice. Keep it as a silent engine fallback
 ### 0. Open YourWalk (`/`)
 
 - Map shows Casey; heading **Find your walk**; first-visit line: Casey footpaths, ranked for shade, smoother paths, or lighting after dark. Not just the shortest way.
-- Quiet T1EAM footpath underlay is always on from zoom 12 (navy / night-quiet). Not a score choropleth. Lab keeps the scored network.
+- Quiet path-centreline underlay is always on from zoom 12 (navy / night-quiet). Not a score choropleth and not T1EAM pavement fill. Lab keeps the scored network.
 - Mapbox pedestrian-road dots stay off.
 - Disclaimer remains: not a safety guarantee
 - Header When preselects from Casey sun position (civil twilight). Quiet reason under the wordmark, e.g. `Night · after dark in Casey now`
@@ -69,7 +69,7 @@ Two clear choices (segmented control): **A to B** | **Loop**
 
 #### 1A — A to B (trip)
 
-- **From** and **To**: search, map pin, or **Use my location** on the From field (geolocate → reverse geocode)
+- **From** and **To**: search, **Use my location** on From, or tap the map. On the plan sheet, the first empty-map tap (no walk line, no amenity) fills From; the next fills To. The pin icon still replaces a place that is already set. Results taps still select a walk or open an amenity.
 - Both ends must be inside Casey
 - **Find my route** → hybrid ranked options
 - Match score on every card; stream pills and extra story on the **selected** walk only (see Results)
@@ -78,7 +78,7 @@ Two clear choices (segmented control): **A to B** | **Loop**
 
 **Product meaning:** a **circuit** of about N minutes that returns near the start on a *different* path, not “how far can I get in N minutes,” and not a same-path there-and-back.
 
-- **Start**: Use my location / search / pin (Casey). Geolocate lives on this field.
+- **Start**: Use my location / search / tap the map (Casey). On the plan sheet, an empty-map tap fills Start if it is empty. The pin icon still replaces a start that is already set. Geolocate lives on this field.
 - **About how long?**: e.g. ~15 / ~25 / ~40 minutes = **total** walk time
 - No shape row in the resident UI
 - **Find my loop** → 1–3 circuits near that duration, scored and ranked with importance + efficiency
@@ -125,8 +125,9 @@ Rules:
 - They do **not** change Day / Night / Accessibility **index** maths on segments
 - On **Loop** only: checked types act as **soft goals** when generating/ranking circuits (e.g. bonus if path comes within ~80–100 m of a checked amenity). Never require all types; never punish missing Council data
 - Fountains and benches already sit in the Day Index Heat & Shade stream on segments. That is methodology, always on, and does **not** depend on the Along the way tick. The tick does not change /10 pills.
-- On **A to B**: visibility only for this slice (soft “via fountain” trip bias can wait)
+- On **A to B**: visibility only for this slice (soft “via fountain” trip bias can wait). Same Layers helper as Loop, plus: these show on the map; they do not change the walk we search.
 - Empty / unavailable layers: “None in this area” or “Coming soon” — never invent points
+- Tap a marker: name / reserve, suburb, amenity type from Casey fields. Do not invent shelter or baby-change.
 - Provenance tip: Council / open data; vintage if known
 - Selected-walk microcopy when bias applied: e.g. “Passes a drinking fountain” (factual, not a score inflate in the /10 index pills)
 
@@ -135,9 +136,9 @@ Rules:
 - Open by default, above Along the way
 - Importance of accessible footpaths, and Heat & Shade (day) or Lighting after dark (night)
 - Keep **dynamic slider descriptions** from the live app (`prefSliderDescription`)
-- **Prefer away from roads** sits on the Accessible footpaths slider (generation-time)
+- **Prefer away from roads** sits on its own row under the Accessible footpaths slider (generation-time). Dynamic helper copy wraps; do not truncate.
 - Persist sliders + prefer-away in `localStorage`. No account.
-- Amenities are a map **Layers** control, not a form section
+- Amenities are a map **Layers** control, not a form section. On mobile, opening Layers peeks the Find sheet so the map stays visible. Expanding the sheet (Expand, swipe up, or Find) closes Layers. They do not stay open together.
 - Results must not claim sliders re-order cards unless a compact prefs control is actually on the results sheet
 
 ### 5. Results
@@ -166,8 +167,8 @@ Do **not** require save-to-account. Do not start in-app navigation.
 - Primary control: **Use my location** on **From** (A to B) or **Start** (Around here)
 - After tap: browser permission, one coordinate in session, reverse-geocode a label
 - That point is required to route. It is sent to Mapbox (geocode / Directions) and the challenger when they Find
-- If outside Casey: say so and ask for a point inside the pilot. Do not start a track
-- Map FAB today always writes origin. After the form control ships: remove the FAB, or make it centre-map-on-me only, and only fill From / Start if that field is still empty
+- If outside Casey: say so and ask for a point inside the pilot. Do not start a track. On `localhost` / `127.0.0.1` only, both the map check-in FAB and **Use my location** drop a test pin near Narre Warren so we can see the success state from outside the LGA. The notice says it is a test pin. Production still refuses.
+- Map FAB is a one-shot **Where am I?** check-in (pulsing dot, camera ease). It does not fill From / Start. **Use my location** on the field does. No standing explainer on the FAB: the Layers tip already sits in that corner, and the icon is a standard locate control.
 - Geolocate failure: fall back to search / pin with clear permission copy (OQ-2)
 
 ### What we do not do (pilot)

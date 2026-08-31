@@ -9,7 +9,6 @@ import {
   useState,
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
-  type ReactNode,
 } from "react";
 
 import {
@@ -54,12 +53,17 @@ import { reverseGeocode } from "@/lib/routing/geocode";
 import {
   formatDistance,
   formatDuration,
+  allowCaseyTestLocate,
+  CASEY_TEST_LOCATE,
   pointInCaseyBbox,
   toDisplayScore,
 } from "@/lib/routing/geo";
 import {
   DEFAULT_OVERLAYS,
+  LAYERS_ALONG_WAY_HINT,
+  LAYERS_TRIP_HINT_DETAIL,
   OVERLAY_DEFS,
+  overlayPopupHtml,
   type OverlayId,
   type OverlayState,
 } from "@/lib/overlays";
@@ -67,9 +71,11 @@ import {
   ensureOverlayImages,
   overlayIconImageId,
   overlayIconLayerId,
+  overlayIdFromLayerId,
 } from "@/lib/overlayMapIcons";
 import { planScoredRoutes } from "@/lib/routing/planRoute";
 import { OutingDurationSlider } from "@/components/resident/OutingDurationSlider";
+import { PrefSlider } from "@/components/resident/PrefSlider";
 import {
   clampOutingMinutes,
   planOutingRoutes,
@@ -77,8 +83,6 @@ import {
 import {
   DEFAULT_PREFS_DAY,
   DEFAULT_PREFS_NIGHT,
-  PREF_IMPORTANCE_MAX,
-  PREF_IMPORTANCE_MIN,
   type RoutePreferences,
   type WalkMode,
   clampImportance,
@@ -118,6 +122,16 @@ const LAYERS_TIP_KEY = "yw-resident-layers-tip-v1";
  */
 const ROUTE_EXTRA_COLORS_DAY = ["#F59E0B", "#E8654F"] as const;
 const ROUTE_EXTRA_COLORS_NIGHT = ["#FFCB1F", "#F6871F"] as const;
+
+function routeCasingColor(night: boolean): string {
+  return night ? "#0B0C1A" : "#FFFFFF";
+}
+
+function liveOverlayLayerIds(map: mapboxgl.Map): string[] {
+  return OVERLAY_DEFS.map((def) => overlayIconLayerId(def.id)).filter((id) =>
+    Boolean(map.getLayer(id)),
+  );
+}
 
 function routeColorFor(
   route: ScoredRoute,
@@ -244,35 +258,31 @@ const PATHS_FILTER: mapboxgl.FilterSpecification = [
   ["get", "hw"],
   "sidewalk",
 ];
-/** Street zoom: a single street fills the view, pavement reads as pavement. */
-const PAVEMENT_MINZOOM = 15.5;
-
 /**
- * Two-part footpath underlay (17 Aug QA):
- * - Off-road path centrelines (park links, reserves, laneways) from the
- *   `casey_paths_underlay.geojson` artefact — always visible from z12.
- *   Derived sidewalk lines were messy at roundabouts/crossings and are
- *   no longer drawn as lines at any zoom.
- * - T1EAM pavement polygons (already client-side for scoring) as a quiet
- *   outline-free fill from z15.5 — authoritative Council shapes that
- *   wrap roundabouts correctly and never cross carriageways.
+ * Resident footpath underlay: off-road path centrelines only
+ * (`casey_paths_underlay.geojson`) from z12. T1EAM pavement polygons stay
+ * in scoring GeoJSON; they are not painted on `/` (XYX: shards looked like
+ * a layer to interpret).
  */
+function removePavementUnderlay(map: mapboxgl.Map) {
+  if (map.getLayer(T1EAM_UNDERLAY_FILL)) map.removeLayer(T1EAM_UNDERLAY_FILL);
+  if (map.getSource(T1EAM_PAVEMENT_SRC)) map.removeSource(T1EAM_PAVEMENT_SRC);
+}
+
 function ensureT1eamUnderlay(
   map: mapboxgl.Map,
   lines: GeoJSON.Feature[] | null,
-  pavement: GeoJSON.Feature[] | null,
   night: boolean,
 ) {
   const color = t1eamUnderlayColor(night);
+  removePavementUnderlay(map);
   // Retired layer from earlier sessions/bundles
   if (map.getLayer(T1EAM_UNDERLAY_SW)) map.removeLayer(T1EAM_UNDERLAY_SW);
-  // Paths + pavement live in the Standard "bottom" slot: above land and
-  // water but below the road ribbons, so paths visually duck under
-  // carriageways instead of painting across roundabouts (17 Aug QA).
-  // Slot is fixed at creation, so migrate any layer added with the old slot.
-  for (const id of [T1EAM_UNDERLAY_LINE, T1EAM_UNDERLAY_FILL]) {
-    const layer = map.getLayer(id);
-    if (layer && layer.slot !== "bottom") map.removeLayer(id);
+  // Paths live in the Standard "bottom" slot: above land and water but
+  // below the road ribbons, so they duck under carriageways.
+  const lineLayer = map.getLayer(T1EAM_UNDERLAY_LINE);
+  if (lineLayer && lineLayer.slot !== "bottom") {
+    map.removeLayer(T1EAM_UNDERLAY_LINE);
   }
 
   if (lines?.length) {
@@ -333,78 +343,52 @@ function ensureT1eamUnderlay(
       );
     }
   }
-
-  if (pavement?.length) {
-    const data: GeoJSON.FeatureCollection = {
-      type: "FeatureCollection",
-      features: pavement,
-    };
-    const existing = map.getSource(T1EAM_PAVEMENT_SRC);
-    if (existing && existing.type === "geojson") {
-      existing.setData(data);
-    } else {
-      map.addSource(T1EAM_PAVEMENT_SRC, {
-        type: "geojson",
-        data,
-        tolerance: 0.4,
-      });
-    }
-    const fillOpacity: mapboxgl.Expression = [
-      "interpolate",
-      ["linear"],
-      ["zoom"],
-      PAVEMENT_MINZOOM,
-      0,
-      PAVEMENT_MINZOOM + 0.7,
-      night ? 0.3 : 0.24,
-    ];
-    // Draw the pavement fill under the path lines
-    const fillBefore = map.getLayer(T1EAM_UNDERLAY_LINE)
-      ? T1EAM_UNDERLAY_LINE
-      : undefined;
-    if (!map.getLayer(T1EAM_UNDERLAY_FILL)) {
-      map.addLayer(
-        {
-          id: T1EAM_UNDERLAY_FILL,
-          type: "fill",
-          source: T1EAM_PAVEMENT_SRC,
-          slot: "bottom",
-          minzoom: PAVEMENT_MINZOOM,
-          paint: {
-            "fill-color": color,
-            "fill-opacity": fillOpacity,
-            "fill-emissive-strength": night ? 0.3 : 0,
-          },
-        },
-        fillBefore,
-      );
-    } else {
-      map.setPaintProperty(T1EAM_UNDERLAY_FILL, "fill-color", color);
-      map.setPaintProperty(T1EAM_UNDERLAY_FILL, "fill-opacity", fillOpacity);
-      map.setPaintProperty(
-        T1EAM_UNDERLAY_FILL,
-        "fill-emissive-strength",
-        night ? 0.3 : 0,
-      );
-    }
-  }
 }
 
 /** Install route + optional LGA / T1EAM layers after load or basemap style switch. */
-function installMapChrome(
-  map: mapboxgl.Map,
-  opts: {
-    lga?: GeoJSON.FeatureCollection | null;
-    t1eam?: GeoJSON.Feature[];
-    pavement?: GeoJSON.Feature[];
-    night: boolean;
-  },
-) {
-  if (!map.getSource("routes")) {
-    map.addSource("routes", {
-      type: "geojson",
-      data: { type: "FeatureCollection", features: [] },
+function ensureRoutePaintLayers(map: mapboxgl.Map, night: boolean) {
+  const casing = routeCasingColor(night);
+  if (!map.getLayer("routes-alt-casing")) {
+    map.addLayer({
+      id: "routes-alt-casing",
+      type: "line",
+      source: "routes",
+      filter: ["==", ["get", "selected"], 0],
+      slot: "top",
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: {
+        "line-color": casing,
+        "line-width": 6,
+        "line-opacity": night ? 0.55 : 0.62,
+        "line-emissive-strength": 0,
+      },
     });
+  } else {
+    map.setPaintProperty("routes-alt-casing", "line-color", casing);
+    map.setPaintProperty("routes-alt-casing", "line-width", 6);
+    map.setPaintProperty(
+      "routes-alt-casing",
+      "line-opacity",
+      night ? 0.55 : 0.62,
+    );
+  }
+  if (!map.getLayer("routes-selected-casing")) {
+    map.addLayer({
+      id: "routes-selected-casing",
+      type: "line",
+      source: "routes",
+      filter: ["==", ["get", "selected"], 1],
+      slot: "top",
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: {
+        "line-color": casing,
+        "line-width": 9,
+        "line-opacity": night ? 0.9 : 0.95,
+        "line-emissive-strength": 0,
+      },
+    });
+  } else {
+    map.setPaintProperty("routes-selected-casing", "line-color", casing);
   }
   if (!map.getLayer("routes-alt")) {
     map.addLayer({
@@ -417,10 +401,21 @@ function installMapChrome(
       paint: {
         "line-color": ["get", "color"],
         "line-width": 3.5,
-        "line-opacity": opts.night ? 0.72 : 0.42,
-        "line-emissive-strength": opts.night ? 0.85 : 0.12,
+        "line-opacity": night ? 0.62 : 0.5,
+        "line-emissive-strength": night ? 0.85 : 0.12,
       },
     });
+  } else {
+    map.setPaintProperty(
+      "routes-alt",
+      "line-opacity",
+      night ? 0.62 : 0.5,
+    );
+    map.setPaintProperty(
+      "routes-alt",
+      "line-emissive-strength",
+      night ? 0.85 : 0.12,
+    );
   }
   if (!map.getLayer("routes-selected")) {
     map.addLayer({
@@ -439,10 +434,33 @@ function installMapChrome(
         "line-width": 5.5,
         "line-opacity": 1,
         "line-dasharray": [0.12, 1.65],
-        "line-emissive-strength": opts.night ? 1 : 0.2,
+        "line-emissive-strength": night ? 1 : 0.2,
       },
     });
+  } else {
+    map.setPaintProperty(
+      "routes-selected",
+      "line-emissive-strength",
+      night ? 1 : 0.2,
+    );
   }
+}
+
+function installMapChrome(
+  map: mapboxgl.Map,
+  opts: {
+    lga?: GeoJSON.FeatureCollection | null;
+    t1eam?: GeoJSON.Feature[];
+    night: boolean;
+  },
+) {
+  if (!map.getSource("routes")) {
+    map.addSource("routes", {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: [] },
+    });
+  }
+  ensureRoutePaintLayers(map, opts.night);
   if (!map.getSource("route-connectors")) {
     map.addSource("route-connectors", {
       type: "geojson",
@@ -486,13 +504,10 @@ function installMapChrome(
     );
   }
 
-  if (opts.t1eam?.length || opts.pavement?.length) {
-    ensureT1eamUnderlay(
-      map,
-      opts.t1eam ?? null,
-      opts.pavement ?? null,
-      opts.night,
-    );
+  if (opts.t1eam?.length) {
+    ensureT1eamUnderlay(map, opts.t1eam, opts.night);
+  } else {
+    removePavementUnderlay(map);
   }
 }
 
@@ -534,11 +549,14 @@ export function ResidentApp() {
   const featuresRef = useRef<GeoJSON.Feature[]>([]);
   /** Centreline underlay artefact; layer stays off until it loads. */
   const underlayRef = useRef<GeoJSON.Feature[] | null>(null);
-  /** T1EAM segments already drawn as path lines — skipped by the fill. */
-  const pathCoveredIdsRef = useRef<Set<string | number> | null>(null);
+  const amenityPopupRef = useRef<mapboxgl.Popup | null>(null);
   /** Floating time/distance chips, one per walk (HTML markers). */
   const routeChipsRef = useRef<mapboxgl.Marker[]>([]);
   const pickModeRef = useRef<PickMode>("idle");
+  const sheetModeRef = useRef<"plan" | "results">("plan");
+  const originRef = useRef<LngLat | null>(null);
+  const destRef = useRef<LngLat | null>(null);
+  const walkIntentRef = useRef<WalkIntent>("trip");
   const originMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const destMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const lgaDataRef = useRef<GeoJSON.FeatureCollection | null>(null);
@@ -685,6 +703,22 @@ export function ResidentApp() {
   }, [pickMode]);
 
   useEffect(() => {
+    sheetModeRef.current = sheetMode;
+  }, [sheetMode]);
+
+  useEffect(() => {
+    originRef.current = origin;
+  }, [origin]);
+
+  useEffect(() => {
+    destRef.current = destination;
+  }, [destination]);
+
+  useEffect(() => {
+    walkIntentRef.current = walkIntent;
+  }, [walkIntent]);
+
+  useEffect(() => {
     walkModeRef.current = walkMode;
   }, [walkMode]);
 
@@ -755,16 +789,23 @@ export function ResidentApp() {
       (pos) => {
         const map = mapRef.current;
         if (!map) return;
-        const lngLat: [number, number] = [
+        let lngLat: [number, number] = [
           pos.coords.longitude,
           pos.coords.latitude,
         ];
-        // Outside the pilot area: leave the map where it is, no dot
+        // Outside the pilot: leave the map, unless localhost (Anthony
+        // testing from outside Casey can still see the check-in dot).
         if (!pointInCaseyBbox({ lng: lngLat[0], lat: lngLat[1] })) {
+          if (!allowCaseyTestLocate()) {
+            setLocateNotice(
+              "Looks like you’re outside the City of Casey, so we’ve left the map where it is.",
+            );
+            return;
+          }
+          lngLat = [CASEY_TEST_LOCATE.lng, CASEY_TEST_LOCATE.lat];
           setLocateNotice(
-            "Looks like you’re outside the City of Casey, so we’ve left the map where it is.",
+            "You’re outside Casey. Local only: showing a test pin near Narre Warren.",
           );
-          return;
         }
         if (!locateMarkerRef.current) {
           const el = document.createElement("div");
@@ -829,16 +870,9 @@ export function ResidentApp() {
     if (r) focusWholeWalk(r);
   }, [selectedId, routes, focusWholeWalk]);
 
-  /** Pavement fill features: skip polygons a path line already draws. */
-  const pavementFeatures = useCallback(() => {
-    const ids = pathCoveredIdsRef.current;
-    const feats = featuresRef.current;
-    if (!ids) return feats;
-    return feats.filter((f) => {
-      const id = (f.properties as { segment_id?: string | number } | null)
-        ?.segment_id;
-      return id === undefined || !ids.has(id);
-    });
+  const closeAmenityPopup = useCallback(() => {
+    amenityPopupRef.current?.remove();
+    amenityPopupRef.current = null;
   }, []);
 
   const editWalk = useCallback(() => {
@@ -872,7 +906,10 @@ export function ResidentApp() {
   };
 
   const openLayers = () => {
-    setLayersOpen((o) => !o);
+    const opening = !layersOpen;
+    setLayersOpen(opening);
+    if (opening && !isDesktop) setSheetSnap("peek");
+    if (!opening) closeAmenityPopup();
     if (showLayersTip) {
       setShowLayersTip(false);
       try {
@@ -882,6 +919,14 @@ export function ResidentApp() {
       }
     }
   };
+
+  // Mobile: Layers and the Find sheet share the map. Opening Layers peeks
+  // the sheet; expanding the sheet (Expand, swipe, Find) closes Layers.
+  useEffect(() => {
+    if (isDesktop || !layersOpen || sheetSnap === "peek") return;
+    setLayersOpen(false);
+    closeAmenityPopup();
+  }, [sheetSnap, isDesktop, layersOpen, closeAmenityPopup]);
 
   useEffect(() => {
     routesRef.current = routes;
@@ -1123,33 +1168,106 @@ export function ResidentApp() {
         });
         const routeId = routeHit[0]?.properties?.id;
         if (typeof routeId === "string") {
+          amenityPopupRef.current?.remove();
+          amenityPopupRef.current = null;
           setRouteLocked(false);
           setSelectedId(routeId);
           return;
         }
 
         const mode = pickModeRef.current;
-        if (mode === "idle") return;
-        const point = { lng: e.lngLat.lng, lat: e.lngLat.lat };
-        const label = await reverseGeocode(point, token);
-        if (mode === "origin") {
-          setOrigin(point);
-          setOriginLabel(label);
-        } else {
-          setDestination(point);
-          setDestLabel(label);
+        if (mode !== "idle") {
+          amenityPopupRef.current?.remove();
+          amenityPopupRef.current = null;
+          const point = { lng: e.lngLat.lng, lat: e.lngLat.lat };
+          const label = await reverseGeocode(point, token);
+          if (mode === "origin") {
+            setOrigin(point);
+            setOriginLabel(label);
+          } else {
+            setDestination(point);
+            setDestLabel(label);
+          }
+          setPickMode("idle");
+          return;
         }
-        setPickMode("idle");
+
+        const overlayLayers = liveOverlayLayerIds(map);
+        if (overlayLayers.length) {
+          const overlayHit = map.queryRenderedFeatures(e.point, {
+            layers: overlayLayers,
+          })[0];
+          if (overlayHit) {
+            const layerId = overlayHit.layer?.id;
+            const overlayId = layerId ? overlayIdFromLayerId(layerId) : null;
+            if (overlayId) {
+              amenityPopupRef.current?.remove();
+              const popup = new mapboxgl.Popup({
+                closeButton: true,
+                closeOnClick: false,
+                offset: 16,
+                maxWidth: "16rem",
+                className:
+                  walkModeRef.current === "night"
+                    ? "yw-amenity-popup yw-amenity-popup-night"
+                    : "yw-amenity-popup",
+              })
+                .setLngLat(e.lngLat)
+                .setHTML(overlayPopupHtml(overlayId, overlayHit.properties))
+                .addTo(map);
+              amenityPopupRef.current = popup;
+              popup.on("close", () => {
+                if (amenityPopupRef.current === popup) {
+                  amenityPopupRef.current = null;
+                }
+              });
+              return;
+            }
+          }
+        }
+
+        amenityPopupRef.current?.remove();
+        amenityPopupRef.current = null;
+
+        // Plan sheet only: first empty-map tap fills From / Start; next
+        // fills To on A to B. Pin icon still replaces a set place.
+        if (sheetModeRef.current !== "plan") return;
+        const emptyWhich: "origin" | "destination" | null = !originRef.current
+          ? "origin"
+          : walkIntentRef.current === "trip" && !destRef.current
+            ? "destination"
+            : null;
+        if (!emptyWhich) return;
+        const emptyPoint = { lng: e.lngLat.lng, lat: e.lngLat.lat };
+        const emptyLabel = await reverseGeocode(emptyPoint, token);
+        if (emptyWhich === "origin") {
+          setOrigin(emptyPoint);
+          setOriginLabel(emptyLabel);
+        } else {
+          setDestination(emptyPoint);
+          setDestLabel(emptyLabel);
+        }
       });
 
       map.on("mousemove", (e) => {
         if (pickModeRef.current !== "idle") return;
-        const layers = ["routes-alt", "routes-selected"].filter((id) =>
-          Boolean(map.getLayer(id)),
-        );
-        if (!layers.length) return;
-        const hit = map.queryRenderedFeatures(e.point, { layers });
-        map.getCanvas().style.cursor = hit.length ? "pointer" : "";
+        const layers = [
+          "routes-alt",
+          "routes-selected",
+          ...liveOverlayLayerIds(map),
+        ].filter((id) => Boolean(map.getLayer(id)));
+        const hit = layers.length
+          ? map.queryRenderedFeatures(e.point, { layers })
+          : [];
+        if (hit.length) {
+          map.getCanvas().style.cursor = "pointer";
+          return;
+        }
+        const canEmptyPlace =
+          sheetModeRef.current === "plan" &&
+          (!originRef.current ||
+            (walkIntentRef.current === "trip" && !destRef.current));
+        map.getCanvas().style.cursor = canEmptyPlace ? "crosshair" : "";
       });
 
       setMapReady(true);
@@ -1164,15 +1282,9 @@ export function ResidentApp() {
             };
             if (fc.features?.length && mapRef.current) {
               underlayRef.current = fc.features;
-              if (fc.path_covered_segment_ids?.length) {
-                pathCoveredIdsRef.current = new Set(
-                  fc.path_covered_segment_ids,
-                );
-              }
               ensureT1eamUnderlay(
                 map,
                 fc.features,
-                pavementFeatures(),
                 walkModeRef.current === "night",
               );
             }
@@ -1192,7 +1304,6 @@ export function ResidentApp() {
             installMapChrome(map, {
               lga,
               t1eam: underlayRef.current ?? undefined,
-              pavement: pavementFeatures(),
               night: walkModeRef.current === "night",
             });
           } catch {
@@ -1205,13 +1316,15 @@ export function ResidentApp() {
           const body = await fetchSegmentsGeoJSON(resolveGeoJsonUrl());
           if (!mapRef.current) return;
           featuresRef.current = body.features ?? [];
-          // Street-zoom pavement fill uses these same polygons
-          ensureT1eamUnderlay(
-            map,
-            underlayRef.current,
-            pavementFeatures(),
-            walkModeRef.current === "night",
-          );
+          if (underlayRef.current) {
+            ensureT1eamUnderlay(
+              map,
+              underlayRef.current,
+              walkModeRef.current === "night",
+            );
+          } else {
+            removePavementUnderlay(map);
+          }
           setNetworkReady(true);
           setNetworkStatus("Ready to plan a walk");
         } catch (err) {
@@ -1248,10 +1361,11 @@ export function ResidentApp() {
       destMarkerRef.current?.remove();
       locateMarkerRef.current?.remove();
       locateMarkerRef.current = null;
+      amenityPopupRef.current?.remove();
+      amenityPopupRef.current = null;
       map.remove();
       mapRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- pavementFeatures is a stable ref-only callback; the map must init exactly once
   }, []);
 
   // Planned When → Standard lightPreset (no full style swap)
@@ -1268,7 +1382,6 @@ export function ResidentApp() {
         installMapChrome(map, {
           lga: lgaDataRef.current,
           t1eam: underlayRef.current ?? undefined,
-          pavement: pavementFeatures(),
           night: walkMode === "night",
         });
         paintRoutes(routesRef.current, selectedIdRef.current);
@@ -1277,25 +1390,7 @@ export function ResidentApp() {
       return;
     }
     applyStandardLook(map, preset);
-    if (map.getLayer("routes-alt")) {
-      map.setPaintProperty(
-        "routes-alt",
-        "line-opacity",
-        walkMode === "night" ? 0.72 : 0.42,
-      );
-      map.setPaintProperty(
-        "routes-alt",
-        "line-emissive-strength",
-        walkMode === "night" ? 0.85 : 0.12,
-      );
-    }
-    if (map.getLayer("routes-selected")) {
-      map.setPaintProperty(
-        "routes-selected",
-        "line-emissive-strength",
-        walkMode === "night" ? 1 : 0.2,
-      );
-    }
+    ensureRoutePaintLayers(map, walkMode === "night");
     if (map.getLayer("lga-line")) {
       map.setPaintProperty(
         "lga-line",
@@ -1303,22 +1398,12 @@ export function ResidentApp() {
         walkMode === "night" ? "#8B8DD9" : "#292984",
       );
     }
-    if (underlayRef.current || featuresRef.current.length) {
-      ensureT1eamUnderlay(
-        map,
-        underlayRef.current,
-        pavementFeatures(),
-        walkMode === "night",
-      );
+    if (underlayRef.current) {
+      ensureT1eamUnderlay(map, underlayRef.current, walkMode === "night");
+    } else {
+      removePavementUnderlay(map);
     }
-  }, [
-    walkMode,
-    whenOverridden,
-    mapReady,
-    paintRoutes,
-    syncOverlayLayers,
-    pavementFeatures,
-  ]);
+  }, [walkMode, whenOverridden, mapReady, paintRoutes, syncOverlayLayers]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1372,14 +1457,22 @@ export function ResidentApp() {
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    map.getCanvas().style.cursor = pickMode === "idle" ? "" : "crosshair";
-  }, [pickMode]);
+    if (pickMode !== "idle") {
+      map.getCanvas().style.cursor = "crosshair";
+      return;
+    }
+    const canEmptyPlace =
+      sheetMode === "plan" &&
+      (!origin || (walkIntent === "trip" && !destination));
+    map.getCanvas().style.cursor = canEmptyPlace ? "crosshair" : "";
+  }, [pickMode, sheetMode, origin, destination, walkIntent]);
 
   // Along-the-way amenity overlays (visibility only)
   useEffect(() => {
     if (!mapReady) return;
+    if (!Object.values(overlays).some(Boolean)) closeAmenityPopup();
     syncOverlayLayers(overlays);
-  }, [overlays, mapReady, syncOverlayLayers]);
+  }, [overlays, mapReady, syncOverlayLayers, closeAmenityPopup]);
 
   // Importance sliders only — same geometries, new ranking (not Day/Night flip)
   /* eslint-disable react-hooks/set-state-in-effect -- re-ranks stored results
@@ -1411,19 +1504,30 @@ export function ResidentApp() {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
-          const point = {
+          const devicePoint = {
             lng: pos.coords.longitude,
             lat: pos.coords.latitude,
           };
-          if (!pointInCaseyBbox(point)) {
-            setRouteError(
-              "That location is outside Casey. Search or drop a pin inside the city.",
+          let point = devicePoint;
+          if (!pointInCaseyBbox(devicePoint)) {
+            if (!allowCaseyTestLocate()) {
+              setRouteError(
+                "That location is outside Casey. Search or drop a pin inside the city.",
+              );
+              return;
+            }
+            point = { ...CASEY_TEST_LOCATE };
+            setLocateNotice(
+              "You’re outside Casey. Local only: using a test start near Narre Warren.",
             );
-            return;
           }
           const label = await reverseGeocode(point, token);
           setOrigin(point);
-          setOriginLabel(label || "Current location");
+          setOriginLabel(
+            point === devicePoint
+              ? label || "Current location"
+              : label || "Casey test location",
+          );
           setPickMode("idle");
           // Destination already set (marker exists) → fit-both effect frames
           if (!destMarkerRef.current) {
@@ -1585,6 +1689,21 @@ export function ResidentApp() {
       ? `${a.split(", ")[0]} → ${b}`
       : `${a} → ${b}`;
   };
+
+  const mapPlaceHint =
+    pickMode === "origin"
+      ? walkIntent === "outing"
+        ? "start"
+        : "from"
+      : pickMode === "destination"
+        ? "to"
+        : sheetMode === "plan" && !origin
+          ? walkIntent === "outing"
+            ? "start"
+            : "from"
+          : sheetMode === "plan" && walkIntent === "trip" && !destination
+            ? "to"
+            : null;
 
   // Desktop swaps the sheet for a side panel; snap is ignored there and the
   // resident's last mobile snap is kept for when the viewport shrinks back.
@@ -2230,6 +2349,20 @@ export function ResidentApp() {
                       }
                     }}
                   />
+                  <p
+                    className={`text-[10px] leading-snug ${
+                      isNight ? "text-white/45" : "text-slate-500"
+                    }`}
+                  >
+                    {LAYERS_ALONG_WAY_HINT}
+                  </p>
+                  <p
+                    className={`text-[10px] leading-snug ${
+                      isNight ? "text-white/45" : "text-slate-500"
+                    }`}
+                  >
+                    {LAYERS_TRIP_HINT_DETAIL}
+                  </p>
                 </div>
               ) : (
                 <div className="mb-4 space-y-2">
@@ -2275,19 +2408,14 @@ export function ResidentApp() {
                       isNight ? "text-white/45" : "text-slate-500"
                     }`}
                   >
-                    Want a fountain or bench on the way? Use Layers.
+                    {LAYERS_ALONG_WAY_HINT}
                   </p>
                 </div>
               )}
 
-              {pickMode !== "idle" ? (
+              {mapPlaceHint ? (
                 <p className="mb-3 text-xs font-medium text-yw-blue">
-                  Tap the map to set{" "}
-                  {pickMode === "origin"
-                    ? walkIntent === "outing"
-                      ? "start"
-                      : "from"
-                    : "to"}
+                  Tap the map to set {mapPlaceHint}
                 </p>
               ) : null}
               </section>
@@ -2313,9 +2441,9 @@ export function ResidentApp() {
                   onChange={(accessibility) =>
                     setPrefs((p) => ({ ...p, accessibility }))
                   }
-                  headerAccessory={
+                  footerAccessory={
                     <label
-                      className={`flex shrink-0 cursor-pointer items-start gap-1 rounded-lg px-1 py-0.5 ${
+                      className={`mt-1.5 flex cursor-pointer items-center gap-1.5 rounded-lg px-1 py-0.5 ${
                         prefs.preferSharedPaths
                           ? isNight
                             ? "bg-yw-blue/20"
@@ -2337,7 +2465,7 @@ export function ResidentApp() {
                     >
                       <input
                         type="checkbox"
-                        className="yw-check yw-check-sm mt-0.5"
+                        className="yw-check yw-check-sm"
                         checked={prefs.preferSharedPaths}
                         onChange={(e) =>
                           setPrefs((p) => ({
@@ -2348,7 +2476,7 @@ export function ResidentApp() {
                         aria-label="Prefer away from roads"
                       />
                       <span
-                        className={`max-w-[5.5rem] text-[10px] font-semibold leading-tight ${
+                        className={`text-[10px] font-semibold leading-tight ${
                           isNight ? "text-white/80" : "text-[#0B5F8A]"
                         }`}
                       >
@@ -2954,90 +3082,5 @@ function ScorePill({
     >
       {label} {value == null ? "—" : value.toFixed(1)}
     </span>
-  );
-}
-
-function PrefSlider({
-  title,
-  description,
-  value,
-  isNight,
-  accent,
-  tone,
-  onChange,
-  headerAccessory,
-}: {
-  title: string;
-  description?: string;
-  value: number;
-  isNight: boolean;
-  accent: string;
-  tone: "amber" | "blue" | "lime";
-  onChange: (v: number) => void;
-  /** Compact control in the title row (e.g. Shared paths). */
-  headerAccessory?: ReactNode;
-}) {
-  const clamped = Math.min(
-    PREF_IMPORTANCE_MAX,
-    Math.max(PREF_IMPORTANCE_MIN, value),
-  );
-  const shells = {
-    amber: isNight
-      ? "border-[color-mix(in_srgb,var(--yw-amber)_22%,transparent)] bg-[color-mix(in_srgb,var(--yw-amber)_8%,transparent)]"
-      : "border-[color-mix(in_srgb,var(--yw-amber)_28%,transparent)] bg-[color-mix(in_srgb,var(--yw-amber)_12%,white)]",
-    blue: isNight
-      ? "border-[color-mix(in_srgb,var(--yw-blue)_20%,transparent)] bg-[color-mix(in_srgb,var(--yw-blue)_7%,transparent)]"
-      : "border-[color-mix(in_srgb,var(--yw-blue)_22%,transparent)] bg-[color-mix(in_srgb,var(--yw-blue)_10%,white)]",
-    lime: isNight
-      ? "border-[color-mix(in_srgb,var(--yw-lime)_20%,transparent)] bg-[color-mix(in_srgb,var(--yw-lime)_7%,transparent)]"
-      : "border-[color-mix(in_srgb,var(--yw-lime)_22%,transparent)] bg-[color-mix(in_srgb,var(--yw-lime)_10%,white)]",
-  };
-  const titles = {
-    amber: isNight ? "text-yw-amber" : "text-[#92720A]",
-    blue: isNight ? "text-yw-blue" : "text-[#0B5F8A]",
-    lime: isNight ? "text-yw-lime" : "text-[#2D6A1A]",
-  };
-  const descs = {
-    amber: isNight ? "text-[color-mix(in_srgb,var(--yw-amber)_70%,transparent)]" : "text-[#A07800]",
-    blue: isNight ? "text-[color-mix(in_srgb,var(--yw-blue)_70%,transparent)]" : "text-[#146B96]",
-    lime: isNight ? "text-[color-mix(in_srgb,var(--yw-lime)_70%,transparent)]" : "text-[#3A7A22]",
-  };
-  return (
-    <div
-      className={`mb-1.5 rounded-xl border px-3 py-2 ${shells[tone]}`}
-      style={{ "--yw-pref-accent": accent } as CSSProperties}
-    >
-      <div className="mb-1 flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <span className={`text-[13px] font-bold ${titles[tone]}`}>{title}</span>
-          {description ? (
-            <p className={`truncate text-[10px] leading-snug ${descs[tone]}`}>
-              {description}
-            </p>
-          ) : null}
-        </div>
-        {headerAccessory}
-      </div>
-      <input
-        type="range"
-        min={PREF_IMPORTANCE_MIN}
-        max={PREF_IMPORTANCE_MAX}
-        value={clamped}
-        onChange={(e) => onChange(clampImportance(Number(e.target.value)))}
-        className="yw-pref-range"
-        aria-valuemin={PREF_IMPORTANCE_MIN}
-        aria-valuemax={PREF_IMPORTANCE_MAX}
-        aria-valuenow={clamped}
-        aria-label={`${title} importance`}
-      />
-      <div
-        className={`mt-0.5 flex justify-between text-[9px] font-medium leading-none ${
-          isNight ? "text-white/40" : "text-slate-500"
-        }`}
-      >
-        <span>Less important</span>
-        <span>More important</span>
-      </div>
-    </div>
   );
 }

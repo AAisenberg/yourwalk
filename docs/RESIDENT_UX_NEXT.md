@@ -15,7 +15,7 @@ Feel it on `/design/planner` before touching `ResidentApp`.
 | Heading | **Find your walk** plus a dismissible Casey line (not a survey). Desktop `/design/planner` aside stays internal notes. |
 | Sliders | Compact: one-line dynamic copy, prefer-away on Footpaths, **Less important / More important** under the bar (~9px). |
 | When | Keep **Day / Night words + icons** in the header for the pilot. Icons-only reads as dark mode. Revisit after testers know the index. |
-| Places | Placeholder: park, school, suburb, or street. Geolocate + **Map** (drop pin) side by side on From / Start. To: Map only. |
+| Places | Placeholder: park, school, suburb, or street. Geolocate on From / Start. Empty-map tap fills From then To (Start on Loop). Pin icon still replaces a set place. |
 | Along the way | **Out of the form.** Layers top-left. Ringed amenity icons. Default off; first-visit tip; ticks persist. Loop helper under duration. |
 
 XYX copy we already have in-repo: sliders must change the **line**, not only Recommended ([`ROUTING_NOTE_NIKKI_2026-08-16.md`](ROUTING_NOTE_NIKKI_2026-08-16.md)). Full UX copy pack is not in the repo. Drop the rest here and we will checklist it.
@@ -54,7 +54,7 @@ Casey-ish centre `[145.317, -38.112]`, zoom ~15. GL JS 3.27 (app is `^3.26`). Co
 | E1 | ✅ Point the resident map at this style URL (classic streets / dark fallback) |
 | E2 | ✅ `setConfigProperty('basemap', 'lightPreset', dawn/day/dusk/night)` from When |
 | E3 | ✅ Hide Mapbox POIs; YourWalk overlays stay Track C |
-| E4 | ✅ Quiet T1EAM underlay. Casey footpath polygons from `segment_scores.geojson` (already loaded for scoring). Navy / night-quiet fill, no choropleth, always on from zoom 12, under walk lines. Mapbox `showPedestrianRoads` stays off. |
+| E4 | ✅ Quiet path-centreline underlay from `casey_paths_underlay.geojson` (z12+). T1EAM pavement polygons stay in scoring GeoJSON only; not painted on `/`. Mapbox `showPedestrianRoads` stays off. |
 
 Do not treat the Studio “build an app from this style” brief as a new product. YourWalk already exists. This URL is the basemap input for Track E.
 

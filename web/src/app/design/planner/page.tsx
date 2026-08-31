@@ -1,13 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type CSSProperties,
-  type ReactNode,
-} from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MdClose, MdEdit, MdLayers, MdMyLocation, MdPlace } from "react-icons/md";
 
 import {
@@ -18,6 +12,7 @@ import {
   IconSun,
   IconTrip,
 } from "@/components/resident/icons";
+import { PrefSlider } from "@/components/resident/PrefSlider";
 import { RingedAmenityIcon } from "@/components/resident/RingedAmenityIcon";
 import {
   WALK_PIN_FROM,
@@ -25,7 +20,13 @@ import {
   WalkPinGlyph,
 } from "@/components/resident/WalkPin";
 import { SegmentedPill } from "@/components/resident/SegmentedPill";
-import { DEFAULT_OVERLAYS, OVERLAY_DEFS, type OverlayId } from "@/lib/overlays";
+import {
+  DEFAULT_OVERLAYS,
+  LAYERS_ALONG_WAY_HINT,
+  LAYERS_TRIP_HINT_DETAIL,
+  OVERLAY_DEFS,
+  type OverlayId,
+} from "@/lib/overlays";
 import {
   prefSliderDescription,
   type WalkMode,
@@ -728,6 +729,20 @@ function PlanSheet(props: {
             pickActive={props.pickMode === "destination"}
             onPickMap={props.onPickDestination}
           />
+          <p
+            className={`text-[10px] leading-snug ${
+              isNight ? "text-white/45" : "text-slate-500"
+            }`}
+          >
+            {LAYERS_ALONG_WAY_HINT}
+          </p>
+          <p
+            className={`text-[10px] leading-snug ${
+              isNight ? "text-white/45" : "text-slate-500"
+            }`}
+          >
+            {LAYERS_TRIP_HINT_DETAIL}
+          </p>
         </div>
       ) : (
         <div className="mb-4 space-y-2">
@@ -773,13 +788,13 @@ function PlanSheet(props: {
               isNight ? "text-white/45" : "text-slate-500"
             }`}
           >
-            Want a fountain or bench on the way? Use Layers.
+            {LAYERS_ALONG_WAY_HINT}
           </p>
         </div>
       )}
 
       <SectionLabel isNight={isNight}>What matters most</SectionLabel>
-      <MockPref
+      <PrefSlider
         title="Accessible footpaths"
         description={prefSliderDescription("accessibility", props.accessibility)}
         value={props.accessibility}
@@ -787,9 +802,9 @@ function PlanSheet(props: {
         accent="#27AAE1"
         tone="blue"
         onChange={props.setAccessibility}
-        headerAccessory={
+        footerAccessory={
           <label
-            className={`flex shrink-0 cursor-pointer items-start gap-1 rounded-lg px-1 py-0.5 ${
+            className={`mt-1.5 flex cursor-pointer items-center gap-1.5 rounded-lg px-1 py-0.5 ${
               props.preferAway
                 ? isNight
                   ? "bg-yw-blue/20"
@@ -799,13 +814,13 @@ function PlanSheet(props: {
           >
             <input
               type="checkbox"
-              className="yw-check yw-check-sm mt-0.5"
+              className="yw-check yw-check-sm"
               checked={props.preferAway}
               onChange={(e) => props.setPreferAway(e.target.checked)}
               aria-label="Prefer away from roads"
             />
             <span
-              className={`max-w-[5.5rem] text-[10px] font-semibold leading-tight ${
+              className={`text-[10px] font-semibold leading-tight ${
                 isNight ? "text-white/80" : "text-[#0B5F8A]"
               }`}
             >
@@ -815,7 +830,7 @@ function PlanSheet(props: {
         }
       />
       {isNight ? (
-        <MockPref
+        <PrefSlider
           title="Lighting after dark"
           description={prefSliderDescription("afterDark", props.afterDark)}
           value={props.afterDark}
@@ -825,7 +840,7 @@ function PlanSheet(props: {
           onChange={props.setAfterDark}
         />
       ) : (
-        <MockPref
+        <PrefSlider
           title="Heat & Shade"
           description={prefSliderDescription("shadeHeat", props.shadeHeat)}
           value={props.shadeHeat}
@@ -1104,91 +1119,6 @@ function MockPlace({
           <MdPlace className="h-5 w-5" />
         </button>
       ) : null}
-    </div>
-  );
-}
-
-function MockPref({
-  title,
-  description,
-  value,
-  isNight,
-  accent,
-  tone,
-  onChange,
-  headerAccessory,
-}: {
-  title: string;
-  description?: string;
-  value: number;
-  isNight: boolean;
-  accent: string;
-  tone: "amber" | "blue" | "lime";
-  onChange: (v: number) => void;
-  headerAccessory?: ReactNode;
-}) {
-  const shells = {
-    amber: isNight
-      ? "border-[color-mix(in_srgb,var(--yw-amber)_22%,transparent)] bg-[color-mix(in_srgb,var(--yw-amber)_8%,transparent)]"
-      : "border-[color-mix(in_srgb,var(--yw-amber)_28%,transparent)] bg-[color-mix(in_srgb,var(--yw-amber)_12%,white)]",
-    blue: isNight
-      ? "border-[color-mix(in_srgb,var(--yw-blue)_20%,transparent)] bg-[color-mix(in_srgb,var(--yw-blue)_7%,transparent)]"
-      : "border-[color-mix(in_srgb,var(--yw-blue)_22%,transparent)] bg-[color-mix(in_srgb,var(--yw-blue)_10%,white)]",
-    lime: isNight
-      ? "border-[color-mix(in_srgb,var(--yw-lime)_20%,transparent)] bg-[color-mix(in_srgb,var(--yw-lime)_7%,transparent)]"
-      : "border-[color-mix(in_srgb,var(--yw-lime)_22%,transparent)] bg-[color-mix(in_srgb,var(--yw-lime)_10%,white)]",
-  };
-  const titles = {
-    amber: isNight ? "text-yw-amber" : "text-[#92720A]",
-    blue: isNight ? "text-yw-blue" : "text-[#0B5F8A]",
-    lime: isNight ? "text-yw-lime" : "text-[#2D6A1A]",
-  };
-  const descs = {
-    amber: isNight
-      ? "text-[color-mix(in_srgb,var(--yw-amber)_70%,transparent)]"
-      : "text-[#A07800]",
-    blue: isNight
-      ? "text-[color-mix(in_srgb,var(--yw-blue)_70%,transparent)]"
-      : "text-[#146B96]",
-    lime: isNight
-      ? "text-[color-mix(in_srgb,var(--yw-lime)_70%,transparent)]"
-      : "text-[#3A7A22]",
-  };
-  return (
-    <div
-      className={`mb-1.5 rounded-xl border px-3 py-2 ${shells[tone]}`}
-      style={{ "--yw-pref-accent": accent } as CSSProperties}
-    >
-      <div className="mb-1 flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <span className={`text-[13px] font-bold ${titles[tone]}`}>
-            {title}
-          </span>
-          {description ? (
-            <p className={`truncate text-[10px] leading-snug ${descs[tone]}`}>
-              {description}
-            </p>
-          ) : null}
-        </div>
-        {headerAccessory}
-      </div>
-      <input
-        type="range"
-        min={10}
-        max={100}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="yw-pref-range"
-        aria-label={`${title} importance`}
-      />
-      <div
-        className={`mt-0.5 flex justify-between text-[9px] font-medium leading-none ${
-          isNight ? "text-white/40" : "text-slate-500"
-        }`}
-      >
-        <span>Less important</span>
-        <span>More important</span>
-      </div>
     </div>
   );
 }
