@@ -22,6 +22,13 @@ export function overlayIconLayerId(id: OverlayId): string {
   return `overlay-${id}-icons`;
 }
 
+export function overlayIdFromLayerId(layerId: string): OverlayId | null {
+  for (const def of OVERLAY_DEFS) {
+    if (overlayIconLayerId(def.id) === layerId) return def.id;
+  }
+  return null;
+}
+
 function overlayIconSvg(id: OverlayId, color: string): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
     <circle cx="32" cy="32" r="28" fill="${color}" stroke="#ffffff" stroke-width="5"/>

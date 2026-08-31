@@ -86,6 +86,45 @@ body {
   line-height: 1.4;
 }
 
+.yw-amenity-popup .mapboxgl-popup-content {
+  border-radius: 12px;
+  padding: 10px 12px 11px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+}
+
+.yw-amenity-popup .mapboxgl-popup-close-button {
+  font-size: 16px;
+  padding: 2px 6px;
+}
+
+.yw-amenity-popup-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.yw-amenity-popup-line {
+  margin: 3px 0 0;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: #475569;
+}
+
+.yw-amenity-popup-night .mapboxgl-popup-content {
+  background: #14152a;
+  color: #fff;
+}
+
+.yw-amenity-popup-night .mapboxgl-popup-close-button {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.yw-amenity-popup-night .yw-amenity-popup-line {
+  color: rgba(255, 255, 255, 0.62);
+}
+
 /* Resident sheet motion */
 @keyframes yw-sheet-in {
   from {

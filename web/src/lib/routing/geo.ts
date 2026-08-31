@@ -11,6 +11,15 @@ export function pointInCaseyBbox(p: LngLat): boolean {
   );
 }
 
+/** Narre Warren-ish centre. Used only when localhost geolocate is outside Casey. */
+export const CASEY_TEST_LOCATE: LngLat = { lng: 145.317, lat: -38.112 };
+
+export function allowCaseyTestLocate(): boolean {
+  if (typeof window === "undefined") return false;
+  const host = window.location.hostname;
+  return host === "localhost" || host === "127.0.0.1";
+}
+
 /** Display index 0–10 (1 decimal) from absolute 0–100. */
 export function toDisplayScore(score: number | null | undefined): number | null {
   if (score == null || Number.isNaN(score)) return null;

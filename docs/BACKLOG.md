@@ -133,7 +133,7 @@ Before a backlog item is considered complete, it must meet all of the following:
 
 **Dependencies**: N1 hybrid trip stable; amenity GeoJSON available in pipeline
 
-**Status**: Next (Sprint D+) — shell shipped (testing); planner UX slice (order, auto When, disclosure, form geolocate) specified 16 Aug 2026 in the flow. Iterate after testing.
+**Status**: Next (Sprint D+) — shell shipped; planner UX slice specified 16 Aug 2026. **App 0.3.0 (31 Aug 2026):** XYX polish on `/` — wrap sliders, Layers peek/expand exclusivity, amenity tap popups, empty-map tap fills From then To (pin still replaces), quieter unselected routes, no T1EAM pavement fill on the resident map, localhost Casey locate test. Iterate after Lab testing.
 
 ---
 

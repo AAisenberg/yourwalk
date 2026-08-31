@@ -73,8 +73,11 @@ export const RESIDENT_OUTING_SHAPES = OUTING_SHAPES.filter(
  */
 /** Hard reject when this share of samples re-cover the same footpath. */
 const MAX_LOOP_REVISIT = 0.2;
-/** “Clean circuit” note threshold (no honesty banner). */
+/** Clean circuit note threshold (no honesty banner). */
 const CLEAN_LOOP_REVISIT = 0.12;
+/** Resident copy when a loop retraces a stretch. Avoid "shared path" (parks). */
+export const LOOP_RETRACE_NOTE =
+  "This loop retraces a short stretch. Most of it is a new path.";
 /** Half-vs-half there-and-back on the same footpath. */
 const MAX_LOOP_REVERSE_OVERLAP = 0.55;
 /** Metres: same footpath / same side — not opposite kerb. */
@@ -1031,9 +1034,7 @@ function gateLoopIntoPool(
     geometry,
     strategy: `${drawn.strategy}_rev${revisit.toFixed(2)}_sp${Math.round(spur.worstSpurM)}${roadTag}`,
     amenity_note: soft.note,
-    outing_note: clean
-      ? undefined
-      : "A little shared path on this circuit — still mostly new streets.",
+    outing_note: clean ? undefined : LOOP_RETRACE_NOTE,
     score: scoreRouteAgainstSegments(geometry, segments, drawn.distance),
   };
   pool.push({
