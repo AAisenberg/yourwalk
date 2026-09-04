@@ -355,7 +355,7 @@ Before a backlog item is considered complete, it must meet all of the following:
 
 **Dependencies**: [`FRONT_DOOR.md`](FRONT_DOOR.md) spec; partner logo permission (FD-2); explicit go to build; then X7 apex DNS
 
-**Status**: Spec written 4 Sep 2026. Build blocked on go.
+**Status**: Built on `feat/front-door` 4 Sep 2026 — Day/Night front door per spec (civil twilight auto-state, host routing in `src/proxy.ts`, token OG card, fresh planner screenshots), verified locally against the spec's acceptance criteria. Awaiting review/merge, then X7 phase 2 (apex + www DNS). FD-1 contact line and FD-4 analytics still open before first publish; partner logo files still to land (names in type meanwhile).
 
 ---
 
