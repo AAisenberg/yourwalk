@@ -58,7 +58,7 @@ Preference-weighted score-aware pathfinding (and T1EAM-native edges where OSM ca
 - Route scores remain aggregations of segment scores, not a third scoring model
 - Alternatives that leave scored footpaths show reduced confidence
 - On-carriageway Mapbox (or challenger) geometries are filtered before UI cards — see [`ROUTING_OUTPUTS.md`](ROUTING_OUTPUTS.md)
-- Community app at `/`; scored-network workbench at `/lab`
+- Community app at `/` on the planner host (`app.yourwalk.au` when the custom domain is live; ADR-012). Scored-network workbench at `/lab` (internal; no public hostname)
 - Full switch away from Mapbox candidates is not required for pilot credibility
 
 **Open Questions** (non-blocking for hybrid ship):
@@ -388,6 +388,60 @@ For v1 dusk / mixed routes, use the Night Index if any material part of the walk
 - Side-of-street is still approximate: one drawn side per way, side changes only at junctions; park paths in T1EAM but absent from OSM stay unroutable pending OSM gap-fill licensing review
 
 **Amendment (17 Aug 2026 pm — drawing defects fixed):** the first build voted sides from `g.edges()` iteration, whose undirected orientations are arbitrary — votes cancelled and offsets flipped edge-by-edge (sawtooth on Fairholme Blvd), 529 roundabout rings converted to walkable "sidewalks", and 2,045 partially matched ways drew mid-block doglegs. Fixed by voting in way draw order (weak votes defer to a street-name vote), skipping closed rings < 150 m, filling interior pavement-match gaps (driveway breaks) while leaving genuine pavement ends as road, welding offset joints in `path_to_route` (≤ 10 m gaps join at the midpoint), and collapsing out-and-back spurs at loop leg joints (Denmark Hill Rd). Zigzag spikes per Hobart loop: 39/45/31 → 0-2; rings converted: 529 → 3; road share and A→B pathish unchanged.
+
+---
+
+### ADR-012: Public hostname split
+
+**Status**: Accepted (lean) — 4 Sep 2026
+
+**Decision Question**: How should YourWalk publish on a claimed Australian domain without putting a login on the public front door, and without mixing the resident planner, Council insights, and the internal lab?
+
+**Options Considered**:
+
+1. **Single host, path split**: `yourwalk.au/` as the planner, `/app` or `/map` for the map, `/dashboard` for Council. One hostname to remember; paths leak the product structure and fight press/partner use of the apex.
+2. **Subdomain split (locked lean)**: apex = front door; `app.` = planner; `dashboard.` = Council insights when built. `www` redirects to apex.
+3. **Apex is the planner**: point `yourwalk.au` at today's `/`. Fastest cutover; the apex becomes a tool, not a front door, and is a poor fit for press and partners.
+4. **Two Vercel projects from day one**: marketing site vs planner vs (later) dashboard. Clean isolation; extra project, env, and deploy surface before a front-door page or dashboard exists.
+
+**Decision**: **Option 2.** Claim `yourwalk.au` (CrowdLab / CrowdSpot Pty Ltd). Hosts:
+
+| Host | Role |
+|------|------|
+| `yourwalk.au` | Public front door (press, partners, Casey pilot). Not a login. Not the resident planner. |
+| `www.yourwalk.au` | Redirect to the apex |
+| `app.yourwalk.au` | Resident planner (today's `/`) |
+| `dashboard.yourwalk.au` | Council insights when we build it (N5 / FLOW 06). Clerk later (L1). Do not add this host until that work starts. |
+
+Prefer `app.` over `/app` or `/map`. Path `/` on the planner host stays the resident app (N1b). Do not put a login wall on the apex. Residents stay anonymous (ADR-004 lean). Optional accounts remain Later L1 and do not apply to the front door.
+
+**One Vercel project vs two:** keep **one** project (`yourwalk`, root `web/`, production `yourwalk.vercel.app`). Host-based routing (middleware or equivalent) can serve the front door, planner, and later dashboard from that project. Split to a second project only if the front door becomes a long-lived marketing site with a different deploy cadence, or if dashboard auth needs a hard isolation boundary. Not a blocker now. The score-aware challenger stays on Fly.io (ADR-010). No YourWalk hostname for Fly; the browser never calls Fly.
+
+**`/lab`:** stays an internal path on the Next app (`/lab`). No public hostname. Not linked from the resident header. Do not treat `/lab` as `dashboard.yourwalk.au`.
+
+**Registrar:** Squarespace Domains (same place as other CrowdLab domains). Keep Squarespace nameservers. Do not move NS to Vercel.
+
+**Email:** No `@yourwalk.au` mail for the pilot. No Workspace, no forwarder, no MX. Press and partner contact stays existing CrowdLab and Monash XYX Lab addresses. Decline Squarespace Email / Google Workspace at purchase. Revisit only if we later need to send as `@yourwalk.au`.
+
+**Rationale**: The apex is for people who heard about YourWalk (press, partners, Casey), not a second copy of the planner and not a Clerk wall. Subdomains keep the planner bookmarkable (`app.`) and leave a clear Council host for when N5 exists. One Vercel project matches the app that is already in production (app 0.3.0). Path-based `/app` or `/map` would make the apex the planner by default. Two projects are premature until there is a second deployable surface.
+
+Vercel prefers `www` as the primary hostname (CNAME steering). We still lock **www → apex** so the public name is `yourwalk.au`. Apex uses Vercel's anycast A record; that is accepted for the pilot.
+
+**Consequences**:
+
+- Do not attach the apex to the planner until a front-door page exists. Pointing `yourwalk.au` at today's `/` would publish the planner as the front door.
+- First DNS cut: `app.yourwalk.au` live 4 Sep 2026 (Squarespace CNAME + Vercel cert). Apex and `www` wait for the front-door page. `dashboard.yourwalk.au` waits for N5.
+- `yourwalk.vercel.app` remains a valid production URL until a later cutover; do not delete it in this ADR.
+- Mapbox GL JS only on every public host (ADR-002). No MapLibre.
+- Clerk, dashboard UI, and the front-door page are out of scope until an explicit go.
+- Squarespace DNS only. Do not use the Squarespace “Vercel” DNS preset for the first cut: that preset typically points the apex and `www` at Vercel and would publish today’s planner as the front door. Add a single `app` CNAME after go. Leave apex / `www` on Squarespace defaults (or unset) until a front-door page exists.
+- Do not add MX, SPF, or DKIM for `yourwalk.au`.
+
+**Open Questions** (non-blocking; do not reopen the host table):
+
+- Whether `/lab` should later be host-restricted or behind Vercel Authentication (internal only either way)
+- Whether `yourwalk.vercel.app` redirects to `app.yourwalk.au` after the planner cutover
+- Second Vercel project only if the front door or dashboard later needs isolation
 
 ---
 

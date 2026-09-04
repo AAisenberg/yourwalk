@@ -7,8 +7,12 @@
 
 ## Link
 
-**Preview (branch `feat/xyx-resident-ux-polish`):**  
-https://yourwalk-git-feat-xyx-resident-ux-polish-anthony-3110s-projects.vercel.app
+**Production:**  
+https://app.yourwalk.au (header: **Beta** · app 0.3.0 · scores **1.1.3**)
+
+Fallback: https://yourwalk.vercel.app
+
+Public planner host: `app.yourwalk.au` (ADR-012). Apex `yourwalk.au` is the front door when that page exists (not a login).
 
 If the map or footpath network looks blank: **hard-refresh** (Cmd+Shift+R). Large GeoJSON can take a short moment on first load.
 
@@ -23,6 +27,7 @@ If the map or footpath network looks blank: **hard-refresh** (Cmd+Shift+R). Larg
 5. **Where am I?** — the map target button (top left) zooms to you and drops a pulsing teal dot. It does **not** fill From. Use **Use my location** on the field for that.
 6. **Results** — pills are **Footpaths** then **Heat & Shade** (or Lighting at night). **Match** is mostly those streams from your importance ratings. Map taps on results select a walk or open an amenity; they do not rewrite From / To.
 7. **Desktop** — widen the window: plan form becomes a left panel; map fills the rest. Phone layout keeps the bottom sheet.
+8. **Add to Home Screen** — Welcome (or About) has **Add YourWalk to your home screen**. Android can prompt. iPhone: Share, then Add to Home Screen. Icon is the pink star on navy. If you saved the old generic icon, remove it and add again.
 
 ## How to read scores
 
@@ -59,7 +64,7 @@ Try also: **66 Cupples Crescent, Berwick → 2 Ashfield Drive, Berwick** (expect
 | No “Why this walk?” deep dive | Card blurbs + score pills only |
 | Lab (`/lab`) is internal | Not linked from the resident header |
 | Crossings / kerb ramps incomplete | Reduced confidence until Council data arrives; missing inputs are not imputed as zero |
-| Custom domain | Preview / Vercel URL for now |
+| Custom domain | Planner live at `app.yourwalk.au`. Apex front door not built. ADR-012 |
 | Supabase / PostGIS | Not required for this beta; static scored GeoJSON via release |
 
 ## Feedback we want

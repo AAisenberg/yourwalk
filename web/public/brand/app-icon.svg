@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="YourWalk">
+  <rect width="512" height="512" fill="#292984"/>
+  <g transform="translate(256 256) scale(12) translate(-16 -16)">
+    <circle cx="16" cy="16" r="14" fill="#EC008C"/>
+    <path fill="#FFF200" d="M16.00,7.80L17.42,12.58L21.80,10.20L19.42,14.58L24.20,16.00L19.42,17.42L21.80,21.80L17.42,19.42L16.00,24.20L14.58,19.42L10.20,21.80L12.58,17.42L7.80,16.00L12.58,14.58L10.20,10.20L14.58,12.58Z"/>
+  </g>
+</svg>

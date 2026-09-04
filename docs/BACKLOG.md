@@ -118,7 +118,7 @@ Before a backlog item is considered complete, it must meet all of the following:
 ### N1b: Tell us about your walk — entry flow + overlays
 **Links**: [`FLOWS/02_tell_us_about_your_walk.md`](FLOWS/02_tell_us_about_your_walk.md), [`DELIVERY_PLAN.md`](DELIVERY_PLAN.md) Sprint D+, methodology overlays in [`VULNERABILITY_INDEX.md`](VULNERABILITY_INDEX.md)
 
-**Description**: Walk planner on `/`. Route-first form (type → places → When → amenities → standing prefs). Auto Day/Night from Casey civil twilight. Selected walk discloses detail. Geolocate on From / Start. No live route tracking. Overlays (toilets, dog bags, benches, fountains) are **not** in the index.
+**Description**: Walk planner on `/` (public host `app.yourwalk.au` when the custom domain is live; ADR-012). Route-first form (type → places → When → amenities → standing prefs). Auto Day/Night from Casey civil twilight. Selected walk discloses detail. Geolocate on From / Start. No live route tracking. Overlays (toilets, dog bags, benches, fountains) are **not** in the index. No login wall (ADR-004 lean).
 
 **Acceptance Criteria**:
 - Given a resident opens `/`
@@ -194,7 +194,7 @@ Before a backlog item is considered complete, it must meet all of the following:
 ### N5: Council insights hotspot view
 **Links**: [`FLOWS/06_council_insights_view.md`](FLOWS/06_council_insights_view.md), [`REQS/reporting_exports.md`](REQS/reporting_exports.md)
 
-**Description**: Council staff can view aggregated hotspot map showing issue density across pilot area.
+**Description**: Council staff can view aggregated hotspot map showing issue density across pilot area. Public URL when built: `dashboard.yourwalk.au` (ADR-012). Clerk later (L1). Not a section of the resident planner and not a login on the apex.
 
 **Acceptance Criteria**:
 - Given a Council staff member accesses the insights dashboard
@@ -322,12 +322,31 @@ Before a backlog item is considered complete, it must meet all of the following:
 
 ---
 
+### X7: Public hostname cutover (yourwalk.au)
+**Links**: [`DECISIONS.md`](DECISIONS.md) ADR-012
+
+**Description**: After you claim `yourwalk.au` on Squarespace Domains, point `app.yourwalk.au` at the existing Vercel production app. Apex and `www` wait for a front-door page (separate go). `dashboard.yourwalk.au` waits for N5. Keep Squarespace nameservers. No MX / no `@yourwalk.au` mail. No login wall on the apex or the planner.
+
+**Acceptance Criteria**:
+- Given `app.yourwalk.au` DNS and certificates are live
+- When a resident opens that host
+- Then they see today's planner (`/`) with no account required
+- And `www.yourwalk.au` redirects to `yourwalk.au` only after the front-door page exists
+- And `/lab` has no public hostname
+- And the challenger stays on Fly (ADR-010)
+
+**Dependencies**: You claim `yourwalk.au` on Squarespace; explicit go on Vercel domains; front-door page for apex (separate go)
+
+**Status**: Phase 1 done 4 Sep 2026 — `app.yourwalk.au` live (Squarespace CNAME + Vercel cert). Apex / `www` still blocked on a front-door page. Dashboard host waits for N5.
+
+---
+
 ## Later (v1 Phase)
 
 ### L1: Optional user accounts
 **Links**: [`REQS/accounts_and_roles.md`](REQS/accounts_and_roles.md)
 
-**Description**: Users can create optional accounts to track contributions, save routes, and manage preferences.
+**Description**: Users can create optional accounts to track contributions, save routes, and manage preferences. Clerk later. Do not put a login wall on `yourwalk.au` or `app.yourwalk.au` (ADR-012). Council dashboard auth is this item plus N5, not the public front door.
 
 **Acceptance Criteria**:
 - Given a user wants to create an account

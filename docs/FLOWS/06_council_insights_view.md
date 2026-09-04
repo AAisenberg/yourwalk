@@ -10,14 +10,15 @@ Council project officers, transport and urban design staff, and assets team memb
 
 ## Preconditions
 
-- User has access to Council insights dashboard (authentication/authorisation TBD)
+- User has access to the Council insights dashboard at `dashboard.yourwalk.au` when that host exists (ADR-012). Not a section of the resident planner. Not the apex front door.
+- Authentication is Clerk later (L1). Do not put a login wall on `yourwalk.au` or `app.yourwalk.au`.
 - Insights data is available (aggregated from community observations, Council data, environmental data)
-- User is logged in or has appropriate access permissions
+- User is logged in or has appropriate access permissions (when Clerk exists)
 
 ## Step-by-Step Flow
 
 1. **User accesses Council insights dashboard**
-   - User navigates to insights dashboard (separate URL or section)
+   - User navigates to `dashboard.yourwalk.au` (ADR-012). This is a separate host, not a section of `/` or the apex front door.
    - Dashboard loads with map view of pilot area
    - Summary statistics are displayed (total observations, coverage, key metrics)
 
@@ -198,3 +199,4 @@ Council project officers, transport and urban design staff, and assets team memb
 - [`REQS/reporting_exports.md`](../REQS/reporting_exports.md): Reporting and export requirements
 - [`REQS/accounts_and_roles.md`](../REQS/accounts_and_roles.md): Account and role requirements
 - [`FLOWS/07_export_report.md`](07_export_report.md): Export report flow
+- [`DECISIONS.md`](../DECISIONS.md) ADR-012: `dashboard.yourwalk.au` when this flow is built; Clerk later (L1)

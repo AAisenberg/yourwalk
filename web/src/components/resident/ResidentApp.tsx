@@ -19,6 +19,7 @@ import {
   IconOuting,
   IconTrip,
 } from "@/components/resident/icons";
+import { AddToHomeScreen } from "@/components/resident/AddToHomeScreen";
 import { PlaceField } from "@/components/resident/PlaceField";
 import { RingedAmenityIcon } from "@/components/resident/RingedAmenityIcon";
 import {
@@ -2966,6 +2967,7 @@ export function ResidentApp() {
           >
             Start exploring
           </button>
+          <AddToHomeScreen isNight={isNight} />
           <p
             className={`mt-2.5 text-center text-[10px] sm:text-[11px] ${
               isNight ? "text-white/40" : "text-slate-400"

@@ -103,10 +103,18 @@ Visual / basemap (two index states, four map looks):
 
 ## Focus next (recommended)
 
-1. Routing trust (side of street, loop backtracks) when you pick it up again
-2. Shareable A→B + Open in Maps (honest hand-off copy)
-4. **Backtrack snip spike** — optional geometry cleanup for short reverse spurs
-5. Later time picker, then custom domain / production cut when ready for wider Casey testing
+Planner host is live: [`https://app.yourwalk.au`](https://app.yourwalk.au) (ADR-012). Share that with Nikki. Apex front door is a separate go.
+
+Do not mix tracks in one sitting.
+
+| Session | Job | Done when |
+|---------|-----|-----------|
+| **0 — Share and listen** | Nikki (and you) on `app.yourwalk.au`. Confirm Mapbox URL restrictions include this host if the map is blank. One A→B (Cupples → Ashfield) and one Loop she knows. Collect notes. Do not start the front door. | Feedback tagged to this URL. Only hotfix if the map, Find, or challenger is broken. |
+| **1 — Shareable A→B + Open in Maps** | Anonymous query-param link (FLOW 02 OQ-4) plus honest hand-off to Apple / Google Maps. YourWalk stays “which walk”; their router does turn-by-turn. No accounts. | A friend can open the same From / To / When. Copy does not promise navigation. |
+| **2 — Routing trust (only if testers hit it)** | Side of street / heading continuity, or a **small** loop backtrack-snip spike. Not a graph rewrite. OSM gap-fill stays blocked on licensing. | A named Casey OD looks honest on streets she knows, or we write why we will not snip yet. |
+| **3 — Later time picker** | Same Casey sun maths at a chosen clock time (FLOW 02 OQ-6). Only if testers need to plan tonight at lunch. | When can be Now or a clock time; Day / Night still two index states. |
+
+**Parked until you say go:** apex front door on `yourwalk.au`; Clerk / L1; `dashboard.yourwalk.au` (N5); stream choropleth layers (N3); submissions (N4).
 
 Desktop panel + Beta chrome already shipped. See [`BETA_TESTER_BRIEF.md`](BETA_TESTER_BRIEF.md).
 

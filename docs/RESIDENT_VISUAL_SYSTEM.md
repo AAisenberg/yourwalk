@@ -43,6 +43,7 @@ Do not invent a new palette. Avoid purple-on-white CTA gradients, warm cream + t
 
 - Mark: [`web/public/brand/yourwalk-mark.svg`](../web/public/brand/yourwalk-mark.svg) (from `mobile-mockup/logo.svg`)
 - From / To map pins: logo **circle + star** (not the Mapbox teardrop). Green `#009444` From, pink `#EC008C` To, star `#FFF200`. Same glyph as the mark’s pink/orange lockup; colours stay role-coded.
+- Home screen / PWA icon: pink star on navy (`web/public/brand/app-icon.svg`). Not the landscape mark. Name on the icon is **YourWalk**.
 - Header: mark (~32px) + **YourWalk** wordmark (navy day / white night) as the hero brand signal; subtitle **Connecting Casey walks**; quiet **Beta** pill (navy / muted, not teal)
 - Header: mark + **YourWalk** + compact **Day / Night** switch. Auto When reason sits under the wordmark. Choosing Night swaps preference streams (After dark vs Shade & heat) and the planned basemap look.
 - Type of walk in the sheet: **A to B | Loop** (`SegmentedPill`). No There and back row.
