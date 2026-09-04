@@ -160,6 +160,18 @@ body {
     border-color 200ms ease;
 }
 
+/* Front-door hero screenshot crossfade (Day / Night) */
+.yw-fade-transition {
+  transition: opacity 200ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yw-chrome-transition,
+  .yw-fade-transition {
+    transition: none;
+  }
+}
+
 /* Segmented pill thumb — brand fill + slightly springy slide */
 .yw-segment-thumb {
   background-color: var(--yw-teal);

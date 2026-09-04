@@ -162,7 +162,7 @@ Out of scope for first cut: structured data beyond Organization basics, search c
 
 ## Build notes (after you say go on the page)
 
-1. Static route in the same Next app (for example `src/app/front-door/page.tsx`) plus host middleware: `yourwalk.au` / `www` → front door; `app.yourwalk.au` → `/`.
+1. Static route in the same Next app (`src/app/front-door/page.tsx`) plus host routing in `src/proxy.ts` (Next 16 renamed middleware to proxy): `yourwalk.au` / `www` → front door; `app.yourwalk.au` → `/`.
 2. Do not attach the apex in Vercel until this page exists. Then add `yourwalk.au` + `www` and redirect www → apex. Squarespace: A `@` and CNAME `www` (not the Vercel preset that also points the planner at the apex).
 3. Tokens and type from the visual system. CTA navy (day) / blue (night). Mark from `web/public/brand/yourwalk-mark.svg`.
 4. Add Monash / XYX Lab / CrowdLab logo files to `web/public/brand/partners/` before placing marks. Casey stays type-only.
