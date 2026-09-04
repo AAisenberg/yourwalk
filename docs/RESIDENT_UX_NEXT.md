@@ -114,7 +114,7 @@ Do not mix tracks in one sitting.
 | **2 — Routing trust (only if testers hit it)** | Side of street / heading continuity, or a **small** loop backtrack-snip spike. Not a graph rewrite. OSM gap-fill stays blocked on licensing. | A named Casey OD looks honest on streets she knows, or we write why we will not snip yet. |
 | **3 — Later time picker** | Same Casey sun maths at a chosen clock time (FLOW 02 OQ-6). Only if testers need to plan tonight at lunch. | When can be Now or a clock time; Day / Night still two index states. |
 
-**Parked until you say go:** apex front door on `yourwalk.au`; Clerk / L1; `dashboard.yourwalk.au` (N5); stream choropleth layers (N3); submissions (N4).
+**Parked until you say go:** apex front-door **page** ([`FRONT_DOOR.md`](FRONT_DOOR.md) spec is written); Clerk / L1; `dashboard.yourwalk.au` (N5); stream choropleth layers (N3); submissions (N4). Shareable A→B is Session 1 (new chat).
 
 Desktop panel + Beta chrome already shipped. See [`BETA_TESTER_BRIEF.md`](BETA_TESTER_BRIEF.md).
 

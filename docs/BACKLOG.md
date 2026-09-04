@@ -341,6 +341,24 @@ Before a backlog item is considered complete, it must meet all of the following:
 
 ---
 
+### X8: Public front door page (yourwalk.au)
+**Links**: [`FRONT_DOOR.md`](FRONT_DOOR.md), ADR-012
+
+**Description**: Static public page on `yourwalk.au` for press, partners, and Casey: logo, what / is not, how it works, partners, fact-only timeline, privacy, existing CrowdLab / XYX contacts. Primary CTA to `app.yourwalk.au`. No login, no email capture, no planner embed.
+
+**Acceptance Criteria**:
+- Given a journalist opens `yourwalk.au`
+- When the page loads
+- Then they see YourWalk, Casey pilot, partners, and Find your walk to `app.yourwalk.au`
+- And there is no login and no email capture
+- And copy does not promise safety or crime prediction
+
+**Dependencies**: [`FRONT_DOOR.md`](FRONT_DOOR.md) spec; partner logo permission (FD-2); explicit go to build; then X7 apex DNS
+
+**Status**: Spec written 4 Sep 2026. Build blocked on go.
+
+---
+
 ## Later (v1 Phase)
 
 ### L1: Optional user accounts

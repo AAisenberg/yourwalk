@@ -433,7 +433,7 @@ Vercel prefers `www` as the primary hostname (CNAME steering). We still lock **w
 - First DNS cut: `app.yourwalk.au` live 4 Sep 2026 (Squarespace CNAME + Vercel cert). Apex and `www` wait for the front-door page. `dashboard.yourwalk.au` waits for N5.
 - `yourwalk.vercel.app` remains a valid production URL until a later cutover; do not delete it in this ADR.
 - Mapbox GL JS only on every public host (ADR-002). No MapLibre.
-- Clerk, dashboard UI, and the front-door page are out of scope until an explicit go.
+- Clerk and dashboard UI stay out of scope until an explicit go. Front-door **spec**: [`FRONT_DOOR.md`](FRONT_DOOR.md) (4 Sep 2026). Page and apex DNS wait for a separate go.
 - Squarespace DNS only. Do not use the Squarespace “Vercel” DNS preset for the first cut: that preset typically points the apex and `www` at Vercel and would publish today’s planner as the front door. Add a single `app` CNAME after go. Leave apex / `www` on Squarespace defaults (or unset) until a front-door page exists.
 - Do not add MX, SPF, or DKIM for `yourwalk.au`.
 
