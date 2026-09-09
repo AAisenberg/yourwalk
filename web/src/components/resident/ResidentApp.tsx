@@ -11,12 +11,14 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 
+import { ElevationProfile } from "@/components/resident/ElevationProfile";
 import {
   IconAbout,
   IconEye,
   IconEyeOff,
   IconLocate,
   IconOuting,
+  IconTerrain,
   IconTrip,
 } from "@/components/resident/icons";
 import { AddToHomeScreen } from "@/components/resident/AddToHomeScreen";
@@ -74,6 +76,12 @@ import {
   overlayIconLayerId,
   overlayIdFromLayerId,
 } from "@/lib/overlayMapIcons";
+import {
+  hillinessCardLine,
+  isSteepElevation,
+  mergeElevationById,
+} from "@/lib/routing/elevation";
+import { attachElevationProfiles } from "@/lib/routing/elevationMapbox";
 import { planScoredRoutes } from "@/lib/routing/planRoute";
 import { OutingDurationSlider } from "@/components/resident/OutingDurationSlider";
 import { PrefSlider } from "@/components/resident/PrefSlider";
@@ -589,6 +597,7 @@ export function ResidentApp() {
   const [destLabel, setDestLabel] = useState("");
   const [routes, setRoutes] = useState<ScoredRoute[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const elevationAbortRef = useRef<AbortController | null>(null);
   const [planning, setPlanning] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
   const [sheetMode, setSheetMode] = useState<"plan" | "results">("plan");
@@ -734,6 +743,8 @@ export function ResidentApp() {
   }, [routeLocked]);
 
   const clearResults = useCallback(() => {
+    elevationAbortRef.current?.abort();
+    elevationAbortRef.current = null;
     setRoutes([]);
     setSelectedId(null);
     setRouteError(null);
@@ -1568,6 +1579,8 @@ export function ResidentApp() {
     setPlanning(true);
     setSheetSnap((s) => (s === "peek" ? "half" : s));
     setRouteError(null);
+    elevationAbortRef.current?.abort();
+    elevationAbortRef.current = null;
     setRoutes([]);
     setSelectedId(null);
     setRouteLocked(false);
@@ -1633,6 +1646,15 @@ export function ResidentApp() {
       setSelectedId(ranked[0]?.id ?? null);
       setSheetMode("results");
       setSheetSnap("half");
+
+      const elevationCtl = new AbortController();
+      elevationAbortRef.current = elevationCtl;
+      void attachElevationProfiles(ranked, token, elevationCtl.signal).then(
+        (withHills) => {
+          if (elevationCtl.signal.aborted) return;
+          setRoutes((current) => mergeElevationById(current, withHills));
+        },
+      );
 
       const map = mapRef.current;
       if (map && ranked.length) {
@@ -2149,8 +2171,18 @@ export function ResidentApp() {
                 >
                   {sheetMode === "results" && routes.length > 0
                     ? routeLocked
-                      ? "Selected on the map · swipe up to compare"
-                      : `${routes.length} option${routes.length === 1 ? "" : "s"} · tap to expand`
+                      ? isSteepElevation(
+                          routes.find((r) => r.id === selectedId)?.elevation ??
+                            undefined,
+                        )
+                        ? "Steep sections on this walk · swipe up"
+                        : "Selected on the map · swipe up to compare"
+                      : isSteepElevation(
+                            routes.find((r) => r.id === selectedId)?.elevation ??
+                              undefined,
+                          )
+                        ? "Steep sections on a listed walk · tap to expand"
+                        : `${routes.length} option${routes.length === 1 ? "" : "s"} · tap to expand`
                     : "Swipe up to plan"}
                 </p>
               </div>
@@ -2596,6 +2628,25 @@ export function ResidentApp() {
                             <span className="opacity-30"> · </span>
                             {formatDistance(r.distance_m)}
                           </p>
+                          {r.elevation ? (
+                            <p
+                              className={`mt-1 flex items-center gap-1 text-[11px] leading-snug ${
+                                r.elevation.band === "steep"
+                                  ? isNight
+                                    ? "text-amber-200"
+                                    : "text-amber-900"
+                                  : isNight
+                                    ? "text-white/55"
+                                    : "text-slate-600"
+                              }`}
+                            >
+                              <IconTerrain
+                                className="h-3.5 w-3.5 shrink-0"
+                                aria-hidden
+                              />
+                              {hillinessCardLine(r.elevation)}
+                            </p>
+                          ) : null}
                           <p
                             className={`mt-1 text-[11px] leading-snug ${
                               isNight ? "text-white/55" : "text-slate-600"
@@ -2718,6 +2769,13 @@ export function ResidentApp() {
                           </p>
                         );
                       })()}
+
+                      {active && r.elevation ? (
+                        <ElevationProfile
+                          profile={r.elevation}
+                          isNight={isNight}
+                        />
+                      ) : null}
                     </button>
                   </li>
                 );

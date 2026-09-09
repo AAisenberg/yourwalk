@@ -144,7 +144,9 @@ Rules:
 ### 5. Results
 
 - **Calculating your walks…** while planning. Map stays visible.
-- List cards show the compare set on every option: name, time, distance, match, why, Footpaths + Heat & Shade or Lighting pills, coverage, amenity / prefer-away notes
+- List cards show the compare set on every option: name, time, distance, hilliness once Terrain samples return, match, why, Footpaths + Heat & Shade or Lighting pills, coverage, amenity / prefer-away notes
+- Hilliness is disclosure only (Mostly flat / hills / Steep sections + climb). It does not change Day / Night / Footpaths pills
+- The **selected** walk also shows an elevation sparkline and the Mapbox Terrain provenance sentence
 - Tap a card or the path: that walk is highlighted on the map. Selection does not hide the other cards’ pills
 - Results header: **Edit** (back to the form, places and prefs kept, cards and map lines cleared) and **Clear** (empty the places too; prefs stay). No Refresh.
 - Changing Day/Night after results: same as Edit, plus a one-line “When changed. Find again to re-score.”
@@ -195,8 +197,9 @@ A finished walk trace is a movement history. ADR-004 leans anonymous by default.
 **Given** they choose A to B and set From/To in Casey  
 **When** they find routes  
 **Then** hybrid ranked options appear  
-**And** every card shows time, distance, and match  
-**And** stream pills and why-this-walk copy appear on the selected walk, not on every card  
+**And** every card shows time, distance, match, and hilliness when Terrain coverage is enough  
+**And** the selected walk shows an elevation profile with the approximate-Terrain provenance sentence  
+**And** stream pills stay Casey corridor scores (hilliness is not in the index)  
 
 **Given** they choose Loop, a start in Casey, and ~25 minutes  
 **When** they find a walk  
@@ -283,6 +286,18 @@ Strict methodology could treat dawn as Night because lighting still dominates. C
 
 **Lean:** B if the map still needs a “where am I” control; A if the form control is enough. Decide in implementation.
 
+### OQ-8: Steep walks — disclose, demote, or hide?
+
+A high-match walk can still be too steep for some residents. Mapbox Terrain can show that on the card. It is not good enough to hide walks.
+
+| Option | Role |
+|--------|------|
+| **A. Disclosure only** | Hilliness on every card; sparkline on the selected walk |
+| **B. Prefer flatter walks** | Soft rank / generation toggle, like Prefer away from roads |
+| **C. Avoid steep grades** | Hard filter when a licensed DEM or Council grade layer exists |
+
+**Lean:** A now (shipped as the elevation-profile slice). B after Lab testers still start a steep Recommended by accident. C waits on methodology v1.2 gradient data. See [`ELEVATION_PROFILE.md`](../ELEVATION_PROFILE.md).
+
 ---
 
 ## Enhancing UX without accounts (recommended backlog)
@@ -297,7 +312,7 @@ High value, still anonymous:
 6. **Busy-road / crossing callout** — when the **selected** route crosses high-speed or thin-crossing segments, show reduced-confidence tip (data-dependent; never fear-monger)
 7. **Along-this-walk amenity count** — “2 fountains · 1 toilet within 100 m of path” on the selected walk only
 8. **Haptic-light loading** — keep calculating state; optional progress stages (“Finding routes…” → “Scoring footpaths…”)
-9. **Accessibility hard filter (optional later)** — e.g. “Avoid steep grades where known” as a toggle separate from importance; only when gradient data confidence allows
+9. **Prefer flatter / avoid steep (optional later)** — OQ-8 B/C. Card hilliness and the selected-walk profile ship first (OQ-8 A). Hard filter only when gradient data confidence allows
 10. **On-device blue dot** — follow me while the tab is open; discard on leave; never upload. Only if people ask.
 
 Explicitly **later / icebox** (not this flow): accounts, saved libraries, history sync, social feed, gamification, start-to-finish route tracking, Council upload of traces.
@@ -330,5 +345,6 @@ Explicitly **later / icebox** (not this flow): accounts, saved libraries, histor
 8. Optional backtrack **snip** spike — see [`LOOP_BACKTRACK_AND_MAP_UX.md`](../LOOP_BACKTRACK_AND_MAP_UX.md)
 9. Shareable A→B link + Open in Maps + Later time picker
 10. Colour / brand polish (can overlap with the style work)
+11. ✅ Elevation profile on result cards + selected sparkline (disclosure only, 9 Sep 2026)
 
 Trace: [`BACKLOG.md`](../BACKLOG.md) N1b · [`DELIVERY_PLAN.md`](../DELIVERY_PLAN.md) Sprint D+ · [`RESIDENT_UX_NEXT.md`](../RESIDENT_UX_NEXT.md) · [`LOOP_BACKTRACK_AND_MAP_UX.md`](../LOOP_BACKTRACK_AND_MAP_UX.md) · [`RESIDENT_VISUAL_SYSTEM.md`](../RESIDENT_VISUAL_SYSTEM.md)

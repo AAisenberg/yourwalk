@@ -4,12 +4,14 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { MdClose, MdEdit, MdLayers, MdMyLocation, MdPlace } from "react-icons/md";
 
+import { ElevationProfile } from "@/components/resident/ElevationProfile";
 import {
   IconEye,
   IconEyeOff,
   IconMoon,
   IconOuting,
   IconSun,
+  IconTerrain,
   IconTrip,
 } from "@/components/resident/icons";
 import { PrefSlider } from "@/components/resident/PrefSlider";
@@ -27,6 +29,10 @@ import {
   OVERLAY_DEFS,
   type OverlayId,
 } from "@/lib/overlays";
+import {
+  hillinessCardLine,
+  type RouteElevation,
+} from "@/lib/routing/elevation";
 import {
   prefSliderDescription,
   type WalkMode,
@@ -46,6 +52,65 @@ const AMENITY_MARKS: { id: OverlayId; x: string; y: string }[] = [
   { id: "dog_bags", x: "32%", y: "55%" },
 ];
 
+function mockElevation(
+  band: RouteElevation["band"],
+  climb: number,
+  maxGrade: number,
+  samples: Array<{ distance_m: number; elevation_m: number }>,
+): RouteElevation {
+  return {
+    source: "mapbox-terrain-rgb",
+    sample_count: samples.length,
+    coverage_ratio: 1,
+    start_m: samples[0].elevation_m,
+    end_m: samples[samples.length - 1].elevation_m,
+    min_m: Math.min(...samples.map((s) => s.elevation_m)),
+    max_m: Math.max(...samples.map((s) => s.elevation_m)),
+    climb_m: climb,
+    descent_m: 0,
+    max_grade_pct: maxGrade,
+    band,
+    samples,
+  };
+}
+
+const STEEP_HILL = mockElevation(
+  "steep",
+  18,
+  9.2,
+  Array.from({ length: 11 }, (_, i) => ({
+    distance_m: i * 20,
+    elevation_m: 40 + i * 1.8,
+  })),
+);
+const FLAT_WALK = mockElevation(
+  "flat",
+  1,
+  1.2,
+  Array.from({ length: 9 }, (_, i) => ({
+    distance_m: i * 20,
+    elevation_m: 42 + Math.sin(i / 2) * 0.3,
+  })),
+);
+const GENTLE_HILL = mockElevation(
+  "gentle",
+  9,
+  3.6,
+  Array.from({ length: 11 }, (_, i) => ({
+    distance_m: i * 22,
+    elevation_m: 38 + i * 0.8,
+  })),
+);
+const SOME_HILLS = mockElevation(
+  "hilly",
+  16,
+  6.1,
+  Array.from({ length: 12 }, (_, i) => ({
+    distance_m: i * 20,
+    elevation_m: 36 + (i < 6 ? i * 1.4 : 8.4 - (i - 6) * 0.4),
+  })),
+);
+
 type MockRoute = {
   id: string;
   label: string;
@@ -57,6 +122,7 @@ type MockRoute = {
   comfort: string;
   amenities: string;
   coverage?: string;
+  elevation: RouteElevation;
 };
 
 const TRIP_ROUTES: MockRoute[] = [
@@ -70,6 +136,7 @@ const TRIP_ROUTES: MockRoute[] = [
     footpaths: "8.4",
     comfort: "8.1",
     amenities: "Passes a drinking fountain near Homestead Road",
+    elevation: STEEP_HILL,
   },
   {
     id: "short",
@@ -82,6 +149,7 @@ const TRIP_ROUTES: MockRoute[] = [
     comfort: "6.8",
     amenities: "No checked amenities on this path",
     coverage: "Partial score coverage (72% of path)",
+    elevation: FLAT_WALK,
   },
 ];
 
@@ -96,6 +164,7 @@ const OUTING_ROUTES: MockRoute[] = [
     footpaths: "8.2",
     comfort: "7.9",
     amenities: "Passes benches in the reserve",
+    elevation: GENTLE_HILL,
   },
   {
     id: "loop-b",
@@ -107,6 +176,7 @@ const OUTING_ROUTES: MockRoute[] = [
     footpaths: "7.5",
     comfort: "8.4",
     amenities: "Passes a drinking fountain",
+    elevation: SOME_HILLS,
   },
 ];
 
@@ -944,6 +1014,20 @@ function ResultsSheet(props: {
                       <span className="mx-1.5 opacity-30">·</span>
                       <strong>{r.km}</strong>
                     </p>
+                    <p
+                      className={`mt-1 flex items-center gap-1 text-[11px] leading-snug ${
+                        r.elevation.band === "steep"
+                          ? isNight
+                            ? "text-amber-200"
+                            : "text-amber-900"
+                          : isNight
+                            ? "text-white/55"
+                            : "text-slate-600"
+                      }`}
+                    >
+                      <IconTerrain className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                      {hillinessCardLine(r.elevation)}
+                    </p>
                   </div>
                   <div
                     className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-full border-2 border-yw-teal text-yw-teal"
@@ -1002,6 +1086,12 @@ function ResultsSheet(props: {
                       >
                         {r.coverage}
                       </p>
+                    ) : null}
+                    {active ? (
+                      <ElevationProfile
+                        profile={r.elevation}
+                        isNight={isNight}
+                      />
                     ) : null}
                 </div>
               </button>
