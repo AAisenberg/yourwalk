@@ -11,6 +11,11 @@ import {
   type RouteElevation,
 } from "./elevation";
 import { decodeTerrainRgb } from "./elevationMapbox";
+import {
+  DEFAULT_PREFS_DAY,
+  FLATTER_PENALTY,
+  flatterWalksAdjustment,
+} from "./preferences";
 
 function line(coords: [number, number][]) {
   return { type: "LineString" as const, coordinates: coords };
@@ -153,5 +158,26 @@ describe("sparklinePath and merge", () => {
     assert.equal(merged[0].id, "b");
     assert.equal(merged[0].elevation?.band, "flat");
     assert.equal(merged[1].elevation?.band, "steep");
+  });
+});
+
+describe("flatterWalksAdjustment", () => {
+  it("does nothing unless the toggle is on", () => {
+    const route = {
+      elevation: fixtureProfile(),
+    } as Parameters<typeof flatterWalksAdjustment>[0];
+    assert.equal(flatterWalksAdjustment(route, DEFAULT_PREFS_DAY), 0);
+  });
+
+  it("demotes steep walks and leaves missing elevation alone", () => {
+    const on = { ...DEFAULT_PREFS_DAY, preferFlatterWalks: true };
+    const steep = {
+      elevation: fixtureProfile({ band: "steep" }),
+    } as Parameters<typeof flatterWalksAdjustment>[0];
+    const unknown = {
+      elevation: null,
+    } as Parameters<typeof flatterWalksAdjustment>[0];
+    assert.equal(flatterWalksAdjustment(steep, on), -FLATTER_PENALTY.steep);
+    assert.equal(flatterWalksAdjustment(unknown, on), 0);
   });
 });

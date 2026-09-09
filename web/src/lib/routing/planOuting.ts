@@ -18,6 +18,7 @@ import {
   type NearbyCaseySegment,
 } from "./outingStreamBias";
 import {
+  flatterWalksAdjustment,
   outingEfficiencyWeightForPrefs,
   preferenceScore,
   sharedPathBonus,
@@ -370,7 +371,8 @@ function outingMatchScore(
     (1 - w) * pref +
     w * fit +
     amenityBonus +
-    sharedPathBonus(route, prefs)
+    sharedPathBonus(route, prefs) +
+    flatterWalksAdjustment(route, prefs)
   );
 }
 

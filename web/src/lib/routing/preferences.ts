@@ -12,8 +12,9 @@ export type WalkMode = "day" | "night";
  *
  * Sliders re-rank the current cards. Find also requests a complementary
  * Casey walk (invert the dominant stream). Prefer away from roads is a
- * third, optional card. Guardrail: active-mode weights are floored so
- * ranking never collapses.
+ * third, optional card. Prefer flatter walks re-orders those cards using
+ * Mapbox Terrain hilliness (not index maths). Guardrail: active-mode
+ * weights are floored so ranking never collapses.
  */
 export type RoutePreferences = {
   /** Safety after dark → Night Index (night mode only) */
@@ -28,10 +29,26 @@ export type RoutePreferences = {
    * Ranking still applies a shared-use bonus among the cards we found.
    */
   preferSharedPaths: boolean;
+  /**
+   * Soft-rank gentler Terrain profiles among the walks we already found.
+   * Does not hide steep cards, change pills, or request new geometry.
+   */
+  preferFlatterWalks: boolean;
 };
 
 /** Max match points (0–100) for a corridor that is entirely shared-use. */
 export const SHARED_PATH_BONUS_MAX = 12;
+
+/**
+ * Match-point demotion when Prefer flatter walks is on (0–100 scale).
+ * Missing elevation is 0 — do not treat unknown as steep.
+ */
+export const FLATTER_PENALTY = {
+  flat: 0,
+  gentle: 4,
+  hilly: 10,
+  steep: 18,
+} as const;
 
 /** Slider floor — “not important” is low, never a silent zero that drops ranking. */
 export const PREF_IMPORTANCE_MIN = 10;
@@ -43,6 +60,7 @@ export const METHODOLOGY_FALLBACK_PREFS_DAY: RoutePreferences = {
   accessibility: 60,
   shadeHeat: 40,
   preferSharedPaths: false,
+  preferFlatterWalks: false,
 };
 
 export const METHODOLOGY_FALLBACK_PREFS_NIGHT: RoutePreferences = {
@@ -50,6 +68,7 @@ export const METHODOLOGY_FALLBACK_PREFS_NIGHT: RoutePreferences = {
   accessibility: 60,
   shadeHeat: 0,
   preferSharedPaths: false,
+  preferFlatterWalks: false,
 };
 
 export const DEFAULT_PREFS_DAY: RoutePreferences = {
@@ -57,6 +76,7 @@ export const DEFAULT_PREFS_DAY: RoutePreferences = {
   accessibility: 60,
   shadeHeat: 85,
   preferSharedPaths: false,
+  preferFlatterWalks: false,
 };
 
 export const DEFAULT_PREFS_NIGHT: RoutePreferences = {
@@ -64,6 +84,7 @@ export const DEFAULT_PREFS_NIGHT: RoutePreferences = {
   accessibility: 55,
   shadeHeat: 0,
   preferSharedPaths: false,
+  preferFlatterWalks: false,
 };
 
 /** Soft match bump when Prefer shared paths is on (0–SHARED_PATH_BONUS_MAX). */
@@ -75,6 +96,17 @@ export function sharedPathBonus(
   const ratio = route.score.shared_use_ratio ?? 0;
   if (!Number.isFinite(ratio) || ratio <= 0) return 0;
   return Math.round(Math.min(1, ratio) * SHARED_PATH_BONUS_MAX);
+}
+
+/** Negative adjustment so flatter cards win when the toggle is on. */
+export function flatterWalksAdjustment(
+  route: ScoredRoute,
+  prefs: RoutePreferences,
+): number {
+  if (!prefs.preferFlatterWalks) return 0;
+  const band = route.elevation?.band;
+  if (!band) return 0;
+  return -FLATTER_PENALTY[band];
 }
 
 /**
@@ -115,20 +147,41 @@ export function effectivePrefsForMode(
   mode: WalkMode,
 ): RoutePreferences {
   const preferSharedPaths = Boolean(prefs.preferSharedPaths);
+  const preferFlatterWalks = Boolean(prefs.preferFlatterWalks);
   if (mode === "day") {
     const accessibility = clampImportance(prefs.accessibility);
     const shadeHeat = clampImportance(prefs.shadeHeat);
     if (accessibility + shadeHeat <= 0) {
-      return { ...METHODOLOGY_FALLBACK_PREFS_DAY, preferSharedPaths };
+      return {
+        ...METHODOLOGY_FALLBACK_PREFS_DAY,
+        preferSharedPaths,
+        preferFlatterWalks,
+      };
     }
-    return { afterDark: 0, accessibility, shadeHeat, preferSharedPaths };
+    return {
+      afterDark: 0,
+      accessibility,
+      shadeHeat,
+      preferSharedPaths,
+      preferFlatterWalks,
+    };
   }
   const accessibility = clampImportance(prefs.accessibility);
   const afterDark = clampImportance(prefs.afterDark);
   if (accessibility + afterDark <= 0) {
-    return { ...METHODOLOGY_FALLBACK_PREFS_NIGHT, preferSharedPaths };
+    return {
+      ...METHODOLOGY_FALLBACK_PREFS_NIGHT,
+      preferSharedPaths,
+      preferFlatterWalks,
+    };
   }
-  return { afterDark, accessibility, shadeHeat: 0, preferSharedPaths };
+  return {
+    afterDark,
+    accessibility,
+    shadeHeat: 0,
+    preferSharedPaths,
+    preferFlatterWalks,
+  };
 }
 
 export type ComplementStream = "accessibility" | "shadeHeat" | "afterDark";
@@ -153,6 +206,7 @@ export function complementaryPrefs(
         accessibility: PREF_IMPORTANCE_MAX,
         shadeHeat: 0,
         preferSharedPaths: false,
+        preferFlatterWalks: false,
       };
     }
     return {
@@ -160,6 +214,7 @@ export function complementaryPrefs(
       accessibility: PREF_IMPORTANCE_MIN,
       shadeHeat: 0,
       preferSharedPaths: false,
+      preferFlatterWalks: false,
     };
   }
   if (w.shadeHeat >= w.accessibility) {
@@ -168,6 +223,7 @@ export function complementaryPrefs(
       accessibility: PREF_IMPORTANCE_MAX,
       shadeHeat: PREF_IMPORTANCE_MIN,
       preferSharedPaths: false,
+      preferFlatterWalks: false,
     };
   }
   return {
@@ -175,6 +231,7 @@ export function complementaryPrefs(
     accessibility: PREF_IMPORTANCE_MIN,
     shadeHeat: PREF_IMPORTANCE_MAX,
     preferSharedPaths: false,
+    preferFlatterWalks: false,
   };
 }
 
@@ -321,7 +378,12 @@ export function tripRankScore(
   const look = scoreAware ? 0 : (route.centreline_look_share ?? 0);
   const nudged = route.paint_nudged ? 0.55 : 0;
   const centrePenalty = Math.min(14, Math.max(0, look) * (1 - nudged) * 14);
-  return base + sharedPathBonus(route, prefs) - centrePenalty;
+  return (
+    base +
+    sharedPathBonus(route, prefs) +
+    flatterWalksAdjustment(route, prefs) -
+    centrePenalty
+  );
 }
 
 /** Dominant corridor stream for tiebreaks (highest importance slider in mode). */
@@ -556,11 +618,11 @@ export function routeMatchExplain(
 
 /** Shown above result cards when prefs can re-rank without re-searching. */
 export const RESULTS_PREF_RERANK_NOTE =
-  "Find looks for a walk that matches what you marked as important, plus a different neighbourhood path when one exists. Moving the sliders re-orders these walks. Prefer away from roads needs Edit walk and Find again — it can add a longer park or trail option.";
+  "Find looks for a walk that matches what you marked as important, plus a different neighbourhood path when one exists. Moving the sliders re-orders these walks. Prefer flatter walks re-orders these cards once hilliness is in. Prefer away from roads needs Edit walk and Find again — it can add a longer park or trail option.";
 
 /**
  * Plain-language explainer (XYX: how tweaks change the walk).
  * Use in the plan sheet and in tester / Nikki notes.
  */
 export const HOW_PREFS_CHANGE_WALKS =
-  "Footpaths, Heat & Shade, and Lighting change which streets we search, not the Casey scores on the pills. More important means we will take a slightly longer path if it is better on that measure. Less important means a quicker walk can win among the options we found. On Around here, Find picks turning points on better-scoring Casey footpaths for what you marked as important, then draws the circuit. Prefer away from roads is a separate, longer park option on A to B. Tick it only if you will take the extra time. Tap Find after you change these.";
+  "Footpaths, Heat & Shade, and Lighting change which streets we search, not the Casey scores on the pills. More important means we will take a slightly longer path if it is better on that measure. Less important means a quicker walk can win among the options we found. On Around here, Find picks turning points on better-scoring Casey footpaths for what you marked as important, then draws the circuit. Prefer flatter walks re-orders the walks we found toward gentler hills (approximate Mapbox Terrain, not the Footpaths score). Prefer away from roads is a separate, longer park option on A to B. Tick it only if you will take the extra time. Tap Find after you change these.";

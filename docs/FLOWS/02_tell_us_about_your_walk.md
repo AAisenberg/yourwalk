@@ -137,7 +137,8 @@ Rules:
 - Importance of accessible footpaths, and Heat & Shade (day) or Lighting after dark (night)
 - Keep **dynamic slider descriptions** from the live app (`prefSliderDescription`)
 - **Prefer away from roads** sits on its own row under the Accessible footpaths slider (generation-time). Dynamic helper copy wraps; do not truncate.
-- Persist sliders + prefer-away in `localStorage`. No account.
+- **Prefer flatter walks** sits under that. Soft-ranks the walks we found toward gentler Mapbox Terrain profiles. Also available on the results sheet. Does not hide steep cards or change Footpaths pills.
+- Persist sliders + prefer-away + prefer-flatter in `localStorage`. No account.
 - Amenities are a map **Layers** control, not a form section. On mobile, opening Layers peeks the Find sheet so the map stays visible. Expanding the sheet (Expand, swipe up, or Find) closes Layers. They do not stay open together.
 - Results must not claim sliders re-order cards unless a compact prefs control is actually on the results sheet
 
@@ -146,6 +147,7 @@ Rules:
 - **Calculating your walks…** while planning. Map stays visible.
 - List cards show the compare set on every option: name, time, distance, hilliness once Terrain samples return, match, why, Footpaths + Heat & Shade or Lighting pills, coverage, amenity / prefer-away notes
 - Hilliness is disclosure only (Mostly flat / hills / Steep sections + climb). It does not change Day / Night / Footpaths pills
+- **Prefer flatter walks** on the results sheet re-orders these cards toward gentler Terrain profiles. Steep walks stay listed
 - The **selected** walk also shows an elevation sparkline and the Mapbox Terrain provenance sentence
 - Tap a card or the path: that walk is highlighted on the map. Selection does not hide the other cards’ pills
 - Results header: **Edit** (back to the form, places and prefs kept, cards and map lines cleared) and **Clear** (empty the places too; prefs stay). No Refresh.
@@ -296,7 +298,7 @@ A high-match walk can still be too steep for some residents. Mapbox Terrain can 
 | **B. Prefer flatter walks** | Soft rank / generation toggle, like Prefer away from roads |
 | **C. Avoid steep grades** | Hard filter when a licensed DEM or Council grade layer exists |
 
-**Lean:** A now (shipped as the elevation-profile slice). B after Lab testers still start a steep Recommended by accident. C waits on methodology v1.2 gradient data. See [`ELEVATION_PROFILE.md`](../ELEVATION_PROFILE.md).
+**Lean:** A + B shipped (9 Sep 2026). C waits on methodology v1.2 gradient data. See [`ELEVATION_PROFILE.md`](../ELEVATION_PROFILE.md).
 
 ---
 
@@ -312,7 +314,7 @@ High value, still anonymous:
 6. **Busy-road / crossing callout** — when the **selected** route crosses high-speed or thin-crossing segments, show reduced-confidence tip (data-dependent; never fear-monger)
 7. **Along-this-walk amenity count** — “2 fountains · 1 toilet within 100 m of path” on the selected walk only
 8. **Haptic-light loading** — keep calculating state; optional progress stages (“Finding routes…” → “Scoring footpaths…”)
-9. **Prefer flatter / avoid steep (optional later)** — OQ-8 B/C. Card hilliness and the selected-walk profile ship first (OQ-8 A). Hard filter only when gradient data confidence allows
+9. **Avoid steep grades (optional later)** — OQ-8 C. Prefer flatter walks (OQ-8 B) now soft-ranks cards. Hard filter only when gradient data confidence allows
 10. **On-device blue dot** — follow me while the tab is open; discard on leave; never upload. Only if people ask.
 
 Explicitly **later / icebox** (not this flow): accounts, saved libraries, history sync, social feed, gamification, start-to-finish route tracking, Council upload of traces.
