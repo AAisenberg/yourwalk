@@ -618,11 +618,11 @@ export function routeMatchExplain(
 
 /** Shown above result cards when prefs can re-rank without re-searching. */
 export const RESULTS_PREF_RERANK_NOTE =
-  "Find looks for a walk that matches what you marked as important, plus a different neighbourhood path when one exists. Moving the sliders re-orders these walks. Prefer flatter walks re-orders these cards once hilliness is in. Prefer away from roads needs Edit walk and Find again — it can add a longer park or trail option.";
+  "Find looks for a walk that matches what you marked as important, plus a different neighbourhood path when one exists. Moving the sliders re-orders these walks. Options (away from roads, flatter walks) need Edit walk and Find again. Away from roads can add a longer park or trail option. Flatter walks re-orders the cards we found once hilliness is in.";
 
 /**
  * Plain-language explainer (XYX: how tweaks change the walk).
  * Use in the plan sheet and in tester / Nikki notes.
  */
 export const HOW_PREFS_CHANGE_WALKS =
-  "Footpaths, Heat & Shade, and Lighting change which streets we search, not the Casey scores on the pills. More important means we will take a slightly longer path if it is better on that measure. Less important means a quicker walk can win among the options we found. On Around here, Find picks turning points on better-scoring Casey footpaths for what you marked as important, then draws the circuit. Prefer flatter walks re-orders the walks we found toward gentler hills (approximate Mapbox Terrain, not the Footpaths score). Prefer away from roads is a separate, longer park option on A to B. Tick it only if you will take the extra time. Tap Find after you change these.";
+  "Footpaths, Heat & Shade, and Lighting change which streets we search, not the Casey scores on the pills. More important means we will take a slightly longer path if it is better on that measure. Less important means a quicker walk can win among the options we found. On Around here, Find picks turning points on better-scoring Casey footpaths for what you marked as important, then draws the circuit. Away from roads and flatter walks live under Options. Both need Find. Flatter walks re-orders the walks we found toward gentler hills (approximate Mapbox Terrain, not the Footpaths score). Away from roads is a separate, longer park option on A to B. Tick it only if you will take the extra time.";

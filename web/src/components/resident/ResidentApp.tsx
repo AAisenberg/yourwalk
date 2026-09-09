@@ -7,7 +7,6 @@ import {
   useEffect,
   useRef,
   useState,
-  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 
@@ -85,6 +84,10 @@ import { attachElevationProfiles } from "@/lib/routing/elevationMapbox";
 import { planScoredRoutes } from "@/lib/routing/planRoute";
 import { OutingDurationSlider } from "@/components/resident/OutingDurationSlider";
 import { PrefSlider } from "@/components/resident/PrefSlider";
+import {
+  WalkOptions,
+  walkOptionsResultsHint,
+} from "@/components/resident/WalkOptions";
 import {
   clampOutingMinutes,
   planOutingRoutes,
@@ -1707,6 +1710,10 @@ export function ResidentApp() {
   };
 
   const isNight = walkMode === "night";
+  const optionsHint = walkOptionsResultsHint(
+    prefs.preferSharedPaths,
+    prefs.preferFlatterWalks,
+  );
   /** Desktop uses a full-height side panel — ignore mobile peek/half snaps. */
   const sheetExpanded = isDesktop || sheetSnap !== "peek";
   /** "66 Cupples Cr, Berwick Victoria 3806, Australia" → "66 Cupples Cr, Berwick" */
@@ -2257,17 +2264,15 @@ export function ResidentApp() {
                   {routes.length} option{routes.length === 1 ? "" : "s"} · tap a
                   walk to highlight it on the map
                 </p>
-                <div className="mt-1.5">
-                  <PreferCheck
-                    label="Prefer flatter walks"
-                    title="Re-orders these walks toward gentler hills. Approximate from Mapbox Terrain. Does not hide options or change Footpaths scores."
-                    checked={prefs.preferFlatterWalks}
-                    isNight={isNight}
-                    onChange={(preferFlatterWalks) =>
-                      setPrefs((p) => ({ ...p, preferFlatterWalks }))
-                    }
-                  />
-                </div>
+                {optionsHint ? (
+                  <p
+                    className={`mt-1 text-[10px] leading-snug ${
+                      isNight ? "text-white/45" : "text-slate-500"
+                    }`}
+                  >
+                    {optionsHint}
+                  </p>
+                ) : null}
               </div>
               <div className="flex shrink-0 gap-1">
                 <button
@@ -2503,28 +2508,6 @@ export function ResidentApp() {
                   onChange={(accessibility) =>
                     setPrefs((p) => ({ ...p, accessibility }))
                   }
-                  footerAccessory={
-                    <div className="mt-1.5 space-y-1">
-                      <PreferCheck
-                        label="Prefer away from roads"
-                        title="When you search, include a walk that stays on parks and paths even if it takes longer (up to about 1.6×). Does not change corridor score pills."
-                        checked={prefs.preferSharedPaths}
-                        isNight={isNight}
-                        onChange={(preferSharedPaths) =>
-                          setPrefs((p) => ({ ...p, preferSharedPaths }))
-                        }
-                      />
-                      <PreferCheck
-                        label="Prefer flatter walks"
-                        title="Ranks gentler hills higher among the walks we find. Approximate from Mapbox Terrain. Does not hide steep options or change Footpaths scores."
-                        checked={prefs.preferFlatterWalks}
-                        isNight={isNight}
-                        onChange={(preferFlatterWalks) =>
-                          setPrefs((p) => ({ ...p, preferFlatterWalks }))
-                        }
-                      />
-                    </div>
-                  }
                 />
                 {isNight ? (
                   <PrefSlider
@@ -2557,6 +2540,17 @@ export function ResidentApp() {
                     }
                   />
                 )}
+                <WalkOptions
+                  isNight={isNight}
+                  preferAway={prefs.preferSharedPaths}
+                  preferFlatter={prefs.preferFlatterWalks}
+                  onPreferAway={(preferSharedPaths) =>
+                    setPrefs((p) => ({ ...p, preferSharedPaths }))
+                  }
+                  onPreferFlatter={(preferFlatterWalks) =>
+                    setPrefs((p) => ({ ...p, preferFlatterWalks }))
+                  }
+                />
               </section>
             </div>
           ) : null}
@@ -3137,57 +3131,6 @@ function EngineBadge({
         <span className="normal-case opacity-70">· edge paint</span>
       ) : null}
     </span>
-  );
-}
-
-function PreferCheck({
-  label,
-  title,
-  checked,
-  isNight,
-  onChange,
-}: {
-  label: string;
-  title: string;
-  checked: boolean;
-  isNight: boolean;
-  onChange: (next: boolean) => void;
-}) {
-  return (
-    <label
-      className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-1 py-0.5 ${
-        checked
-          ? isNight
-            ? "bg-yw-blue/20"
-            : "bg-[color-mix(in_srgb,var(--yw-blue)_14%,white)]"
-          : ""
-      }`}
-      title={title}
-      style={
-        {
-          "--yw-check-accent": "#0B5F8A",
-          "--yw-check-border": isNight
-            ? "rgba(255,255,255,0.35)"
-            : "#7EB8D4",
-          "--yw-check-bg": isNight ? "rgba(255,255,255,0.06)" : "#fff",
-        } as CSSProperties
-      }
-    >
-      <input
-        type="checkbox"
-        className="yw-check yw-check-sm"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        aria-label={label}
-      />
-      <span
-        className={`text-[10px] font-semibold leading-tight ${
-          isNight ? "text-white/80" : "text-[#0B5F8A]"
-        }`}
-      >
-        {label}
-      </span>
-    </label>
   );
 }
 
