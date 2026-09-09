@@ -26,7 +26,7 @@ Council-grade slope on every T1EAM segment is still blocked: open Vicmap metro l
 | Peek sheet | Mentions steep sections when the highlighted walk is steep |
 | Day / Night / Footpaths pills | **Unchanged** |
 
-**Prefer flatter walks** (optional toggle) re-orders those cards toward gentler Terrain profiles. It does not hide steep walks, change pills, or request new geometry. Missing elevation is treated as unknown, not steep.
+**Prefer flatter walks** lives under plan-sheet **Options** with Prefer away from roads. Same ritual: set Options, tap Find. It re-orders those cards toward gentler Terrain profiles. It does not hide steep walks, change pills, or request new geometry. Missing elevation is treated as unknown, not steep. Results show a quiet Options hint only.
 
 ---
 
@@ -61,7 +61,7 @@ Resident copy: *Approximate hilliness from Mapbox Terrain. Not a surveyed footpa
 | Option | Role | Status |
 |--------|------|--------|
 | **A. Disclosure** | Cards + selected profile | Shipped |
-| **B. Prefer flatter walks** | Soft rank among found cards | Shipped. Form + results toggle. Does not change pathfinding |
+| **B. Prefer flatter walks** | Soft rank among found cards | Shipped. Options + Find. Same chrome as away from roads. Does not change pathfinding |
 | **C. Avoid steep grades** | Hard filter | Later. Needs licensed 1 m DEM or Council grade layer |
 
 Pathfinding that searches for a flatter corridor (not only re-ranks Mapbox / Casey cards) waits on per-segment grade from the 1 m DEM.

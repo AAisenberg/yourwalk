@@ -173,7 +173,7 @@ Before a backlog item is considered complete, it must meet all of the following:
 
 **Dependencies**: Mapbox token (ADR-002); planned walk geometry
 
-**Status**: Now — shipped 9 Sep 2026. Card hilliness + selected sparkline + **Prefer flatter walks** soft rank (OQ-8 A+B). Hard filter stays open (OQ-8 C).
+**Status**: Now — shipped 9 Sep 2026. Card hilliness + selected sparkline + **Prefer flatter walks** soft rank (OQ-8 A+B). Both prefers live under plan-sheet **Options** (same Find ritual as away from roads). Hard filter stays open (OQ-8 C).
 
 ---
 

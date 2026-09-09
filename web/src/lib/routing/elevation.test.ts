@@ -11,6 +11,7 @@ import {
   type RouteElevation,
 } from "./elevation";
 import { decodeTerrainRgb } from "./elevationMapbox";
+import { walkOptionsResultsHint } from "../../components/resident/WalkOptions";
 import {
   DEFAULT_PREFS_DAY,
   FLATTER_PENALTY,
@@ -179,5 +180,18 @@ describe("flatterWalksAdjustment", () => {
     } as Parameters<typeof flatterWalksAdjustment>[0];
     assert.equal(flatterWalksAdjustment(steep, on), -FLATTER_PENALTY.steep);
     assert.equal(flatterWalksAdjustment(unknown, on), 0);
+  });
+});
+
+describe("walkOptionsResultsHint", () => {
+  it("stays quiet when both Options are off", () => {
+    assert.equal(walkOptionsResultsHint(false, false), null);
+  });
+
+  it("names both Options and asks for Edit then Find", () => {
+    assert.equal(
+      walkOptionsResultsHint(true, true),
+      "Options: away from roads · flatter walks. Edit walk to change, then Find again.",
+    );
   });
 });
