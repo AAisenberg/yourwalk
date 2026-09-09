@@ -1,3 +1,5 @@
+import type { RouteElevation } from "./elevation";
+
 export type LngLat = { lng: number; lat: number };
 
 export type RouteScore = {
@@ -60,6 +62,12 @@ export type ScoredRoute = {
    * Set only on `score_aware_*_prefs_complement` geometries.
    */
   complement_stream?: "accessibility" | "shadeHeat" | "afterDark";
+  /**
+   * Approximate along-walk hilliness from Mapbox Terrain-RGB.
+   * Disclosure only — never folded into Day/Night/Accessibility scores.
+   * Null when sampling failed or coverage was too thin.
+   */
+  elevation?: RouteElevation | null;
 };
 
 export type RankMode = "day" | "night" | "accessibility";

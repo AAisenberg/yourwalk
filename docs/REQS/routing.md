@@ -106,6 +106,7 @@ This document defines requirements for route calculation, display, and interacti
 - What average walking speed to use? (5 km/h standard, but should it be configurable?)
 - Should time account for gradients or other factors? (More complex calculation)
 - How to display scores? (Numeric, stars, bars, colours?)
+- Elevation profile is disclosure only in this slice ([`ELEVATION_PROFILE.md`](../ELEVATION_PROFILE.md)). Should a later “Prefer flatter walks” toggle change ranking, or only show hilliness? Decision criteria: Terrain-RGB is approximate; do not hide walks until a licensed DEM or Council grade layer exists.
 
 ---
 
