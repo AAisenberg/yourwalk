@@ -1,14 +1,12 @@
 import {
-  ELEVATION_SOURCE_NOTE,
   hillinessAriaLabel,
-  hillinessDetailLine,
   sparklinePath,
   type RouteElevation,
 } from "@/lib/routing/elevation";
 
 /**
  * Compact elevation sparkline for the selected walk.
- * Approximate Terrain-RGB profile — not a surveyed grade.
+ * Hilliness and climb already sit on the card; no lab caption under the line.
  */
 export function ElevationProfile({
   profile,
@@ -27,7 +25,6 @@ export function ElevationProfile({
   const area = isNight
     ? "color-mix(in srgb, var(--yw-teal) 28%, transparent)"
     : "color-mix(in srgb, var(--yw-teal) 22%, white)";
-  const warn = profile.band === "steep";
 
   return (
     <figure className="mt-2.5" aria-label={hillinessAriaLabel(profile)}>
@@ -49,19 +46,6 @@ export function ElevationProfile({
           />
         ) : null}
       </svg>
-      <figcaption
-        className={`mt-1 text-[10px] leading-snug ${
-          warn
-            ? isNight
-              ? "text-amber-200"
-              : "text-amber-900"
-            : isNight
-              ? "text-white/55"
-              : "text-slate-600"
-        }`}
-      >
-        {hillinessDetailLine(profile)} {ELEVATION_SOURCE_NOTE}
-      </figcaption>
     </figure>
   );
 }

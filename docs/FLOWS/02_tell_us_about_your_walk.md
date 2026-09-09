@@ -150,7 +150,7 @@ Rules:
 - List cards show the compare set on every option: name, time, distance, hilliness once Terrain samples return, match, why, Footpaths + Heat & Shade or Lighting pills, coverage, amenity / prefer-away notes
 - Hilliness is disclosure only (Mostly flat / hills / Steep sections + climb). It does not change Day / Night / Footpaths pills
 - If Options were on at Find, the results header shows a quiet hint. Steep walks stay listed when Prefer flatter walks is on. Away from roads may add a longer park card.
-- The **selected** walk also shows an elevation sparkline and the Mapbox Terrain provenance sentence
+- The **selected** walk also shows an elevation sparkline. Climb and hilliness stay on the card line. No lab caption under the graph.
 - Tap a card or the path: that walk is highlighted on the map. Selection does not hide the other cards’ pills
 - Results header: **Edit** (back to the form, places and prefs kept, cards and map lines cleared) and **Clear** (empty the places too; prefs stay). No Refresh.
 - Changing Day/Night after results: same as Edit, plus a one-line “When changed. Find again to re-score.”
@@ -318,6 +318,7 @@ High value, still anonymous:
 8. **Haptic-light loading** — keep calculating state; optional progress stages (“Finding routes…” → “Scoring footpaths…”)
 9. **Avoid steep grades (optional later)** — OQ-8 C. Prefer flatter walks (OQ-8 B) now soft-ranks cards. Hard filter only when gradient data confidence allows
 10. **On-device blue dot** — follow me while the tab is open; discard on leave; never upload. Only if people ask.
+11. **Scrub the elevation sparkline** — finger along the line drops a marker on the walk (Strava / Komoot pattern). Feasible with current samples. Not this slice.
 
 Explicitly **later / icebox** (not this flow): accounts, saved libraries, history sync, social feed, gamification, start-to-finish route tracking, Council upload of traces.
 
