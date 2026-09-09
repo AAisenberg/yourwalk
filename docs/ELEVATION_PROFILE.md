@@ -26,7 +26,7 @@ Council-grade slope on every T1EAM segment is still blocked: open Vicmap metro l
 | Peek sheet | Mentions steep sections when the highlighted walk is steep |
 | Day / Night / Footpaths pills | **Unchanged** |
 
-Ranking, Recommended, and pathfinding costs do **not** use elevation in this slice.
+**Prefer flatter walks** (optional toggle) re-orders those cards toward gentler Terrain profiles. It does not hide steep walks, change pills, or request new geometry. Missing elevation is treated as unknown, not steep.
 
 ---
 
@@ -56,14 +56,14 @@ Resident copy: *Approximate hilliness from Mapbox Terrain. Not a surveyed footpa
 
 ---
 
-## 5. Later (only if testers ask)
+## 5. Prefer flatter vs hide steep
 
-| Option | Role | Decision criteria |
-|--------|------|-------------------|
-| **A. Disclosure only (this slice)** | Cards + selected profile | Honest with current DEM quality |
-| **B. Prefer flatter walks** | Soft rank / generation toggle, like Prefer away from roads | Use if Lab testers still pick a steep Recommended by accident |
-| **C. Avoid steep grades** | Hard filter | Only when a licensed 1 m DEM or Council grade layer has defensible coverage |
+| Option | Role | Status |
+|--------|------|--------|
+| **A. Disclosure** | Cards + selected profile | Shipped |
+| **B. Prefer flatter walks** | Soft rank among found cards | Shipped. Form + results toggle. Does not change pathfinding |
+| **C. Avoid steep grades** | Hard filter | Later. Needs licensed 1 m DEM or Council grade layer |
 
-Lean: A now. B after tester evidence. C stays with methodology v1.2 gradient work.
+Pathfinding that searches for a flatter corridor (not only re-ranks Mapbox / Casey cards) waits on per-segment grade from the 1 m DEM.
 
 Production index gradient, when licensed, still follows discovery: centreline sample, `max_grade_pct` per segment, AS 1428-aligned rubric, reduced confidence until coverage is high. Do not score the open 12% proxy.

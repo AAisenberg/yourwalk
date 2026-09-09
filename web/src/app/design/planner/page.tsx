@@ -197,6 +197,7 @@ export default function PlannerMockupPage() {
   const [shadeHeat, setShadeHeat] = useState(85);
   const [afterDark, setAfterDark] = useState(92);
   const [preferAway, setPreferAway] = useState(false);
+  const [preferFlatter, setPreferFlatter] = useState(false);
   const [overlays, setOverlays] =
     useState<Record<OverlayId, boolean>>(DEFAULT_OVERLAYS);
   const [layersReady, setLayersReady] = useState(false);
@@ -249,7 +250,13 @@ export default function PlannerMockupPage() {
   };
 
   const isNight = walkMode === "night";
-  const routes = walkIntent === "outing" ? OUTING_ROUTES : TRIP_ROUTES;
+  const bandRank = { flat: 0, gentle: 1, hilly: 2, steep: 3 } as const;
+  const rawRoutes = walkIntent === "outing" ? OUTING_ROUTES : TRIP_ROUTES;
+  const routes = preferFlatter
+    ? [...rawRoutes].sort(
+        (a, b) => bandRank[a.elevation.band] - bandRank[b.elevation.band],
+      )
+    : rawRoutes;
   const canFind =
     Boolean(origin) && (walkIntent === "outing" || Boolean(destination));
 
@@ -565,6 +572,10 @@ export default function PlannerMockupPage() {
                       setAfterDark={setAfterDark}
                       preferAway={preferAway}
                       setPreferAway={setPreferAway}
+                      preferFlatter={preferFlatter}
+                      setPreferFlatter={(next) => {
+                        setPreferFlatter(next);
+                      }}
                     />
                   ) : (
                     <ResultsSheet
@@ -576,6 +587,20 @@ export default function PlannerMockupPage() {
                       routes={routes}
                       selectedId={selectedId}
                       setSelectedId={setSelectedId}
+                      preferFlatter={preferFlatter}
+                      setPreferFlatter={(next) => {
+                        setPreferFlatter(next);
+                        const raw =
+                          walkIntent === "outing" ? OUTING_ROUTES : TRIP_ROUTES;
+                        const ordered = next
+                          ? [...raw].sort(
+                              (a, b) =>
+                                bandRank[a.elevation.band] -
+                                bandRank[b.elevation.band],
+                            )
+                          : raw;
+                        setSelectedId(ordered[0]!.id);
+                      }}
                       onEdit={() => setSheetMode("plan")}
                       onClear={() => {
                         setOrigin("");
@@ -721,6 +746,8 @@ function PlanSheet(props: {
   setAfterDark: (v: number) => void;
   preferAway: boolean;
   setPreferAway: (v: boolean) => void;
+  preferFlatter: boolean;
+  setPreferFlatter: (v: boolean) => void;
 }) {
   const { isNight } = props;
 
@@ -873,30 +900,56 @@ function PlanSheet(props: {
         tone="blue"
         onChange={props.setAccessibility}
         footerAccessory={
-          <label
-            className={`mt-1.5 flex cursor-pointer items-center gap-1.5 rounded-lg px-1 py-0.5 ${
-              props.preferAway
-                ? isNight
-                  ? "bg-yw-blue/20"
-                  : "bg-[color-mix(in_srgb,var(--yw-blue)_14%,white)]"
-                : ""
-            }`}
-          >
-            <input
-              type="checkbox"
-              className="yw-check yw-check-sm"
-              checked={props.preferAway}
-              onChange={(e) => props.setPreferAway(e.target.checked)}
-              aria-label="Prefer away from roads"
-            />
-            <span
-              className={`text-[10px] font-semibold leading-tight ${
-                isNight ? "text-white/80" : "text-[#0B5F8A]"
+          <div className="mt-1.5 space-y-1">
+            <label
+              className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-1 py-0.5 ${
+                props.preferAway
+                  ? isNight
+                    ? "bg-yw-blue/20"
+                    : "bg-[color-mix(in_srgb,var(--yw-blue)_14%,white)]"
+                  : ""
               }`}
             >
-              Prefer away from roads
-            </span>
-          </label>
+              <input
+                type="checkbox"
+                className="yw-check yw-check-sm"
+                checked={props.preferAway}
+                onChange={(e) => props.setPreferAway(e.target.checked)}
+                aria-label="Prefer away from roads"
+              />
+              <span
+                className={`text-[10px] font-semibold leading-tight ${
+                  isNight ? "text-white/80" : "text-[#0B5F8A]"
+                }`}
+              >
+                Prefer away from roads
+              </span>
+            </label>
+            <label
+              className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-1 py-0.5 ${
+                props.preferFlatter
+                  ? isNight
+                    ? "bg-yw-blue/20"
+                    : "bg-[color-mix(in_srgb,var(--yw-blue)_14%,white)]"
+                  : ""
+              }`}
+            >
+              <input
+                type="checkbox"
+                className="yw-check yw-check-sm"
+                checked={props.preferFlatter}
+                onChange={(e) => props.setPreferFlatter(e.target.checked)}
+                aria-label="Prefer flatter walks"
+              />
+              <span
+                className={`text-[10px] font-semibold leading-tight ${
+                  isNight ? "text-white/80" : "text-[#0B5F8A]"
+                }`}
+              >
+                Prefer flatter walks
+              </span>
+            </label>
+          </div>
         }
       />
       {isNight ? (
@@ -933,6 +986,8 @@ function ResultsSheet(props: {
   routes: MockRoute[];
   selectedId: string;
   setSelectedId: (id: string) => void;
+  preferFlatter: boolean;
+  setPreferFlatter: (v: boolean) => void;
   onEdit: () => void;
   onClear: () => void;
 }) {
@@ -954,6 +1009,30 @@ function ResultsSheet(props: {
           >
             {props.routes.length} options · tap a walk to highlight it on the map
           </p>
+          <label
+            className={`mt-1.5 flex cursor-pointer items-center gap-1.5 rounded-lg px-1 py-0.5 ${
+              props.preferFlatter
+                ? isNight
+                  ? "bg-yw-blue/20"
+                  : "bg-[color-mix(in_srgb,var(--yw-blue)_14%,white)]"
+                : ""
+            }`}
+          >
+            <input
+              type="checkbox"
+              className="yw-check yw-check-sm"
+              checked={props.preferFlatter}
+              onChange={(e) => props.setPreferFlatter(e.target.checked)}
+              aria-label="Prefer flatter walks"
+            />
+            <span
+              className={`text-[10px] font-semibold leading-tight ${
+                isNight ? "text-white/80" : "text-[#0B5F8A]"
+              }`}
+            >
+              Prefer flatter walks
+            </span>
+          </label>
         </div>
         <div className="flex shrink-0 gap-1">
           <IconAction

@@ -433,12 +433,14 @@ export function contrastOutingPrefs(mode: "day" | "night"): {
         accessibility: PREF_IMPORTANCE_MIN,
         shadeHeat: 0,
         preferSharedPaths: false,
+        preferFlatterWalks: false,
       },
       footpaths: {
         afterDark: PREF_IMPORTANCE_MIN,
         accessibility: PREF_IMPORTANCE_MAX,
         shadeHeat: 0,
         preferSharedPaths: false,
+        preferFlatterWalks: false,
       },
     };
   }
@@ -448,12 +450,14 @@ export function contrastOutingPrefs(mode: "day" | "night"): {
       accessibility: PREF_IMPORTANCE_MIN,
       shadeHeat: PREF_IMPORTANCE_MAX,
       preferSharedPaths: false,
+      preferFlatterWalks: false,
     },
     footpaths: {
       afterDark: 0,
       accessibility: PREF_IMPORTANCE_MAX,
       shadeHeat: PREF_IMPORTANCE_MIN,
       preferSharedPaths: false,
+      preferFlatterWalks: false,
     },
   };
 }
