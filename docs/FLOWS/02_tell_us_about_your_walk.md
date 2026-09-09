@@ -46,7 +46,7 @@ Anonymous **device-local** helpers (prefs, later recents) are allowed if clearly
 
 Section labels do not use question marks.
 
-**Why this order:** When is chrome once it auto-detects, so it lives in the header. Type of walk changes the place fields. Places are required to Find. Sliders change ranking (and Prefer away from roads changes generation), so they stay exposed. Amenities are optional map context plus a soft Loop nudge.
+**Why this order:** When is chrome once it auto-detects, so it lives in the header. Type of walk changes the place fields. Places are required to Find. Sliders stay exposed because they change ranking. Away from roads and flatter walks live under Options (Google Maps-style). Both use the same ritual: set Options, then Find. Amenities are optional map context plus a soft Loop nudge.
 
 There and back is **not** a resident choice. Keep it as a silent engine fallback when a clean loop cannot be found (honest card note). Lab can still force the shape.
 
@@ -136,15 +136,21 @@ Rules:
 - Open by default, above Along the way
 - Importance of accessible footpaths, and Heat & Shade (day) or Lighting after dark (night)
 - Keep **dynamic slider descriptions** from the live app (`prefSliderDescription`)
-- **Prefer away from roads** sits on its own row under the Accessible footpaths slider (generation-time). Dynamic helper copy wraps; do not truncate.
-- Persist sliders + prefer-away in `localStorage`. No account.
+- **Options** (tune icon, collapsed by default) sits under the sliders, not under Accessible footpaths. Same chrome for both prefers.
+- **Prefer away from roads** (generation-time): can add a longer park / trail card (up to about 1.6×). Does not change corridor score pills.
+- **Prefer flatter walks** (soft rank): re-orders the walks we found toward gentler Mapbox Terrain profiles. Does not hide steep cards, change Footpaths pills, or request new geometry.
+- Same ritual as each other: set Options, tap **Find**. Results show a quiet hint only (`Options: … Edit walk to change, then Find again.`). No results-sheet checkboxes.
+- Persist sliders + prefer-away + prefer-flatter in `localStorage`. No account.
 - Amenities are a map **Layers** control, not a form section. On mobile, opening Layers peeks the Find sheet so the map stays visible. Expanding the sheet (Expand, swipe up, or Find) closes Layers. They do not stay open together.
 - Results must not claim sliders re-order cards unless a compact prefs control is actually on the results sheet
 
 ### 5. Results
 
 - **Calculating your walks…** while planning. Map stays visible.
-- List cards show the compare set on every option: name, time, distance, match, why, Footpaths + Heat & Shade or Lighting pills, coverage, amenity / prefer-away notes
+- List cards show the compare set on every option: name, time, distance, hilliness once Terrain samples return, match, why, Footpaths + Heat & Shade or Lighting pills, coverage, amenity / prefer-away notes
+- Hilliness is disclosure only (Mostly flat / hills / Steep sections + climb). It does not change Day / Night / Footpaths pills
+- If Options were on at Find, the results header shows a quiet hint. Steep walks stay listed when Prefer flatter walks is on. Away from roads may add a longer park card.
+- The **selected** walk also shows an elevation sparkline. Climb and hilliness stay on the card line. No lab caption under the graph.
 - Tap a card or the path: that walk is highlighted on the map. Selection does not hide the other cards’ pills
 - Results header: **Edit** (back to the form, places and prefs kept, cards and map lines cleared) and **Clear** (empty the places too; prefs stay). No Refresh.
 - Changing Day/Night after results: same as Edit, plus a one-line “When changed. Find again to re-score.”
@@ -195,8 +201,9 @@ A finished walk trace is a movement history. ADR-004 leans anonymous by default.
 **Given** they choose A to B and set From/To in Casey  
 **When** they find routes  
 **Then** hybrid ranked options appear  
-**And** every card shows time, distance, and match  
-**And** stream pills and why-this-walk copy appear on the selected walk, not on every card  
+**And** every card shows time, distance, match, and hilliness when Terrain coverage is enough  
+**And** the selected walk shows an elevation profile with the approximate-Terrain provenance sentence  
+**And** stream pills stay Casey corridor scores (hilliness is not in the index)  
 
 **Given** they choose Loop, a start in Casey, and ~25 minutes  
 **When** they find a walk  
@@ -283,6 +290,18 @@ Strict methodology could treat dawn as Night because lighting still dominates. C
 
 **Lean:** B if the map still needs a “where am I” control; A if the form control is enough. Decide in implementation.
 
+### OQ-8: Steep walks — disclose, demote, or hide?
+
+A high-match walk can still be too steep for some residents. Mapbox Terrain can show that on the card. It is not good enough to hide walks.
+
+| Option | Role |
+|--------|------|
+| **A. Disclosure only** | Hilliness on every card; sparkline on the selected walk |
+| **B. Prefer flatter walks** | Soft rank under the same Options chrome as Prefer away from roads. Not a new pathfinder until a licensed DEM exists |
+| **C. Avoid steep grades** | Hard filter when a licensed DEM or Council grade layer exists |
+
+**Lean:** A + B shipped (9 Sep 2026). C waits on methodology v1.2 gradient data. See [`ELEVATION_PROFILE.md`](../ELEVATION_PROFILE.md).
+
 ---
 
 ## Enhancing UX without accounts (recommended backlog)
@@ -297,8 +316,9 @@ High value, still anonymous:
 6. **Busy-road / crossing callout** — when the **selected** route crosses high-speed or thin-crossing segments, show reduced-confidence tip (data-dependent; never fear-monger)
 7. **Along-this-walk amenity count** — “2 fountains · 1 toilet within 100 m of path” on the selected walk only
 8. **Haptic-light loading** — keep calculating state; optional progress stages (“Finding routes…” → “Scoring footpaths…”)
-9. **Accessibility hard filter (optional later)** — e.g. “Avoid steep grades where known” as a toggle separate from importance; only when gradient data confidence allows
+9. **Avoid steep grades (optional later)** — OQ-8 C. Prefer flatter walks (OQ-8 B) now soft-ranks cards. Hard filter only when gradient data confidence allows
 10. **On-device blue dot** — follow me while the tab is open; discard on leave; never upload. Only if people ask.
+11. **Scrub the elevation sparkline** — finger along the line drops a marker on the walk (Strava / Komoot pattern). Feasible with current samples. Not this slice.
 
 Explicitly **later / icebox** (not this flow): accounts, saved libraries, history sync, social feed, gamification, start-to-finish route tracking, Council upload of traces.
 
@@ -330,5 +350,7 @@ Explicitly **later / icebox** (not this flow): accounts, saved libraries, histor
 8. Optional backtrack **snip** spike — see [`LOOP_BACKTRACK_AND_MAP_UX.md`](../LOOP_BACKTRACK_AND_MAP_UX.md)
 9. Shareable A→B link + Open in Maps + Later time picker
 10. Colour / brand polish (can overlap with the style work)
+11. ✅ Elevation profile on result cards + selected sparkline (disclosure only, 9 Sep 2026)
+12. ✅ Options expander for Prefer away from roads + Prefer flatter walks (same Find ritual, 9 Sep 2026)
 
 Trace: [`BACKLOG.md`](../BACKLOG.md) N1b · [`DELIVERY_PLAN.md`](../DELIVERY_PLAN.md) Sprint D+ · [`RESIDENT_UX_NEXT.md`](../RESIDENT_UX_NEXT.md) · [`LOOP_BACKTRACK_AND_MAP_UX.md`](../LOOP_BACKTRACK_AND_MAP_UX.md) · [`RESIDENT_VISUAL_SYSTEM.md`](../RESIDENT_VISUAL_SYSTEM.md)

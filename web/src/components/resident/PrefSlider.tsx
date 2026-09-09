@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties } from "react";
 
 import {
   PREF_IMPORTANCE_MAX,
@@ -16,7 +16,6 @@ export function PrefSlider({
   accent,
   tone,
   onChange,
-  footerAccessory,
 }: {
   title: string;
   description?: string;
@@ -25,8 +24,6 @@ export function PrefSlider({
   accent: string;
   tone: "amber" | "blue" | "lime";
   onChange: (v: number) => void;
-  /** Full-width control under the slider (e.g. Prefer away from roads). */
-  footerAccessory?: ReactNode;
 }) {
   const clamped = Math.min(
     PREF_IMPORTANCE_MAX,
@@ -92,7 +89,6 @@ export function PrefSlider({
         <span>Less important</span>
         <span>More important</span>
       </div>
-      {footerAccessory}
     </div>
   );
 }

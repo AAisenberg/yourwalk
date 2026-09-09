@@ -157,6 +157,26 @@ Before a backlog item is considered complete, it must meet all of the following:
 
 ---
 
+### N1d: Elevation profile on planned walks (disclosure)
+**Links**: [`ELEVATION_PROFILE.md`](ELEVATION_PROFILE.md), [`GRADIENT_DISCOVERY.md`](GRADIENT_DISCOVERY.md), [`FLOWS/02_tell_us_about_your_walk.md`](FLOWS/02_tell_us_about_your_walk.md) OQ-8
+
+**Description**: Show approximate hilliness along each planned walk before the resident starts it. A high Footpaths / Heat and Shade match can still be too steep for older walkers. Use Mapbox Terrain-RGB along the drawn line. Do **not** add gradient to the v1.1 Accessibility index.
+
+**Acceptance Criteria**:
+- Given Find returns one or more walks
+- When Mapbox Terrain samples cover enough of a walk
+- Then every card shows a hilliness line (Mostly flat / hills / Steep sections, plus climb)
+- And the selected walk shows an elevation sparkline, climb, and estimated steepest stretch
+- And copy states the profile is approximate Terrain, not a surveyed grade, and not part of the Footpaths score
+- And Day / Night / Accessibility pills and Recommended ranking do not change
+- And thin coverage shows no profile (does not impute flat)
+
+**Dependencies**: Mapbox token (ADR-002); planned walk geometry
+
+**Status**: Now — shipped 9 Sep 2026. Card hilliness + selected sparkline + **Prefer flatter walks** soft rank (OQ-8 A+B). Both prefers live under plan-sheet **Options** (same Find ritual as away from roads). Hard filter stays open (OQ-8 C).
+
+---
+
 ### N3: Toggle map layers for each stream
 **Links**: [`REQS/map_layers.md`](REQS/map_layers.md)
 

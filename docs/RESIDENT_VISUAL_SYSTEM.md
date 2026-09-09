@@ -47,7 +47,8 @@ Do not invent a new palette. Avoid purple-on-white CTA gradients, warm cream + t
 - Header: mark (~32px) + **YourWalk** wordmark (navy day / white night) as the hero brand signal; subtitle **Connecting Casey walks**; quiet **Beta** pill (navy / muted, not teal)
 - Header: mark + **YourWalk** + compact **Day / Night** switch. Auto When reason sits under the wordmark. Choosing Night swaps preference streams (After dark vs Shade & heat) and the planned basemap look.
 - Type of walk in the sheet: **A to B | Loop** (`SegmentedPill`). No There and back row.
-- Checkboxes: custom `.yw-check` — navy (overlays) or stream blue (Prefer away from roads). Avoid teal ticks on blue preference cards; teal stays for selected route / primary accents.
+- Checkboxes: custom `.yw-check` — navy (overlays) or stream blue (Options prefers). Avoid teal ticks on blue preference cards; teal stays for selected route / primary accents.
+- Plan-sheet **Options** (Google Maps-style expander, `MdTune`): Prefer away from roads and Prefer flatter walks share one control under What matters most. Collapsed by default; summary line when either is on. Results show a hint, not extra checkboxes.
 - Lab is not linked from the resident app (Lab stays at `/lab` for internal use)
 - Sheet product line: **Find your walk**. Not a survey. Do not overpower the brand with a marketing headline
 - Partner marks (Casey / Monash / CrowdLab): footer or about only, not in the walk sheet
@@ -63,6 +64,7 @@ Material Design icons via `react-icons/md` (see [`web/src/components/resident/ic
 | A to B | `MdRoute` (corridor) |
 | Loop | `MdLoop` (circuit) |
 | Drinking fountains / Benches / Toilets / Dog bags | `MdWaterDrop` / `MdChair` / `MdWc` / `MdPets` |
+| Options | `MdTune` |
 
 ## Sheet snaps (mobile)
 
