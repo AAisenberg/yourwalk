@@ -512,11 +512,19 @@ export function routeCardLabel(
   return "Another option";
 }
 
+/** True when the walk overlapped scored Casey footpath segments. */
+export function hasCorridorScores(route: ScoredRoute): boolean {
+  return route.score.segment_count > 0 && route.score.coverage_ratio > 0;
+}
+
 /** Short supporting line under the card title. */
 export function routeCardBlurb(
   route: ScoredRoute,
   ranked: ScoredRoute[],
 ): string {
+  if (!hasCorridorScores(route)) {
+    return "We couldn't score this walk on Casey's footpaths. Time, distance and hills still apply.";
+  }
   if (isAwayFromRoadsStrategy(route.strategy)) {
     const shortestDur = Math.min(...ranked.map((r) => r.duration_s));
     const extraMin = Math.round((route.duration_s - shortestDur) / 60);
@@ -593,25 +601,17 @@ export function prefSliderDescription(
 }
 
 /**
- * Extra honesty when the match ring is ~0 or corridor scores are missing.
- * Null when the default card blurb is enough.
+ * Extra honesty when the match ring is ~0. Null when the card blurb is enough.
+ * Unscored Mapbox walks are explained on the blurb, not here.
  */
 export function routeMatchExplain(
   displayMatch: number | null,
   route: ScoredRoute,
-  ranked: ScoredRoute[],
 ): string | null {
-  const noCoverage =
-    route.score.segment_count <= 0 || route.score.coverage_ratio <= 0;
+  if (!hasCorridorScores(route)) return null;
   const veryLow = displayMatch != null && displayMatch <= 0.05;
-
-  if (veryLow && noCoverage) {
-    return ranked[0]?.id === route.id
-      ? "0.0 match means we could not score this path on Casey footpaths. It is still Recommended as the best fit among the options we found."
-      : "0.0 match means we could not score this path on Casey footpaths. Use the time and distance, or try Edit walk.";
-  }
   if (veryLow) {
-    return "A very low match usually means these options are similar, or corridor data is thin along the path. Check the Footpaths and Heat & Shade (or Lighting) pills.";
+    return "These walks score similarly, or we only have scores for part of the path.";
   }
   return null;
 }

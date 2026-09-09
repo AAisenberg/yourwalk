@@ -16,7 +16,11 @@ import {
   DEFAULT_PREFS_DAY,
   FLATTER_PENALTY,
   flatterWalksAdjustment,
+  hasCorridorScores,
+  routeCardBlurb,
+  routeMatchExplain,
 } from "./preferences";
+import type { ScoredRoute } from "./types";
 
 function line(coords: [number, number][]) {
   return { type: "LineString" as const, coordinates: coords };
@@ -180,6 +184,45 @@ describe("flatterWalksAdjustment", () => {
     } as Parameters<typeof flatterWalksAdjustment>[0];
     assert.equal(flatterWalksAdjustment(steep, on), -FLATTER_PENALTY.steep);
     assert.equal(flatterWalksAdjustment(unknown, on), 0);
+  });
+});
+
+function unscoredRoute(id = "mapbox-1"): ScoredRoute {
+  return {
+    id,
+    index: 0,
+    strategy: "mapbox-walking",
+    distance_m: 1400,
+    duration_s: 1080,
+    geometry: caseyEastLine(),
+    score: {
+      day_index_score: null,
+      night_index_score: null,
+      accessibility_score: null,
+      heat_shade_score: null,
+      lighting_after_dark_score: null,
+      day_display: null,
+      night_display: null,
+      accessibility_display: null,
+      heat_shade_display: null,
+      lighting_display: null,
+      confidence_day: "reduced",
+      confidence_night: "reduced",
+      segment_count: 0,
+      matched_length_m: 0,
+      coverage_ratio: 0,
+      shared_use_ratio: 0,
+      source: "client-geojson",
+    },
+  };
+}
+
+describe("unscored Mapbox copy", () => {
+  it("explains missing scores once, on the blurb", () => {
+    const route = unscoredRoute();
+    assert.equal(hasCorridorScores(route), false);
+    assert.match(routeCardBlurb(route, [route]), /couldn't score/i);
+    assert.equal(routeMatchExplain(null, route), null);
   });
 });
 

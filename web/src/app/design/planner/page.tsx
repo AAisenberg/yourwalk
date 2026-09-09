@@ -152,7 +152,7 @@ const TRIP_ROUTES: MockRoute[] = [
     footpaths: "7.6",
     comfort: "6.8",
     amenities: "No checked amenities on this path",
-    coverage: "Partial score coverage (72% of path)",
+    coverage: "Scores don't cover the whole walk.",
     elevation: FLAT_WALK,
   },
 ];

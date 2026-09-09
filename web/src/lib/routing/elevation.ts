@@ -218,11 +218,11 @@ export function hillinessDetailLine(profile: RouteElevation): string {
 }
 
 export function hillinessAriaLabel(profile: RouteElevation): string {
-  return (
-    `Elevation along the walk. Starts at ${Math.round(profile.start_m)} metres, ` +
-    `climbs about ${Math.round(profile.climb_m)} metres, steepest estimated grade ` +
-    `about ${Math.round(profile.max_grade_pct)} percent. ${ELEVATION_SOURCE_NOTE}`
-  );
+  const climb = Math.round(profile.climb_m);
+  const line = hillinessCardLine(profile);
+  return climb > 0
+    ? `Hills along the walk. ${line}.`
+    : `Hills along the walk. ${line}`;
 }
 
 export function isSteepElevation(profile: RouteElevation | undefined): boolean {

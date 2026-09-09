@@ -22,7 +22,7 @@ Council-grade slope on every T1EAM segment is still blocked: open Vicmap metro l
 | Surface | Behaviour |
 |---------|-----------|
 | Every result card | Hilliness line as soon as Terrain samples return: Mostly flat / Gentle hills / Some hills / Steep sections, plus climb in metres |
-| Selected walk | Sparkline elevation profile, climb, estimated steepest stretch, provenance sentence |
+| Selected walk | Sparkline elevation profile. Climb and hilliness stay on the card line (no lab caption under the graph) |
 | Peek sheet | Mentions steep sections when the highlighted walk is steep |
 | Day / Night / Footpaths pills | **Unchanged** |
 
@@ -43,7 +43,7 @@ Council-grade slope on every T1EAM segment is still blocked: open Vicmap metro l
 - Building pads and bridges can flatten or invent short wiggles.
 - Missing tiles or thin coverage: show nothing. Do not impute a flat walk.
 
-Resident copy: *Approximate hilliness from Mapbox Terrain. Not a surveyed footpath grade, and not part of the Footpaths score.*
+Resident copy lives on the card (Mostly flat / hills / Steep sections, plus climb). Do not put Terrain provenance or percent-grade notes under the sparkline. Keep that language in this spec and in the accessibility label if needed.
 
 ---
 
@@ -63,6 +63,8 @@ Resident copy: *Approximate hilliness from Mapbox Terrain. Not a surveyed footpa
 | **A. Disclosure** | Cards + selected profile | Shipped |
 | **B. Prefer flatter walks** | Soft rank among found cards | Shipped. Options + Find. Same chrome as away from roads. Does not change pathfinding |
 | **C. Avoid steep grades** | Hard filter | Later. Needs licensed 1 m DEM or Council grade layer |
+
+**Scrub the sparkline to a map marker** (finger along the line): feasible later, not this slice. Samples already have distance along the walk; invert x-position to a point on the LineString and drop a Mapbox marker. Same pattern as Strava / Komoot / AllTrails. Needs pointer capture so the sheet does not steal the drag.
 
 Pathfinding that searches for a flatter corridor (not only re-ranks Mapbox / Casey cards) waits on per-segment grade from the 1 m DEM.
 

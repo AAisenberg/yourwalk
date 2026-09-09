@@ -99,6 +99,7 @@ import {
   type WalkMode,
   clampImportance,
   flatterWalksAdjustment,
+  hasCorridorScores,
   isScoreAwareStrategy,
   preferenceScore,
   prefSliderDescription,
@@ -2592,9 +2593,11 @@ export function ResidentApp() {
                     : r.match_score != null
                       ? baseMatch + flatterWalksAdjustment(r, prefs)
                       : baseMatch;
-                const display = toDisplayScore(
-                  ranked ?? preferenceScore(r, prefs, walkMode),
-                );
+                const display = hasCorridorScores(r)
+                  ? toDisplayScore(
+                      ranked ?? preferenceScore(r, prefs, walkMode),
+                    )
+                  : null;
                 const label = routeCardLabel(r, routes);
                 const color = routeColorFor(r, routes, isNight);
                 return (
@@ -2663,11 +2666,7 @@ export function ResidentApp() {
                             {routeCardBlurb(r, routes)}
                           </p>
                           {(() => {
-                            const matchNote = routeMatchExplain(
-                              display,
-                              r,
-                              routes,
-                            );
+                            const matchNote = routeMatchExplain(display, r);
                             if (!matchNote) return null;
                             return (
                               <p
@@ -3074,22 +3073,19 @@ function scoreCoverageNote(score: {
   const detail = `${segs} scored segment${segs === 1 ? "" : "s"} · ~${Math.round(score.matched_length_m)} m matched · ${pct}% of path`;
 
   if (segs === 0 || score.coverage_ratio <= 0) {
-    return {
-      text: "No Casey scored footpath under this path — Footpaths and comfort scores unavailable",
-      detail,
-      tone: "warn",
-    };
+    // Card blurb already explains unscored Mapbox walks.
+    return null;
   }
   if (score.coverage_ratio < 0.35) {
     return {
-      text: `Limited score coverage (${pct}% of path) — pills may reflect nearby streets, not this trail`,
+      text: "Only part of this walk has Casey footpath scores.",
       detail,
       tone: "warn",
     };
   }
   if (score.coverage_ratio < 0.85) {
     return {
-      text: `Partial score coverage (${pct}% of path) — some stretches may use nearby footpath scores`,
+      text: "Scores don't cover the whole walk.",
       detail,
       tone: "soft",
     };
