@@ -64,6 +64,7 @@ export const WAITLIST = {
   emailLabel: "Email",
   emailPlaceholder: "you@example.com",
   submit: "Get updates",
+  sending: "Sending",
   thanks: "Thanks. We will be in touch as the pilot rolls out.",
   missingForm:
     "Add NEXT_PUBLIC_WAITLIST_FORM_URL in web/.env.local (Google Form link).",
