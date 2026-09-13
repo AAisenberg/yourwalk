@@ -285,6 +285,36 @@ body {
 }
 .yw-front-door .fd-cta {
   background-color: var(--fd-cta);
+  cursor: pointer;
+  transition: background-color 160ms ease;
+}
+.yw-front-door .fd-cta:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--fd-cta) 82%, #fff);
+}
+.yw-front-door .fd-cta:active:not(:disabled) {
+  background-color: color-mix(in srgb, var(--fd-cta) 86%, #000);
+}
+.yw-front-door .fd-cta:disabled {
+  cursor: wait;
+  opacity: 0.88;
+}
+.yw-front-door[data-mode="night"] .fd-cta:focus-visible {
+  outline-color: #fff;
+}
+
+@keyframes fd-cta-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.yw-front-door .fd-cta-spinner {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  animation: fd-cta-spin 0.65s linear infinite;
 }
 .yw-front-door .fd-header {
   background-color: var(--fd-header);
@@ -319,8 +349,13 @@ body {
   .yw-chrome-transition,
   .yw-fade-transition,
   .yw-front-door,
-  .yw-front-door .yw-fade-transition {
+  .yw-front-door .yw-fade-transition,
+  .yw-front-door .fd-cta {
     transition: none;
+  }
+  .yw-front-door .fd-cta-spinner {
+    animation: none;
+    display: none;
   }
 }
 

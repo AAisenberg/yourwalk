@@ -145,7 +145,9 @@ Out of scope for first cut: structured data beyond Organization basics, search c
 
 **Given** they submit a valid email and the Form URL is set  
 **When** the form posts  
-**Then** the address lands in the linked private Sheet  
+**Then** Get updates immediately shows Sending with a spinner and is disabled  
+**And** the thanks line replaces the form once the post finishes  
+**And** the address lands in the linked private Sheet  
 
 **Given** they open `https://www.yourwalk.au`  
 **When** DNS and Vercel redirects are live  

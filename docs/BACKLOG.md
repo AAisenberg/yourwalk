@@ -355,7 +355,7 @@ Before a backlog item is considered complete, it must meet all of the following:
 
 **Dependencies**: [`FRONT_DOOR.md`](FRONT_DOOR.md) spec; partner logo permission (FD-2); explicit go to build; then X7 apex DNS
 
-**Status**: Holding phase 14 Sep 2026 — Age landing + waitlist; no planner links; CrowdLab and Monash XYX Lab marks in `web/public/brand/partners/`; long explainer hidden (`FRONT_DOOR_PHASE`). Waitlist Form wired (FD-5). Then X7 apex DNS.
+**Status**: Holding phase 14 Sep 2026 — Age landing + waitlist; no planner links; CrowdLab and Monash XYX Lab marks in `web/public/brand/partners/`; long explainer hidden (`FRONT_DOOR_PHASE`). Waitlist Form wired (FD-5). Get updates shows Sending plus hover. Then X7 apex DNS.
 
 ---
 
