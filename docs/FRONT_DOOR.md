@@ -177,7 +177,7 @@ Out of scope for first cut: structured data beyond Organization basics, search c
 4. Add Monash / XYX Lab / CrowdLab logo files to `web/public/brand/partners/` before placing marks. Casey stays type-only.
 5. Day / Night state: reuse the planner's Casey civil twilight helper for the initial state; manual switch overrides for the session. Client-side only; no persistence, no tracking.
 6. Motion honours `prefers-reduced-motion`.
-7. Waitlist: Google Form → Responses → Link to Sheets (keep the Sheet private). Set `NEXT_PUBLIC_WAITLIST_FORM_URL` to the viewform link. Optional `NEXT_PUBLIC_WAITLIST_FORM_ENTRY` so the on-page field posts without opening a new tab.
+7. Waitlist: Google Form → Responses → Link to Sheets (keep the Sheet private). Default viewform and email entry id live in `frontDoorCopy.ts`. Override with `NEXT_PUBLIC_WAITLIST_FORM_URL` / `NEXT_PUBLIC_WAITLIST_FORM_ENTRY` only if the Form is replaced.
 
 ## Open questions
 
@@ -187,7 +187,7 @@ Out of scope for first cut: structured data beyond Organization basics, search c
 | FD-2 | Partner logos | **Decided 4 Sep 2026:** Casey never (type only; “Proudly supported by the City of Casey”). CrowdLab marketing lockup and one Monash University XYX Lab lockup in `web/public/brand/partners/`. | Decided |
 | FD-3 | Council CMS | A. This URL is the public story. B. Casey page also exists and links here. | When Council comms ask |
 | FD-4 | Analytics on the apex | A. None. B. Cookieless Vercel Web Analytics (soften privacy line). | Before first publish |
-| FD-5 | Waitlist Google Form URL | Paste `NEXT_PUBLIC_WAITLIST_FORM_URL` (and optional `ENTRY` id) so Get updates writes to a private Sheet. | Before Age publish |
+| FD-5 | Waitlist Google Form URL | **Decided 14 Sep 2026:** YourWalk updates Form (`Your email`, entry `520843463`). Get updates posts to that Form. Keep the linked Sheet private. | Decided |
 
 Do not reopen the host table or add mail to answer these.
 

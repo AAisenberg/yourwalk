@@ -10,13 +10,19 @@ export const FRONT_DOOR_PHASE: "holding" | "explainer" = "holding";
 /**
  * Google Form that writes to a Sheet (Responses → Link to Sheets).
  * Viewform URL, not the raw spreadsheet (the sheet must stay private).
+ * Public form id is not a secret; env can override if the Form is replaced.
  */
-export const WAITLIST_FORM_URL =
-  process.env.NEXT_PUBLIC_WAITLIST_FORM_URL?.trim() ?? "";
+const DEFAULT_WAITLIST_FORM_URL =
+  "https://docs.google.com/forms/d/e/1FAIpQLSc9WjadyyLcln973xwDAxd6hrJy-WxyVGChXmJhhNVlc7gwIQ/viewform";
+const DEFAULT_WAITLIST_FORM_ENTRY = "520843463";
 
-/** Optional. Prefills the email question, e.g. "123456789". */
+export const WAITLIST_FORM_URL =
+  process.env.NEXT_PUBLIC_WAITLIST_FORM_URL?.trim() || DEFAULT_WAITLIST_FORM_URL;
+
+/** Email question entry id, so Get updates posts without opening a new tab. */
 export const WAITLIST_FORM_ENTRY =
-  process.env.NEXT_PUBLIC_WAITLIST_FORM_ENTRY?.trim() ?? "";
+  process.env.NEXT_PUBLIC_WAITLIST_FORM_ENTRY?.trim() ||
+  DEFAULT_WAITLIST_FORM_ENTRY;
 
 export const HERO = {
   title: "Find your walk",
