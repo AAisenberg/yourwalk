@@ -50,7 +50,7 @@ import {
   whenHintForOverride,
   type LightPreset,
 } from "@/lib/caseyWhen";
-import { reverseGeocode } from "@/lib/routing/geocode";
+import { reverseGeocode, shortenPlaceLabel } from "@/lib/routing/geocode";
 import {
   formatDistance,
   formatDuration,
@@ -1669,16 +1669,7 @@ export function ResidentApp() {
   const isNight = walkMode === "night";
   /** Desktop uses a full-height side panel — ignore mobile peek/half snaps. */
   const sheetExpanded = isDesktop || sheetSnap !== "peek";
-  /** "66 Cupples Cr, Berwick Victoria 3806, Australia" → "66 Cupples Cr, Berwick" */
-  const shortLabel = (s: string) => {
-    if (!s) return "";
-    const parts = s.split(",").map((p) => p.trim());
-    const street = parts[0] ?? "";
-    const locality = (parts[1] ?? "")
-      .replace(/\s*(Victoria|VIC)(\s+\d{4})?\s*$/i, "")
-      .trim();
-    return locality ? `${street}, ${locality}` : street;
-  };
+  const shortLabel = shortenPlaceLabel;
 
   /** Trip heading with both endpoints; a shared suburb is said only once. */
   const tripHeading = () => {
