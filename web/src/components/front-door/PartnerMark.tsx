@@ -1,6 +1,6 @@
 /**
  * Partner well artwork. CrowdLab uses the marketing lockup (mark + word).
- * Monash + XYX Lab stay one lockup: official Monash mark over official XYX word.
+ * Monash + XYX Lab stay one lockup: official marks side by side.
  */
 
 type PartnerOrg = {
@@ -18,11 +18,11 @@ export function PartnerMark({ org }: { org: PartnerOrg }) {
         <img
           src={org.src}
           alt=""
-          width={32}
-          height={32}
-          className="h-8 w-8 shrink-0"
+          width={40}
+          height={40}
+          className="h-10 w-10 shrink-0"
         />
-        <span className="text-[20px] font-extrabold tracking-tight text-black">
+        <span className="text-[22px] font-extrabold leading-none tracking-tight text-black sm:text-2xl">
           CrowdLab
         </span>
       </span>
@@ -31,18 +31,22 @@ export function PartnerMark({ org }: { org: PartnerOrg }) {
 
   if (org.src && org.srcSecondary) {
     return (
-      <span className="flex w-full flex-col items-center justify-center gap-2">
+      <span className="flex w-full items-center justify-center gap-3 sm:gap-4">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={org.src}
-          alt=""
-          className="max-h-10 max-w-[88%] object-contain"
+          alt="Monash University"
+          className="h-9 w-auto max-w-[46%] object-contain sm:h-10"
+        />
+        <span
+          className="h-8 w-px shrink-0 bg-slate-200"
+          aria-hidden
         />
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={org.srcSecondary}
-          alt=""
-          className="max-h-7 max-w-[88%] object-contain"
+          alt="XYX Lab"
+          className="h-8 w-auto max-w-[46%] object-contain sm:h-9"
         />
       </span>
     );
@@ -53,8 +57,8 @@ export function PartnerMark({ org }: { org: PartnerOrg }) {
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={org.src}
-        alt=""
-        className="max-h-14 max-w-[80%] object-contain"
+        alt={org.name}
+        className="max-h-10 max-w-[80%] object-contain"
       />
     );
   }

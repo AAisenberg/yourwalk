@@ -83,10 +83,10 @@ Two indexes, not one. Day = Accessibility 60% + Heat and shade 40%. Night = Acce
 
 **Who’s behind it**, then the collaboration line, then two logo cards. **Proudly supported by the City of Casey** sits below the cards, in type. Connecting Grant is not on the public holding page unless Council later requires it (then under the Casey credit only). **Casey logo is never used.**
 
-Two collaborator cards (Monash University and XYX Lab are one lockup, not two):
+Two compact logo cards (marks only; no name or legal-entity line under them). Monash University and XYX Lab sit side by side in one card:
 
-- CrowdLab (CrowdSpot Pty Ltd)
-- Monash University XYX Lab
+- CrowdLab marketing lockup
+- Monash University + XYX Lab
 
 Do not split “delivery” vs “methodology” as if only XYX owns the method. It is a full collaboration. Files live in `web/public/brand/partners/`: CrowdLab mark from the marketing site lockup, official Monash University mark, official XYX Lab word (recolored black for the white well). Do not invent lockups. Casey stays type-only.
 

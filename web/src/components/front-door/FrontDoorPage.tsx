@@ -123,7 +123,7 @@ export function FrontDoorPage() {
         <section
           id={PARTNERS.id}
           aria-labelledby="partners-title"
-          className="fd-band-alt scroll-mt-20"
+          className="fd-band scroll-mt-20"
         >
           <div className="fd-inner py-12 sm:py-16">
             <h2
@@ -135,16 +135,14 @@ export function FrontDoorPage() {
             <p className="fd-muted mt-4 max-w-2xl text-[15px] leading-relaxed sm:text-[17px]">
               {PARTNERS.lead}
             </p>
-            <ul className="mt-8 grid gap-4 sm:grid-cols-2">
+            <ul className="mt-8 grid gap-3 sm:grid-cols-2">
               {PARTNERS.orgs.map((org) => (
-                <li key={org.id} className="fd-card rounded-2xl border p-5">
-                  <div className="flex h-32 items-center justify-center rounded-xl bg-white px-4 text-center">
-                    <PartnerMark org={org} />
-                  </div>
-                  <p className="fd-heading mt-3 text-[15px] font-extrabold">
-                    {org.name}
-                  </p>
-                  <p className="fd-quiet mt-1 text-[13px]">{org.role}</p>
+                <li
+                  key={org.id}
+                  aria-label={org.name}
+                  className="fd-rule flex min-h-[5.5rem] items-center justify-center rounded-2xl border bg-white px-4 py-4 sm:px-5"
+                >
+                  <PartnerMark org={org} />
                 </li>
               ))}
             </ul>
