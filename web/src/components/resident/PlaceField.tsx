@@ -4,7 +4,11 @@ import { useEffect, useId, useRef, useState } from "react";
 import { MdMyLocation, MdPlace } from "react-icons/md";
 
 import { WalkPinGlyph } from "@/components/resident/WalkPin";
-import { searchPlaces, type PlaceResult } from "@/lib/routing/geocode";
+import {
+  fieldLabelFromPlace,
+  searchPlaces,
+  type PlaceResult,
+} from "@/lib/routing/geocode";
 import type { LngLat } from "@/lib/routing/types";
 
 type Props = {
@@ -210,7 +214,10 @@ export function PlaceField({
                   isNight ? "text-white" : "text-slate-800"
                 }`}
                 onClick={() => {
-                  onPlace({ center: r.center, label: r.place_name });
+                  onPlace({
+                    center: r.center,
+                    label: fieldLabelFromPlace(r),
+                  });
                   setEditing(false);
                   setOpen(false);
                   setQuery("");
