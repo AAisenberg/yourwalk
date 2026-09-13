@@ -86,7 +86,7 @@ export default async function OpengraphImage() {
               color: "#64748B",
             }}
           >
-            A City of Casey Connecting Grant pilot
+            Proudly supported by the City of Casey
           </div>
         </div>
       </div>

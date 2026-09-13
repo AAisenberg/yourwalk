@@ -355,7 +355,7 @@ Before a backlog item is considered complete, it must meet all of the following:
 
 **Dependencies**: [`FRONT_DOOR.md`](FRONT_DOOR.md) spec; partner logo permission (FD-2); explicit go to build; then X7 apex DNS
 
-**Status**: Built on `feat/front-door` 4 Sep 2026 — Day/Night front door per spec (civil twilight auto-state, host routing in `src/proxy.ts`, token OG card, fresh planner screenshots), verified locally against the spec's acceptance criteria. Awaiting review/merge, then X7 phase 2 (apex + www DNS). FD-1 contact line and FD-4 analytics still open before first publish; partner logo files still to land (names in type meanwhile).
+**Status**: Holding phase 14 Sep 2026 — Age landing + waitlist; no planner links; CrowdLab and Monash XYX Lab marks in `web/public/brand/partners/`; long explainer hidden (`FRONT_DOOR_PHASE`). Wire `NEXT_PUBLIC_WAITLIST_FORM_URL` (Google Form → private Sheet) before publish. Then X7 apex DNS.
 
 ---
 

@@ -4,14 +4,13 @@ import { FrontDoorPage } from "@/components/front-door/FrontDoorPage";
 
 /**
  * Public front door, served on yourwalk.au via host rewrite in src/proxy.ts
- * (docs/FRONT_DOOR.md, ADR-012, backlog X8). Press and partners, not the
- * resident planner. No login, no email capture.
+ * (docs/FRONT_DOOR.md, ADR-012, backlog X8). Holding phase: waitlist only.
+ * No planner links.
  */
 
 const DESCRIPTION =
-  "A City of Casey Connecting Grant pilot: YourWalk helps Casey residents " +
-  "find walking routes that fit what matters, smoother footpaths, more " +
-  "shade on hot days, or better-lit streets after dark.";
+  "YourWalk helps local residents find walking routes that fit what matters. " +
+  "First pilot is in the City of Casey. Leave your email for updates.";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://yourwalk.au"),
