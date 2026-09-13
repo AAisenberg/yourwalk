@@ -160,6 +160,170 @@ body {
     border-color 200ms ease;
 }
 
+/* Front-door hero screenshot crossfade (Day / Night) */
+.yw-fade-transition {
+  transition: opacity 200ms ease;
+}
+
+/* Apex front door — interpolating tokens so the whole page eases, not snaps */
+@property --fd-bg {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #f5f7fa;
+}
+@property --fd-heading {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #292984;
+}
+@property --fd-muted {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #475569;
+}
+@property --fd-quiet {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #64748b;
+}
+@property --fd-card {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #ffffff;
+}
+@property --fd-border {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #e8ecf2;
+}
+@property --fd-cta {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #292984;
+}
+@property --fd-accent {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #00aaa6;
+}
+@property --fd-header {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #ffffff;
+}
+@property --fd-wash {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #e8f7f6;
+}
+@property --fd-band-alt {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #ffffff;
+}
+
+.yw-front-door {
+  --fd-bg: #f5f7fa;
+  --fd-heading: #292984;
+  --fd-muted: #475569;
+  --fd-quiet: #64748b;
+  --fd-card: #ffffff;
+  --fd-border: #e8ecf2;
+  --fd-cta: #292984;
+  --fd-accent: #00aaa6;
+  --fd-header: #fffffff0;
+  --fd-wash: #e8f7f6;
+  --fd-band-alt: #ffffff;
+  background-color: var(--fd-bg);
+  color: #1a202c;
+  transition:
+    --fd-bg 560ms cubic-bezier(0.22, 1, 0.36, 1),
+    --fd-heading 560ms cubic-bezier(0.22, 1, 0.36, 1),
+    --fd-muted 560ms cubic-bezier(0.22, 1, 0.36, 1),
+    --fd-quiet 560ms cubic-bezier(0.22, 1, 0.36, 1),
+    --fd-card 560ms cubic-bezier(0.22, 1, 0.36, 1),
+    --fd-border 560ms cubic-bezier(0.22, 1, 0.36, 1),
+    --fd-cta 560ms cubic-bezier(0.22, 1, 0.36, 1),
+    --fd-accent 560ms cubic-bezier(0.22, 1, 0.36, 1),
+    --fd-header 560ms cubic-bezier(0.22, 1, 0.36, 1),
+    --fd-wash 560ms cubic-bezier(0.22, 1, 0.36, 1),
+    --fd-band-alt 560ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 560ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 560ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.yw-front-door[data-mode="night"] {
+  --fd-bg: #0b0c1a;
+  --fd-heading: #ffffff;
+  --fd-muted: rgba(255, 255, 255, 0.72);
+  --fd-quiet: rgba(255, 255, 255, 0.45);
+  --fd-card: #14152a;
+  --fd-border: rgba(255, 255, 255, 0.12);
+  --fd-cta: #27aae1;
+  --fd-accent: #27aae1;
+  --fd-header: #0b0c1ad9;
+  --fd-wash: #101228;
+  --fd-band-alt: #14152a;
+  color: #ffffff;
+}
+
+.yw-front-door .fd-heading {
+  color: var(--fd-heading);
+}
+.yw-front-door .fd-muted {
+  color: var(--fd-muted);
+}
+.yw-front-door .fd-quiet {
+  color: var(--fd-quiet);
+}
+.yw-front-door .fd-accent {
+  color: var(--fd-accent);
+}
+.yw-front-door .fd-card {
+  background-color: var(--fd-card);
+  border-color: var(--fd-border);
+}
+.yw-front-door .fd-cta {
+  background-color: var(--fd-cta);
+}
+.yw-front-door .fd-header {
+  background-color: var(--fd-header);
+  border-color: var(--fd-border);
+}
+.yw-front-door .fd-rule {
+  border-color: var(--fd-border);
+}
+.yw-front-door .fd-inner {
+  width: 100%;
+  max-width: 64rem;
+  margin-inline: auto;
+  padding-inline: 1rem;
+}
+.yw-front-door .fd-band {
+  background-color: var(--fd-bg);
+}
+.yw-front-door .fd-band-alt {
+  background-color: var(--fd-band-alt);
+}
+.yw-front-door .fd-band-wash {
+  background-color: var(--fd-wash);
+}
+.yw-front-door .fd-band-cta {
+  background-color: var(--fd-cta);
+}
+.yw-front-door .yw-fade-transition {
+  transition: opacity 480ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yw-chrome-transition,
+  .yw-fade-transition,
+  .yw-front-door,
+  .yw-front-door .yw-fade-transition {
+    transition: none;
+  }
+}
+
 /* Segmented pill thumb — brand fill + slightly springy slide */
 .yw-segment-thumb {
   background-color: var(--yw-teal);
