@@ -7,16 +7,17 @@ import {
   useEffect,
   useRef,
   useState,
-  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 
+import { ElevationProfile } from "@/components/resident/ElevationProfile";
 import {
   IconAbout,
   IconEye,
   IconEyeOff,
   IconLocate,
   IconOuting,
+  IconTerrain,
   IconTrip,
 } from "@/components/resident/icons";
 import { AddToHomeScreen } from "@/components/resident/AddToHomeScreen";
@@ -74,9 +75,19 @@ import {
   overlayIconLayerId,
   overlayIdFromLayerId,
 } from "@/lib/overlayMapIcons";
+import {
+  hillinessCardLine,
+  isSteepElevation,
+  mergeElevationById,
+} from "@/lib/routing/elevation";
+import { attachElevationProfiles } from "@/lib/routing/elevationMapbox";
 import { planScoredRoutes } from "@/lib/routing/planRoute";
 import { OutingDurationSlider } from "@/components/resident/OutingDurationSlider";
 import { PrefSlider } from "@/components/resident/PrefSlider";
+import {
+  WalkOptions,
+  walkOptionsResultsHint,
+} from "@/components/resident/WalkOptions";
 import {
   clampOutingMinutes,
   planOutingRoutes,
@@ -87,6 +98,8 @@ import {
   type RoutePreferences,
   type WalkMode,
   clampImportance,
+  flatterWalksAdjustment,
+  hasCorridorScores,
   isScoreAwareStrategy,
   preferenceScore,
   prefSliderDescription,
@@ -589,6 +602,7 @@ export function ResidentApp() {
   const [destLabel, setDestLabel] = useState("");
   const [routes, setRoutes] = useState<ScoredRoute[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const elevationAbortRef = useRef<AbortController | null>(null);
   const [planning, setPlanning] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
   const [sheetMode, setSheetMode] = useState<"plan" | "results">("plan");
@@ -639,6 +653,9 @@ export function ResidentApp() {
           afterDark: clampImportance(parsed.afterDark ?? prev.afterDark),
           preferSharedPaths: Boolean(
             parsed.preferSharedPaths ?? prev.preferSharedPaths,
+          ),
+          preferFlatterWalks: Boolean(
+            parsed.preferFlatterWalks ?? prev.preferFlatterWalks,
           ),
         }));
       }
@@ -734,6 +751,8 @@ export function ResidentApp() {
   }, [routeLocked]);
 
   const clearResults = useCallback(() => {
+    elevationAbortRef.current?.abort();
+    elevationAbortRef.current = null;
     setRoutes([]);
     setSelectedId(null);
     setRouteError(null);
@@ -1568,6 +1587,8 @@ export function ResidentApp() {
     setPlanning(true);
     setSheetSnap((s) => (s === "peek" ? "half" : s));
     setRouteError(null);
+    elevationAbortRef.current?.abort();
+    elevationAbortRef.current = null;
     setRoutes([]);
     setSelectedId(null);
     setRouteLocked(false);
@@ -1634,6 +1655,29 @@ export function ResidentApp() {
       setSheetMode("results");
       setSheetSnap("half");
 
+      const elevationCtl = new AbortController();
+      elevationAbortRef.current = elevationCtl;
+      void attachElevationProfiles(ranked, token, elevationCtl.signal).then(
+        (withHills) => {
+          if (elevationCtl.signal.aborted) return;
+          setRoutes((current) => {
+            const merged = mergeElevationById(current, withHills);
+            return sortRoutesByPreferences(merged, prefs, walkMode);
+          });
+          if (!prefs.preferFlatterWalks) return;
+          const merged = mergeElevationById(ranked, withHills);
+          const next = sortRoutesByPreferences(merged, prefs, walkMode);
+          if (
+            selectedIdRef.current === ranked[0]?.id &&
+            next[0] &&
+            next[0].id !== selectedIdRef.current
+          ) {
+            quietSelectRef.current = true;
+            setSelectedId(next[0].id);
+          }
+        },
+      );
+
       const map = mapRef.current;
       if (map && ranked.length) {
         const bounds = new mapboxgl.LngLatBounds();
@@ -1667,6 +1711,10 @@ export function ResidentApp() {
   };
 
   const isNight = walkMode === "night";
+  const optionsHint = walkOptionsResultsHint(
+    prefs.preferSharedPaths,
+    prefs.preferFlatterWalks,
+  );
   /** Desktop uses a full-height side panel — ignore mobile peek/half snaps. */
   const sheetExpanded = isDesktop || sheetSnap !== "peek";
   /** "66 Cupples Cr, Berwick Victoria 3806, Australia" → "66 Cupples Cr, Berwick" */
@@ -2149,8 +2197,18 @@ export function ResidentApp() {
                 >
                   {sheetMode === "results" && routes.length > 0
                     ? routeLocked
-                      ? "Selected on the map · swipe up to compare"
-                      : `${routes.length} option${routes.length === 1 ? "" : "s"} · tap to expand`
+                      ? isSteepElevation(
+                          routes.find((r) => r.id === selectedId)?.elevation ??
+                            undefined,
+                        )
+                        ? "Steep sections on this walk · swipe up"
+                        : "Selected on the map · swipe up to compare"
+                      : isSteepElevation(
+                            routes.find((r) => r.id === selectedId)?.elevation ??
+                              undefined,
+                          )
+                        ? "Steep sections on a listed walk · tap to expand"
+                        : `${routes.length} option${routes.length === 1 ? "" : "s"} · tap to expand`
                     : "Swipe up to plan"}
                 </p>
               </div>
@@ -2207,6 +2265,15 @@ export function ResidentApp() {
                   {routes.length} option{routes.length === 1 ? "" : "s"} · tap a
                   walk to highlight it on the map
                 </p>
+                {optionsHint ? (
+                  <p
+                    className={`mt-1 text-[10px] leading-snug ${
+                      isNight ? "text-white/45" : "text-slate-500"
+                    }`}
+                  >
+                    {optionsHint}
+                  </p>
+                ) : null}
               </div>
               <div className="flex shrink-0 gap-1">
                 <button
@@ -2442,49 +2509,6 @@ export function ResidentApp() {
                   onChange={(accessibility) =>
                     setPrefs((p) => ({ ...p, accessibility }))
                   }
-                  footerAccessory={
-                    <label
-                      className={`mt-1.5 flex cursor-pointer items-center gap-1.5 rounded-lg px-1 py-0.5 ${
-                        prefs.preferSharedPaths
-                          ? isNight
-                            ? "bg-yw-blue/20"
-                            : "bg-[color-mix(in_srgb,var(--yw-blue)_14%,white)]"
-                          : ""
-                      }`}
-                      title="When you search, include a walk that stays on parks and paths even if it takes longer (up to about 1.6×). Does not change corridor score pills."
-                      style={
-                        {
-                          "--yw-check-accent": "#0B5F8A",
-                          "--yw-check-border": isNight
-                            ? "rgba(255,255,255,0.35)"
-                            : "#7EB8D4",
-                          "--yw-check-bg": isNight
-                            ? "rgba(255,255,255,0.06)"
-                            : "#fff",
-                        } as CSSProperties
-                      }
-                    >
-                      <input
-                        type="checkbox"
-                        className="yw-check yw-check-sm"
-                        checked={prefs.preferSharedPaths}
-                        onChange={(e) =>
-                          setPrefs((p) => ({
-                            ...p,
-                            preferSharedPaths: e.target.checked,
-                          }))
-                        }
-                        aria-label="Prefer away from roads"
-                      />
-                      <span
-                        className={`text-[10px] font-semibold leading-tight ${
-                          isNight ? "text-white/80" : "text-[#0B5F8A]"
-                        }`}
-                      >
-                        Prefer away from roads
-                      </span>
-                    </label>
-                  }
                 />
                 {isNight ? (
                   <PrefSlider
@@ -2517,6 +2541,17 @@ export function ResidentApp() {
                     }
                   />
                 )}
+                <WalkOptions
+                  isNight={isNight}
+                  preferAway={prefs.preferSharedPaths}
+                  preferFlatter={prefs.preferFlatterWalks}
+                  onPreferAway={(preferSharedPaths) =>
+                    setPrefs((p) => ({ ...p, preferSharedPaths }))
+                  }
+                  onPreferFlatter={(preferFlatterWalks) =>
+                    setPrefs((p) => ({ ...p, preferFlatterWalks }))
+                  }
+                />
               </section>
             </div>
           ) : null}
@@ -2549,12 +2584,20 @@ export function ResidentApp() {
                   ...routes.map((x) => x.duration_s),
                 );
                 // Prefer match_score from outing planner when set — must match card order
-                const ranked =
+                const baseMatch =
                   r.match_score ??
                   tripRankScore(r, prefs, shortestDur, walkMode);
-                const display = toDisplayScore(
-                  ranked ?? preferenceScore(r, prefs, walkMode),
-                );
+                const ranked =
+                  baseMatch == null
+                    ? null
+                    : r.match_score != null
+                      ? baseMatch + flatterWalksAdjustment(r, prefs)
+                      : baseMatch;
+                const display = hasCorridorScores(r)
+                  ? toDisplayScore(
+                      ranked ?? preferenceScore(r, prefs, walkMode),
+                    )
+                  : null;
                 const label = routeCardLabel(r, routes);
                 const color = routeColorFor(r, routes, isNight);
                 return (
@@ -2596,6 +2639,25 @@ export function ResidentApp() {
                             <span className="opacity-30"> · </span>
                             {formatDistance(r.distance_m)}
                           </p>
+                          {r.elevation ? (
+                            <p
+                              className={`mt-1 flex items-center gap-1 text-[11px] leading-snug ${
+                                r.elevation.band === "steep"
+                                  ? isNight
+                                    ? "text-amber-200"
+                                    : "text-amber-900"
+                                  : isNight
+                                    ? "text-white/55"
+                                    : "text-slate-600"
+                              }`}
+                            >
+                              <IconTerrain
+                                className="h-3.5 w-3.5 shrink-0"
+                                aria-hidden
+                              />
+                              {hillinessCardLine(r.elevation)}
+                            </p>
+                          ) : null}
                           <p
                             className={`mt-1 text-[11px] leading-snug ${
                               isNight ? "text-white/55" : "text-slate-600"
@@ -2604,11 +2666,7 @@ export function ResidentApp() {
                             {routeCardBlurb(r, routes)}
                           </p>
                           {(() => {
-                            const matchNote = routeMatchExplain(
-                              display,
-                              r,
-                              routes,
-                            );
+                            const matchNote = routeMatchExplain(display, r);
                             if (!matchNote) return null;
                             return (
                               <p
@@ -2629,6 +2687,18 @@ export function ResidentApp() {
                               }`}
                             >
                               {r.amenity_note}
+                            </p>
+                          ) : null}
+                          {prefs.preferFlatterWalks &&
+                          r.elevation &&
+                          (r.elevation.band === "flat" ||
+                            r.elevation.band === "gentle") ? (
+                            <p
+                              className={`mt-1 text-[10px] leading-snug ${
+                                isNight ? "text-white/55" : "text-slate-600"
+                              }`}
+                            >
+                              Flatter option among these walks
                             </p>
                           ) : null}
                           {prefs.preferSharedPaths &&
@@ -2718,6 +2788,13 @@ export function ResidentApp() {
                           </p>
                         );
                       })()}
+
+                      {active && r.elevation ? (
+                        <ElevationProfile
+                          profile={r.elevation}
+                          isNight={isNight}
+                        />
+                      ) : null}
                     </button>
                   </li>
                 );
@@ -2996,22 +3073,19 @@ function scoreCoverageNote(score: {
   const detail = `${segs} scored segment${segs === 1 ? "" : "s"} · ~${Math.round(score.matched_length_m)} m matched · ${pct}% of path`;
 
   if (segs === 0 || score.coverage_ratio <= 0) {
-    return {
-      text: "No Casey scored footpath under this path — Footpaths and comfort scores unavailable",
-      detail,
-      tone: "warn",
-    };
+    // Card blurb already explains unscored Mapbox walks.
+    return null;
   }
   if (score.coverage_ratio < 0.35) {
     return {
-      text: `Limited score coverage (${pct}% of path) — pills may reflect nearby streets, not this trail`,
+      text: "Only part of this walk has Casey footpath scores.",
       detail,
       tone: "warn",
     };
   }
   if (score.coverage_ratio < 0.85) {
     return {
-      text: `Partial score coverage (${pct}% of path) — some stretches may use nearby footpath scores`,
+      text: "Scores don't cover the whole walk.",
       detail,
       tone: "soft",
     };
