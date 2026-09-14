@@ -337,7 +337,7 @@ Before a backlog item is considered complete, it must meet all of the following:
 
 **Dependencies**: You claim `yourwalk.au` on Squarespace; explicit go on Vercel domains; front-door page for apex (separate go)
 
-**Status**: Phase 1 done 4 Sep 2026 — `app.yourwalk.au` live (Squarespace CNAME + Vercel cert). Apex / `www` still blocked on a front-door page. Dashboard host waits for N5.
+**Status**: Phase 2 live 14 Sep 2026 — `https://yourwalk.au` serves the holding front door. `www` 308s to the apex. `app.yourwalk.au` still the planner. Dashboard host waits for N5.
 
 ---
 
@@ -355,7 +355,7 @@ Before a backlog item is considered complete, it must meet all of the following:
 
 **Dependencies**: [`FRONT_DOOR.md`](FRONT_DOOR.md) spec; partner logo permission (FD-2); explicit go to build; then X7 apex DNS
 
-**Status**: Holding phase 14 Sep 2026 — Age landing + waitlist; no planner links; CrowdLab and Monash XYX Lab marks in `web/public/brand/partners/`; long explainer hidden (`FRONT_DOOR_PHASE`). Waitlist Form wired (FD-5). Get updates shows Sending plus hover. Then X7 apex DNS.
+**Status**: Holding phase live on `https://yourwalk.au` 14 Sep 2026 — Age landing + waitlist; no planner links; Monash XYX Lab then CrowdLab marks; long explainer hidden (`FRONT_DOOR_PHASE`). Waitlist Form wired (FD-5). Get updates shows Sending plus hover. X7 apex DNS live.
 
 ---
 
