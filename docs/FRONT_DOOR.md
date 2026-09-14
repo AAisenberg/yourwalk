@@ -1,6 +1,6 @@
 # Front door — yourwalk.au
 
-**Status:** Holding phase (13 Sep 2026). Age landing + waitlist. Long explainer hidden.  
+**Status:** Holding phase live on `https://yourwalk.au` (14 Sep 2026). Age landing + waitlist. Long explainer hidden.  
 **Host:** `yourwalk.au` (ADR-012). `www.yourwalk.au` redirects here.  
 **Planner:** `app.yourwalk.au` (already live).  
 **Audience:** Press, partners, Casey officers, Nikki briefing media. Not a login. Not the resident planner.
@@ -63,7 +63,7 @@ PRD problem, in public language: the same street can be two different walks (mor
 
 ### 3. Rank the walk (solution)
 
-Casey planner ranks A to B or loop options from Council asset data and OpenStreetMap. Higher score = better walking conditions. Method is a CrowdLab and Monash University XYX Lab collaboration, accepted July 2026.
+Casey planner ranks A to B or loop options from Council asset data and OpenStreetMap. Higher score = better walking conditions. Method is a Monash University XYX Lab and CrowdLab collaboration, accepted July 2026.
 
 ### 4. How it works
 
@@ -83,10 +83,10 @@ Two indexes, not one. Day = Accessibility 60% + Heat and shade 40%. Night = Acce
 
 **Who’s behind it**, then the collaboration line, then two logo cards. **Proudly supported by the City of Casey** sits below the cards, in type. Connecting Grant is not on the public holding page unless Council later requires it (then under the Casey credit only). **Casey logo is never used.**
 
-Two compact logo cards (marks only; no name or legal-entity line under them). Monash University and XYX Lab sit side by side in one card:
+Two compact logo cards (marks only; no name or legal-entity line under them). Monash University and XYX Lab sit side by side in one card. Public order leads with Monash / XYX (left, named first); CrowdLab is second:
 
-- CrowdLab marketing lockup
 - Monash University + XYX Lab
+- CrowdLab marketing lockup
 
 Do not split “delivery” vs “methodology” as if only XYX owns the method. It is a full collaboration. Files live in `web/public/brand/partners/`: CrowdLab mark from the marketing site lockup, official Monash University mark, official XYX Lab word (recolored black for the white well). Do not invent lockups. Casey stays type-only.
 
@@ -174,7 +174,10 @@ Out of scope for first cut: structured data beyond Organization basics, search c
 ## Build notes (after you say go on the page)
 
 1. Static route in the same Next app (`src/app/front-door/page.tsx`) plus host routing in `src/proxy.ts` (Next 16 renamed middleware to proxy): `yourwalk.au` / `www` → front door; `app.yourwalk.au` → `/`.
-2. Do not attach the apex in Vercel until this page exists. Then add `yourwalk.au` + `www` and redirect www → apex. Squarespace: A `@` and CNAME `www` (not the Vercel preset that also points the planner at the apex).
+2. Vercel (14 Sep 2026): `yourwalk.au` and `www.yourwalk.au` are on the `yourwalk` project. `www` 308s to the apex. Squarespace nameservers stay. Add only these records (do not use the Squarespace Vercel preset; do not touch the existing `app` CNAME):
+   - A `@` → `216.198.79.1`
+   - A `@` → `64.29.17.1`
+   - CNAME `www` → `26a2f7a2d77287c3.vercel-dns-017.com`
 3. Tokens and type from the visual system. CTA navy (day) / blue (night). Mark from `web/public/brand/yourwalk-mark.svg`.
 4. Add Monash / XYX Lab / CrowdLab logo files to `web/public/brand/partners/` before placing marks. Casey stays type-only.
 5. Day / Night state: reuse the planner's Casey civil twilight helper for the initial state; manual switch overrides for the session. Client-side only; no persistence, no tracking.

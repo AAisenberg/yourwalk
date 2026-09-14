@@ -430,7 +430,7 @@ Vercel prefers `www` as the primary hostname (CNAME steering). We still lock **w
 **Consequences**:
 
 - Do not attach the apex to the planner until a front-door page exists. Pointing `yourwalk.au` at today's `/` would publish the planner as the front door.
-- First DNS cut: `app.yourwalk.au` live 4 Sep 2026 (Squarespace CNAME + Vercel cert). Apex and `www` wait for the front-door page. `dashboard.yourwalk.au` waits for N5.
+- First DNS cut: `app.yourwalk.au` live 4 Sep 2026 (Squarespace CNAME + Vercel cert). Apex and `www` live 14 Sep 2026 (front door on `yourwalk.au`, `www` 308 to apex). `dashboard.yourwalk.au` waits for N5.
 - `yourwalk.vercel.app` remains a valid production URL until a later cutover; do not delete it in this ADR.
 - Mapbox GL JS only on every public host (ADR-002). No MapLibre.
 - Clerk and dashboard UI stay out of scope until an explicit go. Front-door **spec**: [`FRONT_DOOR.md`](FRONT_DOOR.md) (4 Sep 2026). Page and apex DNS wait for a separate go.

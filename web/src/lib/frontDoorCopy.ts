@@ -39,20 +39,20 @@ export const PARTNERS = {
   title: "Who’s behind it",
   support: "Proudly supported by the City of Casey",
   lead:
-    "YourWalk is a collaboration between CrowdLab and Monash University’s XYX Lab.",
+    "YourWalk is a collaboration between Monash University’s XYX Lab and CrowdLab.",
   orgs: [
-    {
-      id: "crowdlab",
-      name: "CrowdLab",
-      role: "CrowdSpot Pty Ltd",
-      src: "/brand/partners/crowdlab-mark.svg",
-    },
     {
       id: "monash-xyx",
       name: "Monash University XYX Lab",
       role: "Monash University",
       src: "/brand/partners/monash-university.png",
       srcSecondary: "/brand/partners/xyx-lab.svg",
+    },
+    {
+      id: "crowdlab",
+      name: "CrowdLab",
+      role: "CrowdSpot Pty Ltd",
+      src: "/brand/partners/crowdlab-mark.svg",
     },
   ],
 } as const;
@@ -111,7 +111,7 @@ export const SOLUTION = {
   body:
     "YourWalk scores Casey footpaths street by street from Council asset data and OpenStreetMap. You plan an A to B walk or a loop, set what matters most, and the planner ranks options for a day walk or a night walk.",
   proof:
-    "A higher score means better walking conditions. The method is a collaboration between CrowdLab and Monash University’s XYX Lab, accepted for this pilot in July 2026.",
+    "A higher score means better walking conditions. The method is a collaboration between Monash University’s XYX Lab and CrowdLab, accepted for this pilot in July 2026.",
 } as const;
 
 export const HOW = {
@@ -173,7 +173,7 @@ export const MEDIA = {
   factsTitle: "Facts you can use",
   facts: [
     "Proudly supported by the City of Casey. A Connecting Grant pilot.",
-    "A collaboration between CrowdLab and Monash University’s XYX Lab.",
+    "A collaboration between Monash University’s XYX Lab and CrowdLab.",
     "Two scores: a Day Index and a Night Index (methodology v1.1).",
     "Higher score means better walking conditions. Not a safety guarantee.",
   ],
