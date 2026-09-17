@@ -81,14 +81,14 @@ export function WalkOptions({
         <div id={panelId} className="space-y-1 px-1 pb-1">
           <PreferCheck
             label="Prefer away from roads"
-            title="When you Find, include a walk that stays on parks and paths even if it takes longer (up to about 1.6×). Does not change corridor score pills."
+            title="Can add a longer park or trail walk, up to about one and a half times as far. Does not change the Footpaths scores."
             checked={preferAway}
             isNight={isNight}
             onChange={onPreferAway}
           />
           <PreferCheck
             label="Prefer flatter walks"
-            title="When you Find, rank gentler hills higher among the walks we find. Approximate from Mapbox Terrain. Does not hide steep options or change Footpaths scores."
+            title="Puts gentler walks first among the ones we already found. Steep walks stay listed. Does not add a new walk or change the Footpaths scores."
             checked={preferFlatter}
             isNight={isNight}
             onChange={onPreferFlatter}
