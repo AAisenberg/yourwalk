@@ -165,7 +165,7 @@ Before a backlog item is considered complete, it must meet all of the following:
 **Acceptance Criteria**:
 - Given Find returns one or more walks
 - When Mapbox Terrain samples cover enough of a walk
-- Then every card shows a hilliness line (Mostly flat / hills / Steep sections, plus climb)
+- Then every card shows a hilliness line (Mostly flat / hills / Steep sections, plus climb in metres)
 - And the selected walk shows an elevation sparkline, climb, and estimated steepest stretch
 - And copy states the profile is approximate Terrain, not a surveyed grade, and not part of the Footpaths score
 - And Day / Night / Accessibility pills and Recommended ranking do not change

@@ -209,13 +209,13 @@ export function hillinessCardLine(profile: RouteElevation): string {
     case "steep":
       if (climb <= 0) return "A steep stretch";
       if (climb < STEEP_SECTIONS_MIN_CLIMB_M) {
-        return `A steep stretch · ↑ ${climb} m`;
+        return `A steep stretch · ↑ ${climb} m climb`;
       }
-      return `Steep sections · ↑ ${climb} m`;
+      return `Steep sections · ↑ ${climb} m climb`;
     case "hilly":
-      return climb > 0 ? `Some hills · ↑ ${climb} m` : "Some hills";
+      return climb > 0 ? `Some hills · ↑ ${climb} m climb` : "Some hills";
     case "gentle":
-      return climb > 0 ? `Gentle hills · ↑ ${climb} m` : "Gentle hills";
+      return climb > 0 ? `Gentle hills · ↑ ${climb} m climb` : "Gentle hills";
     default:
       return "Mostly flat";
   }

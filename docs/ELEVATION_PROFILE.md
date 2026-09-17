@@ -21,7 +21,7 @@ Council-grade slope on every T1EAM segment is still blocked: open Vicmap metro l
 
 | Surface | Behaviour |
 |---------|-----------|
-| Every result card | Time · distance · hilliness on one line once Terrain samples return: Mostly flat / Gentle hills / Some hills / Steep sections, plus climb in metres |
+| Every result card | Time · distance · hilliness on one line once Terrain samples return: Mostly flat / Gentle hills / Some hills / Steep sections, plus `↑ N m climb` |
 | Selected walk | Sparkline elevation profile. Climb and hilliness stay on the card line (no lab caption under the graph) |
 | Peek sheet | Mentions steep sections when the highlighted walk is steep |
 | Day / Night / Footpaths pills | **Unchanged** |
@@ -36,7 +36,7 @@ Council-grade slope on every T1EAM segment is still blocked: open Vicmap metro l
 2. Sample [Mapbox Terrain-RGB](https://docs.mapbox.com/data/tilesets/reference/mapbox-terrain-rgb-v1/) tiles at zoom 14.
 3. Smooth heights, then estimate grade over a 40 m window.
 4. Band using AS 1428-style language only: about 3% gentle, 5% hilly, 8% steep. This is **not** an accessibility compliance claim.
-5. Card words: `↑ N m` is total climb. “Steep sections” only when peak grade is steep **and** climb is at least about 15 m. A sharp pinch with little climb says “A steep stretch”.
+5. Card words: `↑ N m climb` is total uphill along the walk. “Steep sections” only when peak grade is steep **and** climb is at least about 15 m. A sharp pinch with little climb says “A steep stretch”.
 6. Sparkline: X is the whole walk. Y uses at least a 40 m window and does not let the relief fill more than about two thirds of the height, so a 7 m wiggle stays a wrinkle.
 
 **Known limits**
@@ -45,7 +45,7 @@ Council-grade slope on every T1EAM segment is still blocked: open Vicmap metro l
 - Building pads and bridges can flatten or invent short wiggles.
 - Missing tiles or thin coverage: show nothing. Do not impute a flat walk.
 
-Resident copy lives on the card (Mostly flat / hills / Steep sections, plus climb). Do not put Terrain provenance or percent-grade notes under the sparkline. Keep that language in this spec and in the accessibility label if needed.
+Resident copy lives on the card (Mostly flat / hills / Steep sections, plus `↑ N m climb`). Do not put Terrain provenance or percent-grade notes under the sparkline. Keep that language in this spec and in the accessibility label if needed.
 
 ---
 

@@ -158,7 +158,7 @@ describe("hillinessCardLine", () => {
     const line = hillinessCardLine(
       fixtureProfile({ climb_m: 38, max_grade_pct: 9, band: "steep" }),
     );
-    assert.match(line, /Steep sections · ↑ 38 m/);
+    assert.match(line, /Steep sections · ↑ 38 m climb/);
     assert.equal(
       isEmphaticSteep(
         fixtureProfile({ climb_m: 38, max_grade_pct: 9, band: "steep" }),
