@@ -148,7 +148,7 @@ Rules:
 
 - **Calculating your walks…** while planning. Map stays visible.
 - List cards show the compare set on every option: name, time, distance, hilliness once Terrain samples return, match, why, Footpaths + Heat & Shade or Lighting pills, coverage, amenity / prefer-away notes
-- Hilliness is disclosure only (Mostly flat / hills / Steep sections + climb). It does not change Day / Night / Footpaths pills
+- Hilliness is disclosure only (Mostly flat / hills / Steep sections + climb), on the same line as time and distance. It does not change Day / Night / Footpaths pills
 - If Options were on at Find, the results header shows a quiet hint. Steep walks stay listed when Prefer flatter walks is on. Away from roads may add a longer park card.
 - The **selected** walk also shows an elevation sparkline. Climb and hilliness stay on the card line. No lab caption under the graph.
 - Tap a card or the path: that walk is highlighted on the map. Selection does not hide the other cards’ pills
