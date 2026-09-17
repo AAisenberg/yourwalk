@@ -6,7 +6,7 @@ import {
 
 /**
  * Compact elevation sparkline for the selected walk.
- * Hilliness and climb already sit on the card; no lab caption under the line.
+ * Hilliness, climb, and descent already sit on the card; no lab caption under the line.
  */
 export function ElevationProfile({
   profile,

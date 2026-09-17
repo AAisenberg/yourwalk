@@ -94,7 +94,7 @@ If Nikki requires gradient in v1.1 for grant narrative, the honest fallback is *
 
 Open metro layers remain unfit for **per-segment** Accessibility scoring. That does not block a **route-level** hilliness disclosure on the planned walk line.
 
-The resident app samples Mapbox Terrain-RGB along each result geometry and shows climb / estimated max grade / a sparkline. This is **not** folded into Day, Night, or Footpaths scores. Method and copy: [`ELEVATION_PROFILE.md`](ELEVATION_PROFILE.md).
+The resident app samples Mapbox Terrain-RGB along each result geometry and shows climb / descent / estimated max grade / a sparkline. This is **not** folded into Day, Night, or Footpaths scores. Method and copy: [`ELEVATION_PROFILE.md`](ELEVATION_PROFILE.md).
 
 Do not treat this profile as the v1.2 gradient input. v1.2 still needs a licensed 1 m DEM or a Council slope layer.
 

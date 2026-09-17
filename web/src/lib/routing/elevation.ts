@@ -3,8 +3,8 @@
  *
  * Not an Accessibility index input. Gradient stays deferred in methodology
  * v1.1 (see docs/GRADIENT_DISCOVERY.md). This module turns sampled heights
- * along a planned walk into climb, an estimated max grade, and a hilliness
- * band so residents can see a steep walk before they start it.
+ * along a planned walk into climb, descent, an estimated max grade, and a
+ * hilliness band so residents can see a steep walk before they start it.
  */
 
 export type HillinessBand = "flat" | "gentle" | "hilly" | "steep";
@@ -104,11 +104,13 @@ export function densifyLine(
 export function classifyHilliness(
   maxGradePct: number,
   climbM: number,
+  descentM = 0,
 ): HillinessBand {
   if (!Number.isFinite(maxGradePct) || maxGradePct < 0) return "flat";
+  const effort = Math.max(climbM, descentM);
   if (maxGradePct >= GRADE_STEEP_PCT) return "steep";
-  if (maxGradePct >= GRADE_HILLY_PCT || climbM >= 25) return "hilly";
-  if (maxGradePct >= GRADE_GENTLE_PCT || climbM >= 8) return "gentle";
+  if (maxGradePct >= GRADE_HILLY_PCT || effort >= 25) return "hilly";
+  if (maxGradePct >= GRADE_GENTLE_PCT || effort >= 8) return "gentle";
   return "flat";
 }
 
@@ -198,51 +200,69 @@ export function profileFromElevations(
     climb_m: climb,
     descent_m: descent,
     max_grade_pct: maxGrade,
-    band: classifyHilliness(maxGrade, climb),
+    band: classifyHilliness(maxGrade, climb, descent),
     samples,
   };
 }
 
-export function hillinessCardLine(profile: RouteElevation): string {
-  const climb = Math.round(profile.climb_m);
+function hillinessWords(profile: RouteElevation): string {
   switch (profile.band) {
     case "steep":
-      if (climb <= 0) return "A steep stretch";
-      if (climb < STEEP_SECTIONS_MIN_CLIMB_M) {
-        return `A steep stretch · ↑ ${climb} m climb`;
-      }
-      return `Steep sections · ↑ ${climb} m climb`;
+      return isEmphaticSteep(profile) ? "Steep sections" : "A steep stretch";
     case "hilly":
-      return climb > 0 ? `Some hills · ↑ ${climb} m climb` : "Some hills";
+      return "Some hills";
     case "gentle":
-      return climb > 0 ? `Gentle hills · ↑ ${climb} m climb` : "Gentle hills";
+      return "Gentle hills";
     default:
       return "Mostly flat";
   }
 }
 
+/** Climb and/or descent when large enough to mention. */
+function hillinessMetres(profile: RouteElevation): string[] {
+  const climb = Math.round(profile.climb_m);
+  const descent = Math.round(profile.descent_m);
+  const bits: string[] = [];
+  const showClimb = climb > 0 && (climb >= 8 || climb >= descent);
+  const showDescent = descent > 0 && (descent >= 8 || descent > climb);
+  if (showClimb) bits.push(`↑ ${climb} m climb`);
+  if (showDescent) bits.push(`↓ ${descent} m descent`);
+  return bits;
+}
+
+export function hillinessCardLine(profile: RouteElevation): string {
+  const words = hillinessWords(profile);
+  const metres = hillinessMetres(profile);
+  if (profile.band === "flat" && metres.length === 0) return "Mostly flat";
+  if (metres.length === 0) return words;
+  return `${words} · ${metres.join(" · ")}`;
+}
+
 export function hillinessDetailLine(profile: RouteElevation): string {
   const climb = Math.round(profile.climb_m);
+  const descent = Math.round(profile.descent_m);
   const grade = Math.round(profile.max_grade_pct);
-  return `Climbs about ${climb} m. Steepest stretch about ${grade}%.`;
+  const bits: string[] = [];
+  if (climb > 0) bits.push(`Climbs about ${climb} m`);
+  if (descent > 0) bits.push(`descends about ${descent} m`);
+  if (bits.length === 0) return `Steepest stretch about ${grade}%.`;
+  const lead = bits[0][0].toUpperCase() + bits[0].slice(1);
+  const rest = bits.slice(1);
+  const metres = rest.length ? `${lead} and ${rest.join(" and ")}` : lead;
+  return `${metres}. Steepest stretch about ${grade}%.`;
 }
 
 export function hillinessAriaLabel(profile: RouteElevation): string {
-  const climb = Math.round(profile.climb_m);
-  const line = hillinessCardLine(profile);
-  return climb > 0
-    ? `Hills along the walk. ${line}.`
-    : `Hills along the walk. ${line}`;
+  return `Hills along the walk. ${hillinessCardLine(profile)}.`;
 }
 
-/** Amber / peek: a real hill, not a short 8% pinch with little climb. */
+/** Amber / peek: a real up or down, not a short 8% pinch with little effort. */
 export function isEmphaticSteep(
   profile: RouteElevation | undefined,
 ): boolean {
-  return (
-    profile?.band === "steep" &&
-    profile.climb_m >= STEEP_SECTIONS_MIN_CLIMB_M
-  );
+  if (profile?.band !== "steep") return false;
+  const effort = Math.max(profile.climb_m, profile.descent_m);
+  return effort >= STEEP_SECTIONS_MIN_CLIMB_M;
 }
 
 export function isSteepElevation(profile: RouteElevation | undefined): boolean {

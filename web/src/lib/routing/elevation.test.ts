@@ -77,6 +77,10 @@ describe("classifyHilliness", () => {
   it("treats a long climb as hilly even when the peak grade is moderate", () => {
     assert.equal(classifyHilliness(4.2, 28), "hilly");
   });
+
+  it("treats a long descent as hilly the same way", () => {
+    assert.equal(classifyHilliness(4.2, 4, 28), "hilly");
+  });
 });
 
 describe("profileFromElevations", () => {
@@ -106,6 +110,23 @@ describe("profileFromElevations", () => {
     ];
     const elevations = [40, null, null, 41];
     assert.equal(profileFromElevations(linePts, elevations), null);
+  });
+
+  it("returns descent for a downhill and keeps the steep band", () => {
+    const linePts: [number, number][] = [
+      [145.317, -38.112],
+      [145.31715, -38.112],
+      [145.3173, -38.112],
+      [145.31745, -38.112],
+      [145.3176, -38.112],
+    ];
+    const profile = profileFromElevations(linePts, [58, 56, 54, 52, 50]);
+    assert.ok(profile);
+    assert.ok(profile.descent_m >= 6);
+    assert.ok(profile.climb_m < 2);
+    assert.ok(profile.max_grade_pct >= 8);
+    assert.equal(profile.band, "steep");
+    assert.match(hillinessCardLine(profile), /↓ \d+ m descent/);
   });
 
   it("stays flat on a level path", () => {
@@ -165,6 +186,40 @@ describe("hillinessCardLine", () => {
       ),
       true,
     );
+  });
+
+  it("discloses a long downhill when the walk is flipped", () => {
+    const down = fixtureProfile({
+      climb_m: 6,
+      descent_m: 38,
+      max_grade_pct: 9,
+      band: "steep",
+    });
+    assert.equal(hillinessCardLine(down), "Steep sections · ↓ 38 m descent");
+    assert.equal(isEmphaticSteep(down), true);
+  });
+
+  it("shows both when climb and descent are both real", () => {
+    const line = hillinessCardLine(
+      fixtureProfile({
+        climb_m: 18,
+        descent_m: 22,
+        max_grade_pct: 6,
+        band: "hilly",
+      }),
+    );
+    assert.equal(line, "Some hills · ↑ 18 m climb · ↓ 22 m descent");
+  });
+
+  it("does not call a 7 m downhill pinch Steep sections", () => {
+    const pinch = fixtureProfile({
+      climb_m: 2,
+      descent_m: 7,
+      max_grade_pct: 9,
+      band: "steep",
+    });
+    assert.match(hillinessCardLine(pinch), /A steep stretch · ↓ 7 m descent/);
+    assert.equal(isEmphaticSteep(pinch), false);
   });
 });
 

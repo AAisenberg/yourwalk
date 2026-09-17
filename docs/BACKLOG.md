@@ -165,15 +165,15 @@ Before a backlog item is considered complete, it must meet all of the following:
 **Acceptance Criteria**:
 - Given Find returns one or more walks
 - When Mapbox Terrain samples cover enough of a walk
-- Then every card shows a hilliness line (Mostly flat / hills / Steep sections, plus climb in metres)
-- And the selected walk shows an elevation sparkline, climb, and estimated steepest stretch
+- Then every card shows a hilliness line (Mostly flat / hills / Steep sections, plus climb and/or descent in metres)
+- And the selected walk shows an elevation sparkline, climb or descent, and estimated steepest stretch
 - And copy states the profile is approximate Terrain, not a surveyed grade, and not part of the Footpaths score
 - And Day / Night / Accessibility pills and Recommended ranking do not change
 - And thin coverage shows no profile (does not impute flat)
 
 **Dependencies**: Mapbox token (ADR-002); planned walk geometry
 
-**Status**: Now — shipped 9 Sep 2026. Card hilliness + selected sparkline + **Prefer flatter walks** soft rank (OQ-8 A+B). Both prefers live under plan-sheet **Options** (same Find ritual as away from roads). Hard filter stays open (OQ-8 C).
+**Status**: Now — shipped 9 Sep 2026. Card hilliness + selected sparkline + **Prefer flatter walks** soft rank (OQ-8 A+B). Both prefers live under plan-sheet **Options** (same Find ritual as away from roads). Descent disclosed the same way as climb (17 Sep 2026). Hard filter stays open (OQ-8 C).
 
 ---
 
