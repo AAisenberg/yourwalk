@@ -36,6 +36,8 @@ Council-grade slope on every T1EAM segment is still blocked: open Vicmap metro l
 2. Sample [Mapbox Terrain-RGB](https://docs.mapbox.com/data/tilesets/reference/mapbox-terrain-rgb-v1/) tiles at zoom 14.
 3. Smooth heights, then estimate grade over a 40 m window.
 4. Band using AS 1428-style language only: about 3% gentle, 5% hilly, 8% steep. This is **not** an accessibility compliance claim.
+5. Card words: `↑ N m` is total climb. “Steep sections” only when peak grade is steep **and** climb is at least about 15 m. A sharp pinch with little climb says “A steep stretch”.
+6. Sparkline: X is the whole walk. Y uses at least a 40 m window and does not let the relief fill more than about two thirds of the height, so a 7 m wiggle stays a wrinkle.
 
 **Known limits**
 

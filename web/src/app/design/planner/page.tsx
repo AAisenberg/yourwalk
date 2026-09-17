@@ -35,6 +35,7 @@ import {
 } from "@/lib/overlays";
 import {
   hillinessCardLine,
+  isEmphaticSteep,
   type RouteElevation,
 } from "@/lib/routing/elevation";
 import {
@@ -1046,7 +1047,7 @@ function ResultsSheet(props: {
                       <span className="mx-1.5 opacity-30">·</span>
                       <span
                         className={`inline-flex items-center gap-1 ${
-                          r.elevation.band === "steep"
+                          isEmphaticSteep(r.elevation)
                             ? isNight
                               ? "text-amber-200"
                               : "text-amber-900"

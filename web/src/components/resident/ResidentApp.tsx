@@ -77,6 +77,7 @@ import {
 } from "@/lib/overlayMapIcons";
 import {
   hillinessCardLine,
+  isEmphaticSteep,
   isSteepElevation,
   mergeElevationById,
 } from "@/lib/routing/elevation";
@@ -2634,7 +2635,7 @@ export function ResidentApp() {
                                 <span className="mx-1.5 opacity-30">·</span>
                                 <span
                                   className={`inline-flex items-center gap-1 ${
-                                    r.elevation.band === "steep"
+                                    isEmphaticSteep(r.elevation)
                                       ? isNight
                                         ? "text-amber-200"
                                         : "text-amber-900"

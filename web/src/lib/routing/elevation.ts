@@ -45,6 +45,12 @@ export const MAX_ELEVATION_SAMPLES = 220;
 export const GRADE_GENTLE_PCT = 3;
 export const GRADE_HILLY_PCT = 5;
 export const GRADE_STEEP_PCT = 8;
+/** Peak grade can say steep while total climb is tiny. Soften the words below this. */
+export const STEEP_SECTIONS_MIN_CLIMB_M = 15;
+/** Do not let a 7 m wiggle fill the sparkline. */
+export const SPARKLINE_MIN_SPAN_M = 40;
+/** Largest share of sparkline height the real relief may use. */
+export const SPARKLINE_MAX_FILL = 0.65;
 
 const EARTH_M = 6_371_000;
 
@@ -201,7 +207,11 @@ export function hillinessCardLine(profile: RouteElevation): string {
   const climb = Math.round(profile.climb_m);
   switch (profile.band) {
     case "steep":
-      return climb > 0 ? `Steep sections · ↑ ${climb} m` : "Steep sections";
+      if (climb <= 0) return "A steep stretch";
+      if (climb < STEEP_SECTIONS_MIN_CLIMB_M) {
+        return `A steep stretch · ↑ ${climb} m`;
+      }
+      return `Steep sections · ↑ ${climb} m`;
     case "hilly":
       return climb > 0 ? `Some hills · ↑ ${climb} m` : "Some hills";
     case "gentle":
@@ -225,8 +235,24 @@ export function hillinessAriaLabel(profile: RouteElevation): string {
     : `Hills along the walk. ${line}`;
 }
 
+/** Amber / peek: a real hill, not a short 8% pinch with little climb. */
+export function isEmphaticSteep(
+  profile: RouteElevation | undefined,
+): boolean {
+  return (
+    profile?.band === "steep" &&
+    profile.climb_m >= STEEP_SECTIONS_MIN_CLIMB_M
+  );
+}
+
 export function isSteepElevation(profile: RouteElevation | undefined): boolean {
-  return profile?.band === "steep";
+  return isEmphaticSteep(profile);
+}
+
+/** Vertical window for the sparkline. Small relief stays a wrinkle. */
+export function sparklineVerticalSpan(reliefM: number): number {
+  const relief = Math.max(0, reliefM);
+  return Math.max(SPARKLINE_MIN_SPAN_M, relief / SPARKLINE_MAX_FILL, 2);
 }
 
 /** SVG path for a compact elevation sparkline (distance × height). */
@@ -239,7 +265,9 @@ export function sparklinePath(
   if (samples.length < 2 || width <= 0 || height <= 0) return "";
   const minZ = Math.min(...samples.map((s) => s.elevation_m));
   const maxZ = Math.max(...samples.map((s) => s.elevation_m));
-  const spanZ = Math.max(2, maxZ - minZ);
+  const spanZ = sparklineVerticalSpan(maxZ - minZ);
+  const midZ = (minZ + maxZ) / 2;
+  const yMin = midZ - spanZ / 2;
   const maxD = samples[samples.length - 1]?.distance_m || 1;
   const innerW = width - pad * 2;
   const innerH = height - pad * 2;
@@ -247,7 +275,7 @@ export function sparklinePath(
   const parts: string[] = [];
   samples.forEach((s, i) => {
     const x = pad + (s.distance_m / maxD) * innerW;
-    const y = pad + innerH - ((s.elevation_m - minZ) / spanZ) * innerH;
+    const y = pad + innerH - ((s.elevation_m - yMin) / spanZ) * innerH;
     parts.push(`${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`);
   });
   return parts.join(" ");

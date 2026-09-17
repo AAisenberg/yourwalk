@@ -5,9 +5,11 @@ import {
   classifyHilliness,
   densifyLine,
   hillinessCardLine,
+  isEmphaticSteep,
   mergeElevationById,
   profileFromElevations,
   sparklinePath,
+  sparklineVerticalSpan,
   type RouteElevation,
 } from "./elevation";
 import { decodeTerrainRgb } from "./elevationMapbox";
@@ -138,7 +140,40 @@ describe("decodeTerrainRgb", () => {
   });
 });
 
+describe("hillinessCardLine", () => {
+  it("does not call a 7 m pinch Steep sections", () => {
+    const line = hillinessCardLine(
+      fixtureProfile({ climb_m: 7, max_grade_pct: 9, band: "steep" }),
+    );
+    assert.match(line, /A steep stretch/);
+    assert.equal(
+      isEmphaticSteep(
+        fixtureProfile({ climb_m: 7, max_grade_pct: 9, band: "steep" }),
+      ),
+      false,
+    );
+  });
+
+  it("keeps Steep sections when climb is enough to feel", () => {
+    const line = hillinessCardLine(
+      fixtureProfile({ climb_m: 38, max_grade_pct: 9, band: "steep" }),
+    );
+    assert.match(line, /Steep sections · ↑ 38 m/);
+    assert.equal(
+      isEmphaticSteep(
+        fixtureProfile({ climb_m: 38, max_grade_pct: 9, band: "steep" }),
+      ),
+      true,
+    );
+  });
+});
+
 describe("sparklinePath and merge", () => {
+  it("gives a 7 m wiggle a 40 m window so it does not fill the chart", () => {
+    assert.equal(sparklineVerticalSpan(7), 40);
+    assert.ok(sparklineVerticalSpan(38) > 38);
+  });
+
   it("builds an SVG path from samples", () => {
     const d = sparklinePath(
       [
