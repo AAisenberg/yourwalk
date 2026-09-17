@@ -21,7 +21,7 @@ Council-grade slope on every T1EAM segment is still blocked: open Vicmap metro l
 
 | Surface | Behaviour |
 |---------|-----------|
-| Every result card | Hilliness line as soon as Terrain samples return: Mostly flat / Gentle hills / Some hills / Steep sections, plus climb in metres |
+| Every result card | Time · distance · hilliness on one line once Terrain samples return: Mostly flat / Gentle hills / Some hills / Steep sections, plus climb in metres |
 | Selected walk | Sparkline elevation profile. Climb and hilliness stay on the card line (no lab caption under the graph) |
 | Peek sheet | Mentions steep sections when the highlighted walk is steep |
 | Day / Night / Footpaths pills | **Unchanged** |

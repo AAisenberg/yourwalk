@@ -1036,27 +1036,29 @@ function ResultsSheet(props: {
                       {r.label}
                     </div>
                     <p
-                      className={`mt-1 text-xs ${
+                      className={`mt-1 flex flex-wrap items-center text-[11px] leading-snug ${
                         isNight ? "text-white/60" : "text-slate-600"
                       }`}
                     >
                       <strong>{r.minutes} min</strong>
                       <span className="mx-1.5 opacity-30">·</span>
                       <strong>{r.km}</strong>
-                    </p>
-                    <p
-                      className={`mt-1 flex items-center gap-1 text-[11px] leading-snug ${
-                        r.elevation.band === "steep"
-                          ? isNight
-                            ? "text-amber-200"
-                            : "text-amber-900"
-                          : isNight
-                            ? "text-white/55"
-                            : "text-slate-600"
-                      }`}
-                    >
-                      <IconTerrain className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                      {hillinessCardLine(r.elevation)}
+                      <span className="mx-1.5 opacity-30">·</span>
+                      <span
+                        className={`inline-flex items-center gap-1 ${
+                          r.elevation.band === "steep"
+                            ? isNight
+                              ? "text-amber-200"
+                              : "text-amber-900"
+                            : ""
+                        }`}
+                      >
+                        <IconTerrain
+                          className="h-3.5 w-3.5 shrink-0"
+                          aria-hidden
+                        />
+                        {hillinessCardLine(r.elevation)}
+                      </span>
                     </p>
                   </div>
                   <div
