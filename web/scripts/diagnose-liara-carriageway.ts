@@ -45,6 +45,7 @@ const DEFAULT: RoutePreferences = {
   accessibility: 60,
   shadeHeat: 85,
   preferSharedPaths: false,
+  preferFlatterWalks: false,
 };
 
 async function main() {
