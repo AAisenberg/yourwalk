@@ -182,5 +182,5 @@ export const MEDIA = {
     "Reach CrowdLab or Monash University’s XYX Lab through your existing contacts.",
   privacyTitle: "Privacy",
   privacy:
-    "Anonymous by default: no account, no sign-in, no tracking. If you use the locate button in the planner, your position stays on your device.",
+    "Anonymous by default: no account and no sign-in. The planner may keep anonymous usage stats (walks found, suburb, A to B or Loop) so we can learn how the pilot is used. We do not store your address or exact location, and we do not follow you along a walk. Locate stays on your device. You can opt out in About.",
 } as const;

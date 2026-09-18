@@ -20,6 +20,7 @@ import {
   IconTerrain,
   IconTrip,
 } from "@/components/resident/icons";
+import { AboutAnalyticsOptOut } from "@/components/resident/AboutAnalyticsOptOut";
 import { AddToHomeScreen } from "@/components/resident/AddToHomeScreen";
 import { PlaceField } from "@/components/resident/PlaceField";
 import { RingedAmenityIcon } from "@/components/resident/RingedAmenityIcon";
@@ -112,6 +113,18 @@ import {
 } from "@/lib/routing/preferences";
 import type { LngLat, ScoredRoute } from "@/lib/routing/types";
 import { CASEY_BOUNDS } from "@/lib/scores";
+import { findFailReason } from "@/lib/analytics/events";
+import {
+  deviceClass,
+  markAnalyticsVisit,
+  track,
+} from "@/lib/analytics/client";
+import {
+  areaSuburb,
+  enginesFromRoutes,
+  findStartProps,
+  selectedRouteProps,
+} from "@/lib/analytics/resident";
 
 /** Beta QA affordance: show which engine drew each card. Flip off for launch. */
 const SHOW_ENGINE_BADGE = true;
@@ -577,6 +590,7 @@ export function ResidentApp() {
   const lgaDataRef = useRef<GeoJSON.FeatureCollection | null>(null);
   const routesRef = useRef<ScoredRoute[]>([]);
   const selectedIdRef = useRef<string | null>(null);
+  const onPickRouteRef = useRef<(routeId: string) => void>(() => {});
   const basemapStyleRef = useRef<string>(YOURWALK_STYLE);
   const usedClassicBasemapRef = useRef(false);
   const walkModeRef = useRef<WalkMode>("day");
@@ -699,6 +713,16 @@ export function ResidentApp() {
       /* ignore */
     }
   }, [overlays, layersReady]);
+
+  useEffect(() => {
+    if (!prefsReady) return;
+    if (!markAnalyticsVisit()) return;
+    track("session_started", {
+      device: deviceClass(),
+      when: walkMode,
+      when_auto: !whenOverridden,
+    });
+  }, [prefsReady, walkMode, whenOverridden]);
 
   const closeAbout = useCallback(() => {
     setAboutOpen(false);
@@ -1134,8 +1158,7 @@ export function ResidentApp() {
       });
       el.addEventListener("click", (ev) => {
         ev.stopPropagation();
-        setRouteLocked(false);
-        setSelectedId(r.id);
+        onPickRouteRef.current(r.id);
       });
       const marker = new mapboxgl.Marker({
         element: el,
@@ -1191,8 +1214,7 @@ export function ResidentApp() {
         if (typeof routeId === "string") {
           amenityPopupRef.current?.remove();
           amenityPopupRef.current = null;
-          setRouteLocked(false);
-          setSelectedId(routeId);
+          onPickRouteRef.current(routeId);
           return;
         }
 
@@ -1583,8 +1605,29 @@ export function ResidentApp() {
     if (walkIntent === "trip" && !destination) return;
     if (!networkReady || featuresRef.current.length === 0) {
       setRouteError("Footpath network is still loading — try again in a moment.");
+      track("find_failed", {
+        ...findStartProps({
+          intent: walkIntent,
+          when: walkMode,
+          outingMinutes,
+          overlays,
+        }),
+        reason: "network_loading",
+      });
       return;
     }
+    const findStartedAt = performance.now();
+    track(
+      "find_started",
+      findStartProps({
+        intent: walkIntent,
+        when: walkMode,
+        outingMinutes,
+        overlays,
+      }),
+    );
+    const suburb = areaSuburb(originLabel);
+    if (suburb) track("area_context", { suburb });
     setPlanning(true);
     setSheetSnap((s) => (s === "peek" ? "half" : s));
     setRouteError(null);
@@ -1655,6 +1698,17 @@ export function ResidentApp() {
       setSelectedId(ranked[0]?.id ?? null);
       setSheetMode("results");
       setSheetSnap("half");
+      track("find_completed", {
+        ...findStartProps({
+          intent: walkIntent,
+          when: walkMode,
+          outingMinutes,
+          overlays,
+        }),
+        option_count: ranked.length,
+        duration_ms: Math.round(performance.now() - findStartedAt),
+        engines: enginesFromRoutes(ranked),
+      });
 
       const elevationCtl = new AbortController();
       elevationAbortRef.current = elevationCtl;
@@ -1699,16 +1753,40 @@ export function ResidentApp() {
     } catch (err) {
       setRoutes([]);
       setSelectedId(null);
-      setRouteError(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      setRouteError(message);
+      track("find_failed", {
+        ...findStartProps({
+          intent: walkIntent,
+          when: walkMode,
+          outingMinutes,
+          overlays,
+        }),
+        reason: findFailReason(message),
+      });
     } finally {
       setPlanning(false);
     }
   };
 
+  const onPickRoute = useCallback((routeId: string) => {
+    setRouteLocked(false);
+    setSelectedId(routeId);
+    const ranked = routesRef.current;
+    const route = ranked.find((item) => item.id === routeId);
+    if (route) track("route_selected", selectedRouteProps(route, ranked));
+  }, []);
+
+  useEffect(() => {
+    onPickRouteRef.current = onPickRoute;
+  }, [onPickRoute]);
+
   const toggleOverlay = (id: OverlayId) => {
     const def = OVERLAY_DEFS.find((d) => d.id === id);
     if (!def?.available) return;
-    setOverlays((prev) => ({ ...prev, [id]: !prev[id] }));
+    const nextOn = !overlays[id];
+    setOverlays((prev) => ({ ...prev, [id]: nextOn }));
+    track("layer_toggled", { layer: id, layer_on: nextOn });
   };
 
   const isNight = walkMode === "night";
@@ -2597,8 +2675,7 @@ export function ResidentApp() {
                     <button
                       type="button"
                       onClick={() => {
-                        setRouteLocked(false);
-                        setSelectedId(r.id);
+                        onPickRoute(r.id);
                       }}
                       className={`relative w-full rounded-2xl border px-3.5 py-3.5 text-left transition-colors ${
                         active
@@ -2848,6 +2925,9 @@ export function ResidentApp() {
                   });
                   setLockedView("overview");
                 }
+                if (!routeLocked) {
+                  track("use_this_route", selectedRouteProps(r, routes));
+                }
                 setRouteLocked(true);
                 if (!isDesktop) setSheetSnap("peek");
               }}
@@ -3024,9 +3104,13 @@ export function ResidentApp() {
               isNight ? "text-white/75" : "text-slate-600"
             }`}
           >
-            Anonymous by default: no account, no sign-in, no tracking. If you
-            use the locate button, your position stays on your device.
+            Anonymous by default: no account and no sign-in. We keep
+            anonymous usage stats (walks found, suburb, A to B or Loop) to
+            learn how the pilot is used. We do not store your address or
+            exact location, and we do not follow you along a walk. Locate
+            stays on your device.
           </p>
+          <AboutAnalyticsOptOut isNight={isNight} />
 
           <button
             type="button"

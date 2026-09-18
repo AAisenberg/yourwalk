@@ -371,6 +371,15 @@ Use the plain `.geojson` URL (not `.gz`) — Supabase/Cloudflare already compres
 
 PostGIS remains the source of truth for routing / SQL; Storage is the map paint layer.
 
+### Resident analytics (ADR-013)
+
+Anonymous planner events (`find_started`, suburb, A to B vs Loop). No coordinates.
+
+```bash
+python scripts/apply_migration_sql.py ../supabase/migrations/20260917000000_analytics_events.sql
+python scripts/weekly_resident_analytics.py
+```
+
 ## Local QA map viewer
 
 Inspect ingested layers on a Leaflet map centred on the Casey pilot area — **not** the production app.

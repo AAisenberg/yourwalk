@@ -100,3 +100,4 @@ python scripts/ingest_footpaths_t1eam.py
 | ADR-003 Supabase/PostGIS | Accepted (pilot lean) |
 | ADR-004 privacy, ADR-005 confidence, ADR-006 moderation, ADR-007 transparency | Still open — not Sprint A blockers |
 | ADR-008 segments, ADR-009 day/night | Accepted |
+| ADR-013 first-party resident analytics | Accepted (lean) |

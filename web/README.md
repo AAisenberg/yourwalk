@@ -58,3 +58,22 @@ python bakeoff/serve_challenger.py --port 8790
 Optional in `.env.local`: `CHALLENGER_URL=http://127.0.0.1:8790`.
 
 See [`pipeline/README.md`](../pipeline/README.md).
+
+## Resident analytics (ADR-013)
+
+Anonymous Find / layer events go to `analytics_events` via `POST /api/events`.
+No addresses or coordinates. Testers can opt out in About.
+
+Apply the table before production events persist:
+
+```bash
+cd ../pipeline
+python scripts/apply_migration_sql.py ../supabase/migrations/20260917000000_analytics_events.sql
+```
+
+Weekly readout (last 7 days, Melbourne time):
+
+```bash
+python scripts/weekly_resident_analytics.py
+# or: python scripts/weekly_resident_analytics.py --sql-only
+```
