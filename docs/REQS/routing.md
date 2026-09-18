@@ -106,6 +106,7 @@ This document defines requirements for route calculation, display, and interacti
 - What average walking speed to use? (5 km/h standard, but should it be configurable?)
 - Should time account for gradients or other factors? (More complex calculation)
 - How to display scores? (Numeric, stars, bars, colours?)
+- Elevation profile plus Prefer flatter walks (soft rank) shipped. Hard “avoid steep grades” filter stays later until a licensed DEM or Council grade layer exists ([`ELEVATION_PROFILE.md`](../ELEVATION_PROFILE.md)).
 
 ---
 

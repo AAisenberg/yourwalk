@@ -4,15 +4,21 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { MdClose, MdEdit, MdLayers, MdMyLocation, MdPlace } from "react-icons/md";
 
+import { ElevationProfile } from "@/components/resident/ElevationProfile";
 import {
   IconEye,
   IconEyeOff,
   IconMoon,
   IconOuting,
   IconSun,
+  IconTerrain,
   IconTrip,
 } from "@/components/resident/icons";
 import { PrefSlider } from "@/components/resident/PrefSlider";
+import {
+  WalkOptions,
+  walkOptionsResultsHint,
+} from "@/components/resident/WalkOptions";
 import { RingedAmenityIcon } from "@/components/resident/RingedAmenityIcon";
 import {
   WALK_PIN_FROM,
@@ -27,6 +33,11 @@ import {
   OVERLAY_DEFS,
   type OverlayId,
 } from "@/lib/overlays";
+import {
+  hillinessCardLine,
+  isEmphaticSteep,
+  type RouteElevation,
+} from "@/lib/routing/elevation";
 import {
   prefSliderDescription,
   type WalkMode,
@@ -46,6 +57,65 @@ const AMENITY_MARKS: { id: OverlayId; x: string; y: string }[] = [
   { id: "dog_bags", x: "32%", y: "55%" },
 ];
 
+function mockElevation(
+  band: RouteElevation["band"],
+  climb: number,
+  maxGrade: number,
+  samples: Array<{ distance_m: number; elevation_m: number }>,
+): RouteElevation {
+  return {
+    source: "mapbox-terrain-rgb",
+    sample_count: samples.length,
+    coverage_ratio: 1,
+    start_m: samples[0].elevation_m,
+    end_m: samples[samples.length - 1].elevation_m,
+    min_m: Math.min(...samples.map((s) => s.elevation_m)),
+    max_m: Math.max(...samples.map((s) => s.elevation_m)),
+    climb_m: climb,
+    descent_m: 0,
+    max_grade_pct: maxGrade,
+    band,
+    samples,
+  };
+}
+
+const STEEP_HILL = mockElevation(
+  "steep",
+  18,
+  9.2,
+  Array.from({ length: 11 }, (_, i) => ({
+    distance_m: i * 20,
+    elevation_m: 40 + i * 1.8,
+  })),
+);
+const FLAT_WALK = mockElevation(
+  "flat",
+  1,
+  1.2,
+  Array.from({ length: 9 }, (_, i) => ({
+    distance_m: i * 20,
+    elevation_m: 42 + Math.sin(i / 2) * 0.3,
+  })),
+);
+const GENTLE_HILL = mockElevation(
+  "gentle",
+  9,
+  3.6,
+  Array.from({ length: 11 }, (_, i) => ({
+    distance_m: i * 22,
+    elevation_m: 38 + i * 0.8,
+  })),
+);
+const SOME_HILLS = mockElevation(
+  "hilly",
+  16,
+  6.1,
+  Array.from({ length: 12 }, (_, i) => ({
+    distance_m: i * 20,
+    elevation_m: 36 + (i < 6 ? i * 1.4 : 8.4 - (i - 6) * 0.4),
+  })),
+);
+
 type MockRoute = {
   id: string;
   label: string;
@@ -57,6 +127,7 @@ type MockRoute = {
   comfort: string;
   amenities: string;
   coverage?: string;
+  elevation: RouteElevation;
 };
 
 const TRIP_ROUTES: MockRoute[] = [
@@ -70,6 +141,7 @@ const TRIP_ROUTES: MockRoute[] = [
     footpaths: "8.4",
     comfort: "8.1",
     amenities: "Passes a drinking fountain near Homestead Road",
+    elevation: STEEP_HILL,
   },
   {
     id: "short",
@@ -81,9 +153,23 @@ const TRIP_ROUTES: MockRoute[] = [
     footpaths: "7.6",
     comfort: "6.8",
     amenities: "No checked amenities on this path",
-    coverage: "Partial score coverage (72% of path)",
+    coverage: "Scores don't cover the whole walk.",
+    elevation: FLAT_WALK,
   },
 ];
+
+const AWAY_ROUTE: MockRoute = {
+  id: "away",
+  label: "Away from roads",
+  minutes: 23,
+  km: "1.8 km",
+  match: "7.8",
+  why: "About 8 minutes longer, mostly away from roads.",
+  footpaths: "8.0",
+  comfort: "8.3",
+  amenities: "Uses the reserve path behind Homestead Road",
+  elevation: GENTLE_HILL,
+};
 
 const OUTING_ROUTES: MockRoute[] = [
   {
@@ -96,6 +182,7 @@ const OUTING_ROUTES: MockRoute[] = [
     footpaths: "8.2",
     comfort: "7.9",
     amenities: "Passes benches in the reserve",
+    elevation: GENTLE_HILL,
   },
   {
     id: "loop-b",
@@ -107,6 +194,7 @@ const OUTING_ROUTES: MockRoute[] = [
     footpaths: "7.5",
     comfort: "8.4",
     amenities: "Passes a drinking fountain",
+    elevation: SOME_HILLS,
   },
 ];
 
@@ -127,6 +215,7 @@ export default function PlannerMockupPage() {
   const [shadeHeat, setShadeHeat] = useState(85);
   const [afterDark, setAfterDark] = useState(92);
   const [preferAway, setPreferAway] = useState(false);
+  const [preferFlatter, setPreferFlatter] = useState(false);
   const [overlays, setOverlays] =
     useState<Record<OverlayId, boolean>>(DEFAULT_OVERLAYS);
   const [layersReady, setLayersReady] = useState(false);
@@ -179,7 +268,16 @@ export default function PlannerMockupPage() {
   };
 
   const isNight = walkMode === "night";
-  const routes = walkIntent === "outing" ? OUTING_ROUTES : TRIP_ROUTES;
+  const bandRank = { flat: 0, gentle: 1, hilly: 2, steep: 3 } as const;
+  const rawRoutes = [
+    ...(walkIntent === "outing" ? OUTING_ROUTES : TRIP_ROUTES),
+    ...(preferAway && walkIntent === "trip" ? [AWAY_ROUTE] : []),
+  ];
+  const routes = preferFlatter
+    ? [...rawRoutes].sort(
+        (a, b) => bandRank[a.elevation.band] - bandRank[b.elevation.band],
+      )
+    : rawRoutes;
   const canFind =
     Boolean(origin) && (walkIntent === "outing" || Boolean(destination));
 
@@ -254,6 +352,7 @@ export default function PlannerMockupPage() {
             <li>Layers top-left, ringed amenity marks</li>
             <li>Layers off by default; tip once; ticks persist</li>
             <li>Less / More under compact sliders</li>
+            <li>Options expander: away from roads + flatter walks</li>
             <li>Locate + pin; tap a result card for more</li>
           </ol>
           <div className="mt-4 flex flex-wrap gap-3 text-sm font-semibold">
@@ -495,6 +594,8 @@ export default function PlannerMockupPage() {
                       setAfterDark={setAfterDark}
                       preferAway={preferAway}
                       setPreferAway={setPreferAway}
+                      preferFlatter={preferFlatter}
+                      setPreferFlatter={setPreferFlatter}
                     />
                   ) : (
                     <ResultsSheet
@@ -506,6 +607,8 @@ export default function PlannerMockupPage() {
                       routes={routes}
                       selectedId={selectedId}
                       setSelectedId={setSelectedId}
+                      preferAway={preferAway}
+                      preferFlatter={preferFlatter}
                       onEdit={() => setSheetMode("plan")}
                       onClear={() => {
                         setOrigin("");
@@ -651,6 +754,8 @@ function PlanSheet(props: {
   setAfterDark: (v: number) => void;
   preferAway: boolean;
   setPreferAway: (v: boolean) => void;
+  preferFlatter: boolean;
+  setPreferFlatter: (v: boolean) => void;
 }) {
   const { isNight } = props;
 
@@ -802,32 +907,6 @@ function PlanSheet(props: {
         accent="#27AAE1"
         tone="blue"
         onChange={props.setAccessibility}
-        footerAccessory={
-          <label
-            className={`mt-1.5 flex cursor-pointer items-center gap-1.5 rounded-lg px-1 py-0.5 ${
-              props.preferAway
-                ? isNight
-                  ? "bg-yw-blue/20"
-                  : "bg-[color-mix(in_srgb,var(--yw-blue)_14%,white)]"
-                : ""
-            }`}
-          >
-            <input
-              type="checkbox"
-              className="yw-check yw-check-sm"
-              checked={props.preferAway}
-              onChange={(e) => props.setPreferAway(e.target.checked)}
-              aria-label="Prefer away from roads"
-            />
-            <span
-              className={`text-[10px] font-semibold leading-tight ${
-                isNight ? "text-white/80" : "text-[#0B5F8A]"
-              }`}
-            >
-              Prefer away from roads
-            </span>
-          </label>
-        }
       />
       {isNight ? (
         <PrefSlider
@@ -850,6 +929,13 @@ function PlanSheet(props: {
           onChange={props.setShadeHeat}
         />
       )}
+      <WalkOptions
+        isNight={isNight}
+        preferAway={props.preferAway}
+        preferFlatter={props.preferFlatter}
+        onPreferAway={props.setPreferAway}
+        onPreferFlatter={props.setPreferFlatter}
+      />
     </div>
   );
 }
@@ -863,6 +949,8 @@ function ResultsSheet(props: {
   routes: MockRoute[];
   selectedId: string;
   setSelectedId: (id: string) => void;
+  preferAway: boolean;
+  preferFlatter: boolean;
   onEdit: () => void;
   onClear: () => void;
 }) {
@@ -871,6 +959,10 @@ function ResultsSheet(props: {
     props.walkIntent === "outing"
       ? `${props.origin || "Start"} · ~${props.outingMinutes} min loop`
       : `${props.origin || "From"} → ${props.destination || "To"}`;
+  const optionsHint = walkOptionsResultsHint(
+    props.preferAway,
+    props.preferFlatter,
+  );
 
   return (
     <div>
@@ -884,6 +976,15 @@ function ResultsSheet(props: {
           >
             {props.routes.length} options · tap a walk to highlight it on the map
           </p>
+          {optionsHint ? (
+            <p
+              className={`mt-1 text-[10px] leading-snug ${
+                isNight ? "text-white/45" : "text-slate-500"
+              }`}
+            >
+              {optionsHint}
+            </p>
+          ) : null}
         </div>
         <div className="flex shrink-0 gap-1">
           <IconAction
@@ -936,13 +1037,29 @@ function ResultsSheet(props: {
                       {r.label}
                     </div>
                     <p
-                      className={`mt-1 text-xs ${
+                      className={`mt-1 flex flex-wrap items-center text-[11px] leading-snug ${
                         isNight ? "text-white/60" : "text-slate-600"
                       }`}
                     >
                       <strong>{r.minutes} min</strong>
                       <span className="mx-1.5 opacity-30">·</span>
                       <strong>{r.km}</strong>
+                      <span className="mx-1.5 opacity-30">·</span>
+                      <span
+                        className={`inline-flex items-center gap-1 ${
+                          isEmphaticSteep(r.elevation)
+                            ? isNight
+                              ? "text-amber-200"
+                              : "text-amber-900"
+                            : ""
+                        }`}
+                      >
+                        <IconTerrain
+                          className="h-3.5 w-3.5 shrink-0"
+                          aria-hidden
+                        />
+                        {hillinessCardLine(r.elevation)}
+                      </span>
                     </p>
                   </div>
                   <div
@@ -994,6 +1111,26 @@ function ResultsSheet(props: {
                     >
                       {r.amenities}
                     </p>
+                    {props.preferFlatter &&
+                    (r.elevation.band === "flat" ||
+                      r.elevation.band === "gentle") ? (
+                      <p
+                        className={`mt-1 text-[10px] leading-snug ${
+                          isNight ? "text-white/55" : "text-slate-600"
+                        }`}
+                      >
+                        Flatter option among these walks
+                      </p>
+                    ) : null}
+                    {props.preferAway && r.id === "away" ? (
+                      <p
+                        className={`mt-1 text-[10px] leading-snug ${
+                          isNight ? "text-yw-blue" : "text-[#0B5F8A]"
+                        }`}
+                      >
+                        Uses more paths away from the road
+                      </p>
+                    ) : null}
                     {r.coverage ? (
                       <p
                         className={`mt-1 text-[10px] ${
@@ -1002,6 +1139,12 @@ function ResultsSheet(props: {
                       >
                         {r.coverage}
                       </p>
+                    ) : null}
+                    {active ? (
+                      <ElevationProfile
+                        profile={r.elevation}
+                        isNight={isNight}
+                      />
                     ) : null}
                 </div>
               </button>

@@ -39,7 +39,7 @@ If the map or footpath network looks blank: **hard-refresh** (Cmd+Shift+R). Larg
 
 - **Find** searches for a Casey walk that matches Footpaths / Heat & Shade (or Lighting at night), plus a **different** neighbourhood path when the streets allow one.
 - **More important** on a slider means we will take a slightly longer path if it is better on that measure. **Less important** means a quicker walk can win among the cards we found.
-- **Prefer away from roads** is a third, longer park / trail option. It is off unless you tick it. Tap **Find** again after you change it.
+- **Options** (under What matters most) holds **Prefer away from roads** and **Prefer flatter walks**. Same ritual: tick, then **Find**. Away from roads can add a longer park / trail card. Flatter walks re-orders the cards toward gentler hills. Neither changes the Footpaths pills.
 - Dragging sliders on the results list only **re-orders** the walks already found. Edit walk + Find to search again.
 - Pills stay Casey corridor scores. They do not change because you moved a slider.
 - Full recap (Cupples → Ashfield, tests, open issues): [`ROUTING_NOTE_NIKKI_2026-08-16.md`](ROUTING_NOTE_NIKKI_2026-08-16.md).

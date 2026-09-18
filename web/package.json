@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:analytics": "npx tsx src/lib/analytics/events.test.ts"
+    "test:analytics": "npx tsx src/lib/analytics/events.test.ts",
+    "test:elevation": "npx --yes tsx --test src/lib/routing/elevation.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.5",

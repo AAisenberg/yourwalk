@@ -13,6 +13,8 @@ import {
   MdPets,
   MdRoute,
   MdSwapHoriz,
+  MdTerrain,
+  MdTune,
   MdVisibility,
   MdVisibilityOff,
   MdWaterDrop,
@@ -38,6 +40,8 @@ export const IconDogBag = MdPets;
 export const IconEye = MdVisibility;
 export const IconEyeOff = MdVisibilityOff;
 export const IconAbout = MdInfoOutline;
+export const IconTerrain = MdTerrain;
+export const IconTune = MdTune;
 
 export const OVERLAY_ICONS: Record<OverlayId, IconType> = {
   fountains: IconFountain,
@@ -85,5 +89,17 @@ export const ICON_REVIEW: {
     label: "Layer off",
     Icon: IconEyeOff,
     note: "Layers row hidden",
+  },
+  {
+    id: "terrain",
+    label: "Hilliness",
+    Icon: IconTerrain,
+    note: "Elevation profile / card line",
+  },
+  {
+    id: "tune",
+    label: "Options",
+    Icon: IconTune,
+    note: "Plan-sheet Options (away from roads, flatter walks)",
   },
 ];
