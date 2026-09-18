@@ -445,6 +445,33 @@ Vercel prefers `www` as the primary hostname (CNAME steering). We still lock **w
 
 ---
 
+### ADR-013: First-party resident analytics
+
+**Status**: Accepted (lean) — 17 Sep 2026
+
+**Decision Question**: How should YourWalk measure resident planner use for a ~100-person test and later grant reporting, without accounts and without tracking people along a walk?
+
+**Options Considered**:
+
+1. **Google Analytics (CrashDash pattern)**: Fast funnels. Third-party processor; a poor fit for EVALUATION’s “evaluation data not shared outside the project team and Council” and for location-adjacent civic use.
+2. **PostHog / similar product analytics**: Stronger funnels and optional replay. Replay and precise location are incompatible with ADR-004. Still a third-party store unless self-hosted.
+3. **First-party events in Supabase (locked lean)**: Insert-only `analytics_events` via `/api/events`. Allowlisted event names and properties. Suburb of From / Start only. Device-local UUID, not an account. Opt-out in About.
+4. **No instrumentation**: Wait for a later evaluation sprint. Leaves the 100-person test with only Mapbox and function volume.
+
+**Decision**: **Option 3.** Eight events: `session_started`, `find_started`, `find_completed`, `find_failed`, `route_selected`, `use_this_route`, `layer_toggled`, `area_context`. Weekly readout: `supabase/queries/weekly_resident_analytics.sql`.
+
+**Rationale**: Answers “where people use it”, “how many routes”, and A to B vs Loop without storing addresses, coordinates, or path geometry. Matches ADR-004 and EVALUATION (aggregate location, anonymous by default). CrowdLab owns the rows.
+
+**Consequences**:
+
+- Apply `supabase/migrations/20260917000000_analytics_events.sql` before production events persist
+- About and front-door privacy copy must describe anonymous stats and the opt-out
+- Do not add session replay, IP identity, or lat/lon. Do not send place labels
+- Vercel Web Analytics remains optional pageviews; it does not replace Find counts
+- Sentry (errors) is still a separate decision and is not this table
+
+---
+
 ## Decision Process
 
 1. **Identify need**: Decision required when multiple viable options exist

@@ -157,6 +157,25 @@ Before a backlog item is considered complete, it must meet all of the following:
 
 ---
 
+### N1e: Resident planner analytics (100-person test)
+**Links**: [`REQS/analytics_and_telemetry.md`](REQS/analytics_and_telemetry.md), [`EVALUATION.md`](EVALUATION.md), ADR-013, [`FLOWS/01_plan_route.md`](FLOWS/01_plan_route.md)
+
+**Description**: Anonymous first-party events for the resident planner so a ~100-person test can report where people Find walks (Casey suburb only), how many walks are generated, A to B vs Loop, and layer use. No accounts, addresses, or coordinates. Opt-out in About.
+
+**Acceptance Criteria**:
+- Given a resident finds a walk and has not opted out
+- When Find completes
+- Then `analytics_events` stores allowlisted events only (`session_started`, `find_started`, `find_completed`, `find_failed`, `route_selected`, `use_this_route`, `layer_toggled`, `area_context`)
+- And properties never include lat/lon, address, or place labels
+- And About explains the stats and lets them opt out
+- And a weekly SQL readout can count sessions, finds, average options, intent split, and suburbs
+
+**Dependencies**: Supabase `analytics_events` table; `POST /api/events` on the planner host
+
+**Status**: Now — table applied on YourWalk Supabase 18 Sep 2026. App instrumentation on `feat/resident-analytics` (ADR-013). Pending production deploy, then one Find smoke-check.
+
+---
+
 ### N3: Toggle map layers for each stream
 **Links**: [`REQS/map_layers.md`](REQS/map_layers.md)
 
