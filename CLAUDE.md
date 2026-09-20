@@ -17,6 +17,7 @@ Rules: `.cursor/rules/yourwalk-notion-sync.mdc`
 | Trigger | Reads | Writes |
 |---------|-------|--------|
 | `pull spec` | Repo: methodology, PRD, backlog, delivery plan | `.cursor/notion-session.json` |
+| `pull spec dashboard` | Repo: `docs/DASHBOARD.md` + methodology spatial/overlay rules | `.cursor/notion-session.json` |
 | `reflect to Notion` | — | `docs/BACKLOG.md` + optional Notion Development footer |
 | `reflect prd progress` | — | Repo `docs/PRD.md` below `<!-- cursor-progress -->` only |
 
@@ -25,6 +26,7 @@ Notion hub `30ed0c174dfa8192a902c23a5c5fe840` · Development `30ed0c174dfa816dba
 | Doc | Purpose |
 |-----|---------|
 | `docs/VULNERABILITY_INDEX.md` | **Methodology gate v1.1** — read before any scoring or ingestion |
+| `docs/DASHBOARD.md` | Council insights build spec (phases D0–D4, visual rules) |
 | `docs/DATA_SET_REGISTER.md` | Dataset inventory and layer classification |
 | `docs/DECISIONS.md` | ADRs — ADR-008 (segments), ADR-009 (day/night) |
 | `docs/DELIVERY_PLAN.md` | Sprint plan |

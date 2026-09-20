@@ -52,6 +52,7 @@ Hub: `30ed0c174dfa8192a902c23a5c5fe840` · Development: `30ed0c174dfa816dbaebed2
 
 - Repo is source of truth; link Notion to repo paths, do not duplicate methodology
 - `docs/PRD.md` is product source of truth — do not invent requirements; use Open Questions with options + decision criteria when unclear
+- Council insights build SoT is `docs/DASHBOARD.md` (not the May 2026 mockup, not `/lab`)
 - Update `docs/DECISIONS.md` for architecture changes (ADR format)
 - Given/When/Then acceptance criteria for requirements; backlog items trace to PRD
 - Prefer vertical slices (end-to-end user value) over component-only work

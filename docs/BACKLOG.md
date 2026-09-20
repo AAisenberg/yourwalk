@@ -231,18 +231,22 @@ Before a backlog item is considered complete, it must meet all of the following:
 ---
 
 ### N5: Council insights hotspot view
-**Links**: [`FLOWS/06_council_insights_view.md`](FLOWS/06_council_insights_view.md), [`REQS/reporting_exports.md`](REQS/reporting_exports.md)
+**Links**: [`DASHBOARD.md`](DASHBOARD.md) (build SoT, phase D1), [`FLOWS/06_council_insights_view.md`](FLOWS/06_council_insights_view.md), [`REQS/reporting_exports.md`](REQS/reporting_exports.md)
 
-**Description**: Council staff can view aggregated hotspot map showing issue density across pilot area. Public URL when built: `dashboard.yourwalk.au` (ADR-012). Clerk later (L1). Not a section of the resident planner and not a login on the apex.
+**Description**: Casey officers can view an evidence map of scored walking conditions on `dashboard.yourwalk.au` (ADR-012). D1 is a Day/Night segment choropleth with suburb rank (length-weighted mean). A hotspot is a weaker suburb on the selected index, not community-issue density. Clerk later (L1). Not a section of the resident planner and not a login on the apex. Visual system: [`DASHBOARD.md`](DASHBOARD.md) plus [`RESIDENT_VISUAL_SYSTEM.md`](RESIDENT_VISUAL_SYSTEM.md). Do not implement `council-dashboard-mockup/` as the product.
 
 **Acceptance Criteria**:
-- Given a Council staff member accesses the insights dashboard
-- When they view the hotspot map
-- Then they see issue density visualised (heat map style)
-- And they can identify areas where multiple issues converge
-- And data source and confidence information is visible
+- Given a Casey officer opens the insights dashboard with access
+- When they view the map
+- Then they see scored footpath segments painted by the Day Index (default)
+- And they can switch to Night and see ranks update
+- And they can select a suburb and see a 0–10 index, 0–100 stream bars, segment count, sources, and confidence
+- And higher scores read as better walking conditions
+- And there is no combined vulnerability number and no “high risk” copy
 
-**Dependencies**: Insights aggregation logic, Council access control, hotspot visualisation
+**Dependencies**: D0 design sitting ([`DASHBOARD.md`](DASHBOARD.md)); scored GeoJSON / PostGIS (N0a); host access decision (DB-1). Not blocked on crossings/kerbs, Clerk, or submissions.
+
+**Status**: Specced 20 Sep 2026. Parked until you say go on D0 design / D1 build.
 
 ---
 
@@ -346,9 +350,9 @@ Before a backlog item is considered complete, it must meet all of the following:
 ---
 
 ### X6: Enhanced insights filtering
-**Links**: [`REQS/reporting_exports.md`](REQS/reporting_exports.md)
+**Links**: [`DASHBOARD.md`](DASHBOARD.md) D2, [`REQS/reporting_exports.md`](REQS/reporting_exports.md)
 
-**Description**: Council insights dashboard supports filtering by data stream, issue type, and time period.
+**Description**: Council insights dashboard supports filtering by stream (Footpaths, Heat and shade, After dark). Time-period and observation issue-type filters wait until versioned scores or submissions exist.
 
 **Acceptance Criteria**:
 - Given a Council staff member views insights
@@ -471,9 +475,9 @@ Before a backlog item is considered complete, it must meet all of the following:
 ---
 
 ### L3: Corridor analysis
-**Links**: [`REQS/reporting_exports.md`](REQS/reporting_exports.md)
+**Links**: [`DASHBOARD.md`](DASHBOARD.md) D2, [`PRIORITY_CORRIDORS.md`](PRIORITY_CORRIDORS.md), [`REQS/reporting_exports.md`](REQS/reporting_exports.md)
 
-**Description**: Council can view corridor analysis identifying routes with multiple issues that need attention.
+**Description**: Council can view named corridors (starting with Hallam Creek and Eumemmerring) with Day/Night means and stream tags. Not community-issue density.
 
 **Acceptance Criteria**:
 - Given Council views insights
@@ -487,9 +491,9 @@ Before a backlog item is considered complete, it must meet all of the following:
 ---
 
 ### L4: Prioritisation evidence
-**Links**: [`REQS/reporting_exports.md`](REQS/reporting_exports.md)
+**Links**: [`DASHBOARD.md`](DASHBOARD.md) D3, [`REQS/reporting_exports.md`](REQS/reporting_exports.md)
 
-**Description**: Council insights include prioritisation scores based on issue density and user impact.
+**Description**: Council insights list priority zones with visible factors (condition score, optional Community Need overlap, confidence). Not a “build this” instruction. Grant Q4 ranked zones.
 
 **Acceptance Criteria**:
 - Given Council views insights

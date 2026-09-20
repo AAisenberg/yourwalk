@@ -217,7 +217,7 @@ Users must be able to contribute observations for all three streams. See flow do
 
 ### Council Insights
 
-Council staff must be able to access aggregated insights for decision-making. See [`REQS/reporting_exports.md`](REQS/reporting_exports.md) for detailed requirements.
+Council staff must be able to access aggregated insights for decision-making. Build spec and pilot phases: [`DASHBOARD.md`](DASHBOARD.md). Detailed export requirements: [`REQS/reporting_exports.md`](REQS/reporting_exports.md).
 
 **Key requirements**:
 - View hotspots where multiple issues converge

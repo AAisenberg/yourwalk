@@ -207,7 +207,17 @@ Full column list: [`SCORING_SPEC_v1.1.md`](SCORING_SPEC_v1.1.md) §9.
 
 ### Sprint E — Council insights (after resident UX)
 
-**One-line goal:** Staff insights surface per `council-dashboard-mockup/` — hotspots, suburb focus, choropleth evidence. Routing optional, not required.
+**One-line goal:** Staff evidence map per [`DASHBOARD.md`](DASHBOARD.md) D1 — Day/Night segment choropleth, suburb focus and rank, provenance. Routing not required.
+
+**Spec:** [`DASHBOARD.md`](DASHBOARD.md) (20 Sep 2026). The May 2026 `council-dashboard-mockup/` is a workshop reference only.
+
+**Before code (D0):** dashboard visual sitting (desktop, day chrome, YourWalk tokens); one Casey officer walkthrough if we can get it; choose access (DB-1). Do not add `dashboard.yourwalk.au` DNS until this sprint starts.
+
+**D1 in:** Day/Night (+ optional Accessibility paint), suburb search/select, weakest-first suburb list, selected-area stream bars, sources/vintage, WCAG 2.1 AA.
+
+**D1 out:** Clerk, exports, Community Need, corridor/priority tabs, combined index, “high risk” copy, observation heatmaps.
+
+**Later in the same track:** D2 filters + SEIFA overlay + CSV/GeoJSON; D3 priority zones + PDF (grant Q4). See [`DASHBOARD.md`](DASHBOARD.md) phases.
 
 ---
 

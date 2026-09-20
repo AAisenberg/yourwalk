@@ -382,6 +382,7 @@ This document defines requirements for Council insights dashboard, hotspot visua
 
 ## Related Documents
 
+- [`DASHBOARD.md`](../DASHBOARD.md): Council insights build spec (D1–D3). This REQS file remains the export-detail companion; D1 does not include export.
 - [`FLOWS/06_council_insights_view.md`](../FLOWS/06_council_insights_view.md): Council insights flow
 - [`FLOWS/07_export_report.md`](../FLOWS/07_export_report.md): Export report flow
 - [`REQS/data_ingestion_versioning.md`](data_ingestion_versioning.md): Data requirements

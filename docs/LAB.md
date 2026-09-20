@@ -12,7 +12,7 @@ The lab is a **scored-network and evidence-layer inspector**:
 - Dig into **why** a corridor looks the way it does (input layers under the score)  
 - Spot-check trip geometries against the same hybrid stack the resident app uses  
 
-It **may evolve** toward a Council dashboard later. Treat that as a horizon, not current scope — no stakeholder chrome, no grant-facing claims from `/lab` yet.
+It **may share data APIs** with the Council dashboard later. Treat that as a horizon, not current scope. No stakeholder chrome, no grant-facing claims from `/lab`. Build SoT for the staff product: [`DASHBOARD.md`](DASHBOARD.md).
 
 | Surface | Job |
 |---------|-----|
@@ -45,7 +45,7 @@ Only as needed so trip verification doesn’t silently diverge from resident ran
 3. Further dataset toggles as needed (heat, canopy, crossings, …)  
 4. Align lab trip plan with shared resident libs (hybrid + optional prefs/match)  
 5. Collapse bake-off to OD regression drawer  
-6. Later: Council-dashboard horizon (auth, curated layers, export) — separate decision  
+6. Later: Council-dashboard horizon (auth, curated layers, export) — [`DASHBOARD.md`](DASHBOARD.md), not this page  
 
 **Scoring note (3 Aug):** Lighting uses length-normalised density (v1.1.3) — see [`LIGHTING_DENSITY.md`](LIGHTING_DENSITY.md). Re-upload map GeoJSON after local rescore if lab/prod should match.
 
