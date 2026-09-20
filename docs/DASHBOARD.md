@@ -218,6 +218,29 @@ Product phases in [`PHASES.md`](PHASES.md) still apply. This table is the dashbo
 
 **Done when:** you can open a design on a laptop in a Casey meeting and the scores match v1.1 language.
 
+#### Sitting 1 · 20 Sep 2026 (internal)
+
+**Who:** product + AI guide. No Casey officer and no XYX in the room. Officer walkthrough still preferred before D1.
+
+**Artefact:** [`meeting-prep/dashboard-d0.html`](meeting-prep/dashboard-d0.html) (open from the repo so the YourWalk mark resolves). Four frames: empty Day, suburb selected, Night, screenshot crop. Ranks are illustrative, not a live extract.
+
+Sitting captures: [`screenshots/dashboard-d0/frame-1-empty-day.png`](screenshots/dashboard-d0/frame-1-empty-day.png) · [`frame-2-suburb-selected.png`](screenshots/dashboard-d0/frame-2-suburb-selected.png) · [`frame-3-night.png`](screenshots/dashboard-d0/frame-3-night.png) · [`frame-4-screenshot-crop.png`](screenshots/dashboard-d0/frame-4-screenshot-crop.png)
+
+**Walked:** D1 job; four frames; style lock; Cranbourne East then Night / Hampton Park stand-in; first-sitting leans.
+
+**Locked as first-sitting leans** (officer may reopen DB-3 / DB-4 / DB-6):
+
+| ID | Lean | Why |
+|----|------|-----|
+| DB-2 | A. Day shell always | Meeting-room contrast and Word screenshots. Night changes the map and stream labels only. |
+| DB-3 | A. Suburb list | Officers already name suburbs. SA2 stays on the selected card later (D2). |
+| DB-4 | B. Day / Night paint only | A third Accessibility paint reads as another overall score. Footpaths stay as the 0–100 bar. |
+| DB-6 | A. Thin segment popup | Assets need to click a path. Streams only. Not Lab sub-scores. |
+
+**Parked:** DB-5 Community Need (D2). **Still open:** DB-1 access (before DNS), DB-7 analytics (before D1 prod), DB-8 public later.
+
+**Next sitting:** same artefact with one Casey officer (search a suburb they know, switch Night, say what they would paste into a briefing). XYX language pass on the four frames.
+
 ### D1. Evidence map (pilot MVP / Sprint E / N5)
 
 **Grant:** Q3 dashboard development. **Product phase:** MVP “basic insights”.
@@ -377,11 +400,11 @@ Do not say: safe route, high risk, crime hotspot, vulnerable people (when you me
 | ID | Question | Options | Decision criteria | Decide when |
 |----|----------|---------|-------------------|-------------|
 | DB-1 | How do officers open D1? | A. Vercel Deployment Protection password, shared with named staff. B. Vercel Authentication (CrowdLab seats only; poor for Council). C. Unlisted URL, no password (scores are from open data). D. Clerk org (L1, too early). | Least friction for 5–15 Casey staff; no login on other hosts; revoke without a rebuild | Before DNS |
-| DB-2 | Night chrome | A. Day shell always (locked lean). B. Full Night surfaces when Night index is on. | Screenshot contrast in a meeting room; consistency with planner | After first officer sitting |
-| DB-3 | Default rank geography | A. Suburb (locked lean). B. SA2 only. C. Ward. | Officers can name the unit in a briefing without a glossary | D1 design sitting |
-| DB-4 | Accessibility-only paint in D1? | A. Yes, third paint mode. B. Night/Day only; Accessibility is the bar in the card. | Avoid a fourth “overall” reading | D1 design sitting |
+| DB-2 | Night chrome | **A (sitting 1).** Day shell always. B. Full Night surfaces when Night index is on. | Screenshot contrast in a meeting room | Reopen only after an officer sitting |
+| DB-3 | Default rank geography | **A (sitting 1).** Suburb list. B. SA2 only. C. Ward. | Officers can name the unit in a briefing without a glossary | Officer sitting may reopen |
+| DB-4 | Accessibility-only paint in D1? | **B (sitting 1).** Night/Day only; Accessibility is the bar in the card. A would be a third paint mode. | Avoid a fourth “overall” reading | Officer sitting may reopen |
 | DB-5 | Community Need fields in D2 | A. SEIFA decile only. B. SEIFA + 65+ + disability + no vehicle (mockup). C. Defer all need | Data already on Casey portal at SA2; extra Census fields need an ingest + privacy pass | Before D2 |
-| DB-6 | Segment click in D1 | A. Popup with 0–100 streams only. B. Wait for D2 sub-scores. | Useful without looking like Lab | D1 design sitting |
+| DB-6 | Segment click in D1 | **A (sitting 1).** Popup with 0–100 streams only. B. Wait for D2 sub-scores. | Useful without looking like Lab | Officer sitting may reopen |
 | DB-7 | Dashboard analytics | A. None in D1. B. Allowlisted first-party events (recommended if we need EVALUATION counts). | Grant KPI vs privacy | Before D1 prod |
 | DB-8 | Public evidence later | A. Stay staff-only. B. Public read-only after pilot. | Council comms; no safety copy | Not D1 |
 
@@ -400,3 +423,4 @@ Do not reopen Day/Night 60/40, Mapbox, T1EAM as the segment master, or the host 
 - Corridors: [`PRIORITY_CORRIDORS.md`](PRIORITY_CORRIDORS.md)
 - Lab boundary: [`LAB.md`](LAB.md)
 - Historical visual: [`../council-dashboard-mockup/index.html`](../council-dashboard-mockup/index.html)
+- D0 sitting artefact: [`meeting-prep/dashboard-d0.html`](meeting-prep/dashboard-d0.html)

@@ -213,6 +213,8 @@ Full column list: [`SCORING_SPEC_v1.1.md`](SCORING_SPEC_v1.1.md) §9.
 
 **Before code (D0):** dashboard visual sitting (desktop, day chrome, YourWalk tokens); one Casey officer walkthrough if we can get it; choose access (DB-1). Do not add `dashboard.yourwalk.au` DNS until this sprint starts.
 
+**Sitting 1 (20 Sep 2026, internal):** artefact [`docs/meeting-prep/dashboard-d0.html`](meeting-prep/dashboard-d0.html). First-sitting leans: suburb rank, Day/Night paint only, thin segment popup, day shell. Officer sitting still preferred. DB-1 still open.
+
 **D1 in:** Day/Night (+ optional Accessibility paint), suburb search/select, weakest-first suburb list, selected-area stream bars, sources/vintage, WCAG 2.1 AA.
 
 **D1 out:** Clerk, exports, Community Need, corridor/priority tabs, combined index, “high risk” copy, observation heatmaps.

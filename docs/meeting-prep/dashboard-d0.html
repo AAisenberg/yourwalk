@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YourWalk D0 · Council insights design sitting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --yw-blue: #27AAE1;
+  --yw-navy: #292984;
+  --yw-teal: #00AAA6;
+  --yw-lime: #8DC63F;
+  --yw-green: #009444;
+  --yw-amber: #FFCB1F;
+  --yw-orange: #F6871F;
+  --yw-pink: #EC008C;
+  --yw-day-surface: #F5F7FA;
+  --yw-focus: #27AAE1;
+  --line: #E8ECF2;
+  --ink: #1a202c;
+  --muted: #475569;
+  --ramp-lo: #b91c1c;
+  --ramp-2: #f97316;
+  --ramp-3: #facc15;
+  --ramp-4: #84cc16;
+  --ramp-5: #22c55e;
+  --ramp-hi: #15803d;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  background: var(--yw-day-surface);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--yw-focus); outline-offset: 2px; }
+
+.coach {
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+  padding: 10px 16px 12px;
+  flex-shrink: 0;
+}
+.coach-top { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.coach-kicker {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+}
+.coach-title { font-size: 15px; font-weight: 800; color: var(--yw-navy); }
+.coach-meta { font-size: 12px; color: var(--muted); }
+.agenda { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.agenda button {
+  border: 1px solid var(--line); background: var(--yw-day-surface); color: var(--muted);
+  border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.agenda button.on { background: var(--yw-navy); color: #fff; border-color: var(--yw-navy); }
+.coach-body { margin-top: 10px; font-size: 13px; line-height: 1.5; color: var(--ink); max-width: 72rem; }
+.coach-body strong { color: var(--yw-navy); }
+.frames { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.frames button {
+  border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 7px 12px;
+  font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--ink);
+}
+.frames button.on { border-color: var(--yw-teal); box-shadow: 0 0 0 2px rgba(0,170,166,0.2); color: var(--yw-navy); }
+.note {
+  margin-top: 8px; font-size: 11px; color: var(--muted);
+}
+
+.app { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.topbar {
+  height: 56px; background: #fff; border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 12px; padding: 0 16px; flex-shrink: 0;
+}
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand img { height: 28px; width: auto; }
+.word { font-size: 18px; font-weight: 800; color: var(--yw-navy); letter-spacing: -0.03em; line-height: 1; }
+.sub { font-size: 11px; color: var(--muted); font-weight: 500; }
+.divider { width: 1px; height: 28px; background: var(--line); }
+.pill {
+  font-size: 11px; font-weight: 700; color: var(--yw-navy); background: var(--yw-day-surface);
+  border: 1px solid var(--line); border-radius: 999px; padding: 3px 8px;
+}
+.lga { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--muted); }
+.mode {
+  display: flex; height: 36px; padding: 3px; border-radius: 999px; background: var(--yw-day-surface);
+  border: 1px solid var(--line); position: relative; width: 148px;
+}
+.mode-thumb {
+  position: absolute; top: 3px; bottom: 3px; width: calc(50% - 3px); left: 3px;
+  background: var(--yw-teal); border-radius: 999px; transition: left 0.18s ease;
+}
+.mode[data-night="1"] .mode-thumb { left: calc(50%); }
+.mode button {
+  flex: 1; z-index: 1; border: 0; background: transparent; font: inherit; font-size: 12px; font-weight: 700;
+  cursor: pointer; color: var(--muted); display: flex; align-items: center; justify-content: center; gap: 4px;
+}
+.mode button.on { color: #fff; }
+
+.layout { flex: 1; display: grid; grid-template-columns: 20rem minmax(0,1fr) 22rem; min-height: 0; }
+.side, .list {
+  background: #fff; border-right: 1px solid var(--line); overflow: auto; padding: 16px 16px 20px;
+}
+.list { border-right: 0; border-left: 1px solid var(--line); }
+.label {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8; margin-bottom: 10px;
+}
+.card {
+  background: var(--yw-day-surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px;
+}
+.card h2 { font-size: 16px; font-weight: 800; color: var(--yw-navy); }
+.card .hint { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.empty { font-size: 13px; color: var(--muted); line-height: 1.45; }
+.score-hero { display: flex; justify-content: space-between; align-items: flex-end; margin: 12px 0 14px; }
+.score-hero .n { font-size: 36px; font-weight: 800; color: var(--yw-navy); letter-spacing: -0.04em; line-height: 1; }
+.score-hero .u { font-size: 12px; color: var(--muted); font-weight: 600; }
+.bar { display: grid; grid-template-columns: 7.5rem 1fr 2rem; gap: 8px; align-items: center; margin: 6px 0; }
+.bar span { font-size: 12px; font-weight: 600; }
+.track { height: 8px; background: #fff; border-radius: 999px; overflow: hidden; border: 1px solid var(--line); }
+.fill { height: 100%; border-radius: 999px; }
+.src { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.src:last-child { border-bottom: 0; }
+.src b { font-weight: 600; }
+.src em { font-style: normal; color: var(--muted); }
+
+.mapwrap { position: relative; background: #e8eef4; min-height: 0; }
+.map-search {
+  position: absolute; top: 12px; left: 12px; right: 12px; z-index: 3; display: flex; justify-content: center;
+}
+.map-search input {
+  width: min(28rem, 100%); height: 40px; border-radius: 10px; border: 1px solid var(--line);
+  padding: 0 12px; font: inherit; font-size: 13px; background: #fff; box-shadow: 0 4px 16px rgba(15,23,42,0.08);
+}
+.legend {
+  position: absolute; left: 12px; bottom: 12px; z-index: 3; background: #fff; border: 1px solid var(--line);
+  border-radius: 10px; padding: 10px 12px; width: 220px; box-shadow: 0 4px 16px rgba(15,23,42,0.06);
+}
+.legend h3 { font-size: 11px; font-weight: 800; color: var(--yw-navy); }
+.legend p { font-size: 11px; color: var(--muted); margin: 4px 0 8px; line-height: 1.4; }
+.grad { height: 8px; border-radius: 999px; background: linear-gradient(90deg, var(--ramp-lo), var(--ramp-2), var(--ramp-3), var(--ramp-4), var(--ramp-5), var(--ramp-hi)); }
+.legend .ends { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-top: 4px; }
+.count {
+  position: absolute; right: 12px; bottom: 12px; z-index: 3; background: #fff; border: 1px solid var(--line);
+  border-radius: 10px; padding: 8px 10px; font-size: 11px; color: var(--muted); font-weight: 600;
+}
+svg.map { width: 100%; height: 100%; display: block; }
+path.seg { fill: none; stroke-width: 6; stroke-linecap: round; cursor: pointer; }
+path.seg:hover { stroke-width: 8; }
+circle.sub {
+  stroke: #fff; stroke-width: 2; cursor: pointer;
+}
+.popup {
+  position: absolute; z-index: 4; width: 220px; background: #fff; border: 1px solid var(--line);
+  border-radius: 12px; padding: 12px; box-shadow: 0 10px 30px rgba(15,23,42,0.12); display: none;
+}
+.popup.on { display: block; }
+.popup h4 { font-size: 13px; font-weight: 800; color: var(--yw-navy); }
+.popup p { font-size: 11px; color: var(--muted); margin: 4px 0 8px; }
+
+.row {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  border: 1px solid transparent; background: transparent; border-radius: 10px; padding: 8px; cursor: pointer; font: inherit;
+}
+.row:hover { background: var(--yw-day-surface); }
+.row.on { background: var(--yw-day-surface); border-color: var(--yw-teal); }
+.rank {
+  width: 22px; height: 22px; border-radius: 999px; display: grid; place-items: center;
+  font-size: 11px; font-weight: 800; background: var(--yw-day-surface); color: var(--muted); flex-shrink: 0;
+}
+.row.on .rank { background: var(--yw-teal); color: #fff; }
+.row .name { font-size: 13px; font-weight: 700; color: var(--ink); }
+.tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
+.tag { font-size: 10px; font-weight: 700; border-radius: 5px; padding: 2px 6px; }
+.tag-f { color: var(--yw-blue); background: rgba(39,170,225,0.12); }
+.tag-h { color: #c05621; background: rgba(246,135,31,0.14); }
+.tag-l { color: #92640a; background: rgba(255,203,31,0.28); }
+.num { margin-left: auto; font-size: 16px; font-weight: 800; color: var(--yw-navy); }
+
+.shot-flag {
+  display: none; position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 5;
+  background: var(--yw-navy); color: #fff; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 5px 10px;
+}
+body.shot .coach { display: none; }
+body.shot .shot-flag { display: block; }
+
+@media (max-width: 1100px) {
+  .layout { grid-template-columns: 1fr; grid-template-rows: auto 50vh auto; }
+  .side, .list { border: 0; border-top: 1px solid var(--line); }
+}
+</style>
+</head>
+<body>
+<div class="coach" id="coach">
+  <div class="coach-top">
+    <div>
+      <div class="coach-kicker">D0 first sitting · internal</div>
+      <div class="coach-title">Council insights · you + AI guide</div>
+    </div>
+    <div class="coach-meta">20 Sep 2026 · artefact, not production · ranks are illustrative</div>
+  </div>
+  <div class="agenda" role="tablist" aria-label="Sitting agenda">
+    <button type="button" class="on" data-step="1">1. Job</button>
+    <button type="button" data-step="2">2. Frames</button>
+    <button type="button" data-step="3">3. Style</button>
+    <button type="button" data-step="4">4. Walkthrough</button>
+    <button type="button" data-step="5">5. Decisions</button>
+  </div>
+  <div class="coach-body" id="coachBody"></div>
+  <div class="frames" role="group" aria-label="D1 frames">
+    <button type="button" class="on" data-frame="empty">Frame 1 · Empty Day</button>
+    <button type="button" data-frame="selected">Frame 2 · Suburb selected</button>
+    <button type="button" data-frame="night">Frame 3 · Night</button>
+    <button type="button" data-frame="shot">Frame 4 · Screenshot crop</button>
+  </div>
+  <p class="note">Higher score = better walking conditions. No combined index. Day chrome stays when Night is on. Map is a schematic for sitting, not live T1EAM.</p>
+</div>
+
+<div class="app" id="app">
+  <header class="topbar">
+    <div class="brand">
+      <img src="../../web/public/brand/yourwalk-mark.svg" alt="">
+      <div>
+        <div class="word">YourWalk</div>
+        <div class="sub">Council insights</div>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="mode" id="mode" data-night="0" role="group" aria-label="Walking conditions index">
+      <span class="mode-thumb" aria-hidden="true"></span>
+      <button type="button" class="on" data-mode="day">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.76 4.84l-1.8-1.79-1.41 1.41 1.79 1.8 1.42-1.42zM4 13H1v2h3v-2zm9-9h-2v3h2V4zm7.45 1.46l-1.41-1.41-1.8 1.79 1.42 1.42 1.79-1.8zM20 13v2h3v-2h-3zm-8 6h2v3h-2v-3zM6.76 18.16l-1.42 1.42-1.79-1.8 1.41-1.41 1.8 1.79zM17.24 18.16l1.79 1.8 1.41-1.41-1.8-1.79-1.4 1.4zM12 8a4 4 0 100 8 4 4 0 000-8z"/></svg>
+        Day
+      </button>
+      <button type="button" data-mode="night">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.1 22c5.05 0 9.27-3.44 10.45-8.1A8.5 8.5 0 0112.1 4c-.31 0-.62.02-.92.06A9.99 9.99 0 0012.1 22z"/></svg>
+        Night
+      </button>
+    </div>
+    <span class="pill">Beta</span>
+    <span class="pill" style="font-family: ui-monospace, monospace; font-weight:600">scores 1.1.3</span>
+    <div class="lga">City of Casey</div>
+  </header>
+
+  <div class="layout">
+    <aside class="side">
+      <div class="label">Selected suburb</div>
+      <div class="card" id="areaCard"></div>
+      <div class="label" style="margin-top:18px">Data sources</div>
+      <div class="src"><b>Footpaths (T1EAM)</b><em>Casey open data</em></div>
+      <div class="src"><b>Street lights</b><em>AusNet / UE · 2024</em></div>
+      <div class="src"><b>Urban heat</b><em>2018 vintage</em></div>
+      <div class="src"><b>Tree canopy</b><em>Vicmap 2019/2020</em></div>
+      <div class="src"><b>Night pedestrian crashes</b><em>Night index only</em></div>
+      <p class="note" style="margin-top:12px">General crossings and kerb ramps are not in yet. Scores use reduced confidence. Missing is not treated as zero.</p>
+    </aside>
+
+    <div class="mapwrap">
+      <span class="shot-flag">Screenshot crop · legend and index stay in frame</span>
+      <div class="map-search">
+        <input id="search" type="search" placeholder="Search suburb" aria-label="Search suburb">
+      </div>
+      <svg class="map" viewBox="0 0 800 560" role="img" aria-label="Schematic Casey walking network">
+        <rect x="0" y="0" width="800" height="560" fill="#d7e0e8"/>
+        <path d="M70 90 C 180 40, 420 50, 730 80 C 760 180, 770 320, 720 470 C 480 520, 220 530, 90 460 C 50 320, 40 180, 70 90 Z" fill="#c5d2de" stroke="#8b9aab" stroke-width="2"/>
+        <g id="segs"></g>
+        <g id="dots"></g>
+      </svg>
+      <div class="popup" id="popup"></div>
+      <div class="legend">
+        <h3 id="legendTitle">Day walking conditions</h3>
+        <p>Higher score = better walking conditions. Colours are stretched across Casey, not a 0–100 rainbow.</p>
+        <div class="grad" aria-hidden="true"></div>
+        <div class="ends"><span>Weaker</span><span>Better</span></div>
+      </div>
+      <div class="count" id="count"></div>
+    </div>
+
+    <aside class="list">
+      <div class="label" id="listLabel">Weaker suburbs · Day</div>
+      <div id="rows" role="listbox" aria-label="Suburbs ranked weakest first"></div>
+    </aside>
+  </div>
+</div>
+
+<script>
+const STEPS = {
+  1: "<strong>Job of D1.</strong> A Casey officer finds where Day or Night walking conditions are weaker, sees whether that is mainly footpaths, heat and shade, or lighting after dark, and screenshots the frame into a briefing. We do not tell them what to build. We do not show a combined vulnerability number.",
+  2: "<strong>Four frames.</strong> Use the buttons below. Frame 1 is the empty Day evidence map. Frame 2 selects a suburb. Frame 3 switches the index to Night (shell stays day). Frame 4 hides this coach so you can judge a Word-ready crop.",
+  3: "<strong>Style lock.</strong> Plus Jakarta Sans, day surfaces, navy wordmark, teal selected state, same Day/Night control as the planner. Path paint uses the /lab ramp (red to green, higher = better). Pink is not a danger colour. No Inter, no always-dark BI, no dead Corridors tab.",
+  4: "<strong>Walkthrough (officer stand-in).</strong> Search or click Cranbourne East. Read the 0–10 Day score and 0–100 stream bars. Switch Night: ranks move, Heat and shade becomes After dark. Click a path for the thin segment popup (DB-6 option A).",
+  5: "<strong>First-sitting leans.</strong> DB-3 suburb list. DB-4 Day/Night only (Accessibility stays a bar, not a third paint). DB-6 segment popup with streams only. DB-2 day shell. DB-5 Community Need parked for D2. DB-1 access still open before DNS."
+};
+
+const SUBURBS = [
+  { id: "ce", name: "Cranbourne East", day: 5.4, night: 6.6, acc: 58, heat: 48, light: 52, segs: 1840, tagsDay: ["Footpaths", "Heat and shade"], tagsNight: ["Footpaths", "After dark"], x: 520, y: 360 },
+  { id: "cn", name: "Clyde North", day: 5.6, night: 7.1, acc: 61, heat: 44, light: 71, segs: 1622, tagsDay: ["Heat and shade"], tagsNight: ["Footpaths"], x: 610, y: 410 },
+  { id: "hp", name: "Hampton Park", day: 6.1, night: 5.9, acc: 64, heat: 62, light: 41, segs: 980, tagsDay: ["Footpaths"], tagsNight: ["After dark"], x: 280, y: 250 },
+  { id: "nws", name: "Narre Warren South", day: 6.2, night: 6.3, acc: 63, heat: 60, light: 49, segs: 1411, tagsDay: ["Footpaths"], tagsNight: ["After dark"], x: 360, y: 300 },
+  { id: "ly", name: "Lynbrook", day: 6.4, night: 6.8, acc: 70, heat: 58, light: 63, segs: 640, tagsDay: [], tagsNight: ["After dark"], x: 300, y: 330 },
+  { id: "be", name: "Berwick", day: 6.9, night: 7.4, acc: 74, heat: 66, light: 78, segs: 2104, tagsDay: [], tagsNight: [], x: 640, y: 210 }
+];
+
+const SEGS = [
+  ["M120 180 C 200 160, 280 190, 360 175 C 420 165, 500 190, 580 170", 62],
+  ["M130 230 C 220 220, 300 250, 390 235 C 470 220, 560 250, 650 230", 54],
+  ["M140 280 C 230 270, 320 300, 410 285 C 500 270, 590 305, 680 285", 68],
+  ["M150 330 C 240 320, 330 350, 420 335 C 510 320, 600 355, 690 340", 49],
+  ["M160 380 C 250 370, 340 400, 430 385 C 520 370, 610 405, 700 390", 57],
+  ["M180 430 C 270 420, 360 450, 450 435 C 540 420, 620 450, 700 440", 45],
+  ["M200 140 C 210 210, 190 290, 220 370 C 240 430, 230 470, 250 500", 71],
+  ["M320 120 C 330 200, 310 280, 340 360 C 360 420, 350 470, 370 510", 58],
+  ["M460 110 C 470 190, 450 270, 480 350 C 500 410, 490 460, 510 500", 64],
+  ["M600 120 C 610 200, 590 280, 620 360 C 640 420, 630 460, 650 490", 52]
+];
+
+let mode = "day";
+let selected = null;
+let step = "1";
+
+function tagClass(t) {
+  if (t.startsWith("Foot")) return "tag-f";
+  if (t.startsWith("Heat")) return "tag-h";
+  return "tag-l";
+}
+function scoreColor(v0to10) {
+  const v = v0to10 * 10;
+  const knots = mode === "night" ? [60,70,76,81,85,92] : [45,55,62,68,75,85];
+  const cols = ["#b91c1c","#f97316","#facc15","#84cc16","#22c55e","#15803d"];
+  if (v <= knots[0]) return cols[0];
+  if (v >= knots[knots.length-1]) return cols[cols.length-1];
+  for (let i = 0; i < knots.length-1; i++) {
+    if (v <= knots[i+1]) return cols[i];
+  }
+  return cols[cols.length-1];
+}
+function ranked() {
+  return [...SUBURBS].sort((a,b) => (mode === "day" ? a.day - b.day : a.night - b.night));
+}
+function renderCoach() {
+  document.getElementById("coachBody").innerHTML = STEPS[step];
+  document.querySelectorAll(".agenda button").forEach((b) => b.classList.toggle("on", b.dataset.step === step));
+}
+function renderCard() {
+  const el = document.getElementById("areaCard");
+  const s = SUBURBS.find((x) => x.id === selected);
+  if (!s) {
+    el.innerHTML = '<p class="empty">Select a suburb on the list or the map. The card shows a 0–10 index and 0–100 stream bars. There is no combined score.</p>';
+    return;
+  }
+  const index = mode === "day" ? s.day : s.night;
+  const thirdName = mode === "day" ? "Heat and shade" : "After dark";
+  const thirdVal = mode === "day" ? s.heat : s.light;
+  const thirdCol = mode === "day" ? "var(--yw-orange)" : "var(--yw-amber)";
+  el.innerHTML = `
+    <h2>${s.name}</h2>
+    <div class="hint">City of Casey · ${s.segs.toLocaleString()} scored segments</div>
+    <div class="score-hero">
+      <div>
+        <div class="hint">${mode === "day" ? "Day" : "Night"} walking conditions</div>
+        <div class="hint">Higher is better</div>
+      </div>
+      <div style="text-align:right">
+        <div class="n">${index.toFixed(1)}</div>
+        <div class="u">/ 10</div>
+      </div>
+    </div>
+    <div class="bar"><span style="color:var(--yw-blue)">Footpaths</span><div class="track"><div class="fill" style="width:${s.acc}%;background:var(--yw-blue)"></div></div><span>${s.acc}</span></div>
+    <div class="bar"><span style="color:${thirdCol}">${thirdName}</span><div class="track"><div class="fill" style="width:${thirdVal}%;background:${thirdCol}"></div></div><span>${thirdVal}</span></div>
+    <p class="note">Stream bars are 0–100. Footpaths is the shared Accessibility score. ${mode === "day" ? "After dark is not in the Day index." : "Heat and shade is not in the Night index."}</p>
+  `;
+}
+function renderList() {
+  const rows = document.getElementById("rows");
+  rows.innerHTML = "";
+  ranked().forEach((s, i) => {
+    const index = mode === "day" ? s.day : s.night;
+    const tags = mode === "day" ? s.tagsDay : s.tagsNight;
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "row" + (selected === s.id ? " on" : "");
+    b.setAttribute("role", "option");
+    b.setAttribute("aria-selected", selected === s.id ? "true" : "false");
+    b.innerHTML = `
+      <span class="rank">${i+1}</span>
+      <span>
+        <span class="name">${s.name}</span>
+        <span class="tags">${tags.map((t) => `<span class="tag ${tagClass(t)}">${t}</span>`).join("")}</span>
+      </span>
+      <span class="num">${index.toFixed(1)}</span>
+    `;
+    b.addEventListener("click", () => { selected = s.id; hidePopup(); render(); });
+    rows.appendChild(b);
+  });
+  document.getElementById("listLabel").textContent = `Weaker suburbs · ${mode === "day" ? "Day" : "Night"}`;
+  document.getElementById("legendTitle").textContent = `${mode === "day" ? "Day" : "Night"} walking conditions`;
+  document.getElementById("count").textContent = "Illustrative · 6 suburbs in this sitting";
+}
+function renderSegs() {
+  const g = document.getElementById("segs");
+  g.innerHTML = "";
+  SEGS.forEach((pair, i) => {
+    const [d, raw] = pair;
+    const display = raw / 10;
+    const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    p.setAttribute("d", d);
+    p.setAttribute("class", "seg");
+    p.setAttribute("stroke", scoreColor(mode === "night" ? display + 0.4 : display));
+    p.dataset.i = String(i);
+    p.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const pop = document.getElementById("popup");
+      const s = SUBURBS[Math.min(i, SUBURBS.length-1)];
+      const thirdName = mode === "day" ? "Heat and shade" : "After dark";
+      const thirdVal = mode === "day" ? s.heat : s.light;
+      pop.className = "popup on";
+      pop.style.left = (ev.offsetX + 24) + "px";
+      pop.style.top = (ev.offsetY + 24) + "px";
+      pop.innerHTML = `<h4>Footpath segment</h4><p>Near ${s.name} · streams only in D1. Not Lab.</p>
+        <div class="bar"><span>Footpaths</span><div class="track"><div class="fill" style="width:${s.acc}%;background:var(--yw-blue)"></div></div><span>${s.acc}</span></div>
+        <div class="bar"><span>${thirdName}</span><div class="track"><div class="fill" style="width:${thirdVal}%;background:${mode==="day"?"var(--yw-orange)":"var(--yw-amber)"}"></div></div><span>${thirdVal}</span></div>`;
+    });
+    g.appendChild(p);
+  });
+  const dots = document.getElementById("dots");
+  dots.innerHTML = "";
+  SUBURBS.forEach((s) => {
+    const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    c.setAttribute("class", "sub");
+    c.setAttribute("cx", s.x);
+    c.setAttribute("cy", s.y);
+    c.setAttribute("r", selected === s.id ? 9 : 6);
+    c.setAttribute("fill", scoreColor(mode === "day" ? s.day : s.night));
+    c.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      selected = s.id;
+      hidePopup();
+      render();
+    });
+    dots.appendChild(c);
+  });
+}
+function hidePopup() {
+  document.getElementById("popup").className = "popup";
+}
+function setMode(next) {
+  mode = next;
+  document.getElementById("mode").dataset.night = next === "night" ? "1" : "0";
+  document.querySelectorAll("#mode button").forEach((b) => b.classList.toggle("on", b.dataset.mode === next));
+  hidePopup();
+  render();
+}
+function setFrame(frame) {
+  document.querySelectorAll(".frames button").forEach((b) => b.classList.toggle("on", b.dataset.frame === frame));
+  document.body.classList.toggle("shot", frame === "shot");
+  if (frame === "empty") { mode = "day"; selected = null; }
+  if (frame === "selected") { mode = "day"; selected = "ce"; }
+  if (frame === "night") { mode = "night"; selected = "hp"; }
+  if (frame === "shot") { mode = "day"; selected = "ce"; }
+  setMode(mode);
+}
+function render() {
+  renderCoach();
+  renderCard();
+  renderList();
+  renderSegs();
+}
+
+document.querySelectorAll(".agenda button").forEach((b) => {
+  b.addEventListener("click", () => { step = b.dataset.step; renderCoach(); });
+});
+document.querySelectorAll(".frames button").forEach((b) => {
+  b.addEventListener("click", () => setFrame(b.dataset.frame));
+});
+document.querySelectorAll("#mode button").forEach((b) => {
+  b.addEventListener("click", () => setMode(b.dataset.mode));
+});
+document.getElementById("search").addEventListener("input", (e) => {
+  const q = e.target.value.trim().toLowerCase();
+  const hit = SUBURBS.find((s) => s.name.toLowerCase().startsWith(q));
+  if (q.length >= 3 && hit) { selected = hit.id; hidePopup(); render(); }
+});
+document.querySelector("svg.map").addEventListener("click", hidePopup);
+
+const params = new URLSearchParams(location.search);
+if (params.get("step")) step = params.get("step");
+render();
+if (params.get("frame")) setFrame(params.get("frame"));
+</script>
+</body>
+</html>
