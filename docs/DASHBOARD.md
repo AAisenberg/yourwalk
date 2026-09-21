@@ -1,6 +1,6 @@
 # Council insights dashboard
 
-**Status:** Spec (20 Sep 2026). Not built. Host `dashboard.yourwalk.au` does not exist yet (ADR-012).  
+**Status:** Spec (20 Sep 2026). Sitting 2 brief added 21 Sep 2026. Not built. Host `dashboard.yourwalk.au` does not exist yet (ADR-012).  
 **Audience:** City of Casey staff first (transport, urban design, assets, inclusion, grant sponsor). Not residents.  
 **Build SoT for this surface:** this document. Older FLOW / REQS / mockup are inputs.
 
@@ -70,8 +70,8 @@ Methodology and hosts are already accepted. The dashboard must follow them.
 - **Two indexes, not one.** Day = Accessibility 60% + Heat and shade 40%. Night = Accessibility 60% + Lighting / after dark 40%. There is no combined “Vulnerability index” number.
 - **Higher score = better walking conditions.** Do not invert the scale for “risk”.
 - **Primary paint unit:** T1EAM footpath segments already scored in PostGIS (~27k eligible).
-- **Roll-up:** length-weighted mean of the selected index. Suburb is the staff-facing list and search unit (how Casey talks). SA2 is available as a second roll-up for ABS / Community Need (ADR-008).
-- **Overlays are not the index:** toilets, dog bags, YourGround, SEIFA, demographics, road responsibility.
+- **Roll-up:** length-weighted mean of the selected index. Suburb is the D1 default list and search unit (how Casey talks). Ward and SA2 are sitting-2 tests (DB-11). Do not ship a multi-scale switcher in D1 unless the officer uses it. SA2 remains the ABS / Community Need unit (ADR-008).
+- **Overlays never change the index.** Toilets, dog bags, YourGround, SEIFA, demographics, and road responsibility stay out of the score. Street lights and park lights are Night Index evidence. Fountains and benches already sit in the Day Index (Heat and shade). Showing them as points is context, not a recalculation.
 - **Pending Council data** (general crossings, kerb ramps): reduced confidence. Never impute missing as zero.
 - **Mapbox GL JS only.** No MapLibre.
 - **Casey logo is never used.** City of Casey in type only (same rule as the front door).
@@ -89,6 +89,7 @@ Useful, keep:
 - Data-source list with vintage (heat 2018 must stay visible)
 - Search for a suburb (and later a street)
 - Quiet City of Casey location badge, type only
+- Later-phase idea of more than one geography. Sitting 2 tests Suburb | Ward | SA2. D1 ships suburb-only unless the officer uses the others.
 
 Do **not** copy:
 
@@ -126,10 +127,12 @@ Night is a **walk-mode index**, not a designer dark-mode default. Officers work 
 ### Map
 
 - YourWalk Standard style (`mapbox://styles/crowdspot1/cmsve8sql00ak01rgb6vn39pt`) plus `lightPreset`. Classic `streets-v12` / `dark-v11` fallback only.
+- **Optional satellite** (sitting 2 / DB-10): Standard / Satellite lives in the Layers circle, not as a second map switch. Mapbox satellite or satellite-streets. No Nearmap promise. No stack of Council GIS basemaps in D1. Satellite is a basemap, not a Night look. Do not auto-switch to satellite when someone picks Night.
+- **When satellite is on:** drop choropleth opacity, or paint scores as quiet lines, so poles and paths stay readable. Full colour fill on aerials is mush.
 - **Segment choropleth is the hero.** This is the opposite of the resident planner (no score paint on `/`). Officers came for evidence, not for A to B.
 - Colour ramp: Casey-stretched, same family as `/lab`. Legend: **Lower score = weaker conditions** on the left, **higher = better** on the right. Never “Low / High vulnerability” without saying conditions.
-- Hide Mapbox POIs. YourWalk amenity overlays are opt-in (D2+).
-- Casey LGA outline. Suburb (and later SA2) boundary on selection.
+- Hide Mapbox POIs. D1 Layers lean (DB-9): street lights, park / reserve lights, drinking fountains, benches, toilets, dog bags. Default off.
+- Casey LGA outline. Selected-area boundary for the active View by unit.
 - No neon path network. T1EAM pavement polygons are scoring geometry; prefer centrelines or a quiet fill that still reads as a path, not a parcel shard.
 
 ### Layout (desktop first)
@@ -138,10 +141,12 @@ Target: **1280px and up**. Tablet (1024) must remain usable (stack the right lis
 
 ```
 header: mark · YourWalk · Council insights · Day/Night · City of Casey · Beta
-left (~20rem): view (Day/Night already in header) · selected suburb card · sources
-centre: map + search + legend + visible-count
-right (~22rem): ranked suburbs for the selected index
+left (~20rem): View by (sitting 2) · selected-area card · sources
+centre: map + search + Layers circle (basemap + overlays) + legend + visible-count
+right (~22rem): ranked list for the selected index and View by unit
 ```
+
+**Layers chrome (lean):** CrashDash pattern. A 44px circular Layers button sits on the map (top left). It expands to a float menu: Basemap (Standard / Satellite) then overlay toggles. Closed by default. A small count badge shows how many overlays are on. YourWalk tokens (white / navy / teal), not CrashDash purple. View by stays in the left column. It is a list geography, not a map overlay.
 
 One job per block. No stats-strip of invented “3 high priority / 7 medium” until D3 defines priority.
 
@@ -174,6 +179,21 @@ Selected card shows **two** numbers only: the selected index (0–10) and the th
 
 Weak-stream tags on a ranked row (for example “Lighting”) mean that stream is **below the Casey median for that stream**, not that residents filed issues there.
 
+### Layers (D1 lean)
+
+Default off. Same amenity colours as the resident planner. Street / park lights use the `/lab` evidence colours. Officers open them from the circular map button, not from the left rail.
+
+| Layer | In the index? | Copy next to the toggle |
+|-------|---------------|-------------------------|
+| Street lights | Night Index evidence | Night Index evidence. Toggle does not change the score. |
+| Park / reserve lights | Night Index evidence | Night Index evidence. Toggle does not change the score. |
+| Drinking fountains | Day Index (Heat and shade) | In the Day Index as heat and shade amenity. Shown as points. |
+| Benches | Day Index (Heat and shade) | In the Day Index as heat and shade amenity. Shown as points. |
+| Toilets | No | Overlay only. Not in the index. |
+| Dog bags | No | Overlay only. Not in the index. |
+
+Community Need / SEIFA stays D2 (DB-5). YourGround stays later.
+
 ## What a hotspot is (pilot)
 
 Until community submissions exist, a hotspot is **not** “issue density”.
@@ -196,7 +216,7 @@ Reuse the Sprint A load. Do not invent a second scoring model.
 | Suburb focus | Existing suburb attributes + fit-bounds (same idea as `/lab`) |
 | Provenance | Heat 2018, canopy 2019/2020, lights vintage, missing crossings/kerbs, methodology v1.1 |
 
-D1 does **not** require new ingest. Community Need (SEIFA 2021 on Casey Open Data at SA2), road responsibility, and extra amenity toggles are D2 data tasks.
+D1 does **not** require new ingest. Street lights, park lights, and resident amenity GeoJSON already exist for `/lab` and the planner. Community Need (SEIFA 2021 on Casey Open Data at SA2) and road responsibility stay D2 data tasks.
 
 Aggregation: length-weighted mean of eligible segments (`score_eligible = true`). Do not treat ineligible rows as zero.
 
@@ -239,7 +259,28 @@ Sitting captures: [`screenshots/dashboard-d0/frame-1-empty-day.png`](screenshots
 
 **Parked:** DB-5 Community Need (D2). **Still open:** DB-1 access (before DNS), DB-7 analytics (before D1 prod), DB-8 public later.
 
-**Next sitting:** same artefact with one Casey officer (search a suburb they know, switch Night, say what they would paste into a briefing). XYX language pass on the four frames.
+**Product lean after sitting 1 (not locked until officer):** D1 Layers = lights + resident amenities, default off (DB-9). Satellite and View by Suburb | Ward | SA2 stay sitting-2 questions (DB-10, DB-11).
+
+#### Sitting 2 · officer brief (21 Sep 2026)
+
+**Who:** one Casey officer (transport, assets, or urban design). Product + AI guide. XYX language pass can be the same hour or a follow-up on the frames.
+
+**Artefact:** same [`meeting-prep/dashboard-d0.html`](meeting-prep/dashboard-d0.html). Sitting 1 frames still work. New controls: circular Layers button on the map (Basemap + overlays, CrashDash pattern), View by Suburb | Ward | SA2. Ranks and hulls stay illustrative until a live suburb extract.
+
+**Do not lock in this sitting:** satellite into D1, Ward or SA2 as a shipped switcher, Nearmap, mesh blocks, draw-your-own, or a stack of Council GIS basemaps.
+
+**Officer script (about 45 minutes, laptop):**
+
+1. Find a suburb they know. Does the rank and 0–10 read?
+2. Switch Night. Do they look for dark mode, or do they accept “index, not theme”?
+3. Open the **Layers** circle (top left of the map). Turn on **Street lights**. Does Night suddenly make sense?
+4. In the same menu, switch **Satellite** with lights on. Keep or drop it?
+5. Try **Ward** and **SA2** (dummy ranks are fine). Which would they put in a briefing?
+6. What would they screenshot today?
+
+Write answers into DB-2 (reopen only if they hate day chrome), **DB-9 overlays**, **DB-10 basemap**, **DB-11 area unit**. Do not guess DB-10 or DB-11.
+
+**After the sitting:** suburb extract when convenient (full list, length-weighted means, dissolved hulls). Honest copy: suburb as tagged on Casey footpaths. Still no `dashboard.yourwalk.au` DNS and no Next.js dashboard until this sitting and DB-1.
 
 ### D1. Evidence map (pilot MVP / Sprint E / N5)
 
@@ -251,14 +292,16 @@ Staff open `dashboard.yourwalk.au` and see Casey scored paths.
 
 - Host routing + quiet Beta header
 - Day / Night index switch (default **Day**)
-- Optional Accessibility-only paint (the shared 60%)
 - Segment choropleth, legend, LGA outline
 - Suburb search + select; ranked suburb list for the active index
 - Selected-suburb card: 0–10 index, 0–100 stream bars, segment count
+- **Layers (lean, DB-9):** street lights, park / reserve lights, drinking fountains, benches, toilets, dog bags. Default off. Toggle never recalculates the index. Copy must say which layers are score evidence and which are overlay-only.
 - Data sources / vintage / `scoring_spec_version`
 - Reduced-confidence copy where crossings/kerbs or coverage are thin
 - Keyboard path through list + map controls
 - Not linked from the front door or resident header
+
+Satellite (DB-10) and View by Ward / SA2 (DB-11) are **not** D1 until sitting 2 locks them. Default D1 remains suburb + YourWalk Standard.
 
 **Out:**
 
@@ -271,6 +314,10 @@ Staff open `dashboard.yourwalk.au` and see Casey scored paths.
 - Dead nav pills
 - Combined index
 - “High risk” language
+- Accessibility-only paint (sitting 1: Footpaths stays a bar)
+- Nearmap or a stack of Council GIS basemaps
+- Auto-switch to satellite when Night is on
+- Mesh blocks, PSP layers, or draw-your-own areas
 
 **Acceptance (D1):**
 
@@ -295,6 +342,16 @@ Staff open `dashboard.yourwalk.au` and see Casey scored paths.
 **Then** suburbs are ordered weakest-first by length-weighted Day mean  
 **And** each row has a numeric score, not only a colour  
 
+**Given** they open Layers and turn on Street lights  
+**When** Night is selected  
+**Then** poles appear on the map  
+**And** copy states that lights are Night Index evidence and that the toggle does not change the score  
+
+**Given** they turn on Toilets  
+**When** the map updates  
+**Then** amenity points appear  
+**And** the Day or Night index numbers do not change  
+
 ### D2. Decision support (pilot Beta)
 
 **Grant:** Q3 refinements into Q4 use. **Product phase:** Beta insights + basic export.
@@ -302,10 +359,9 @@ Staff open `dashboard.yourwalk.au` and see Casey scored paths.
 **In:**
 
 - Theme filter: Footpaths, Heat and shade, After dark (filters paint and ranks; does not create a fourth index)
-- SA2 roll-up toggle or SA2 on the selected card (ADR-008)
+- SA2 roll-up toggle or SA2 on the selected card if sitting 2 did not already lock View by (ADR-008, DB-11)
 - Community Need overlay: SEIFA 2021 at SA2 (Casey portal). Age / disability / no-vehicle only if the ABS extract is ingested and labelled 2021
-- Amenity overlays already in the resident Layers (toilets, dog bags, benches, fountains) as context
-- Road responsibility as context (local vs arterial), not as a score
+- Keep D1 Layers. Add road responsibility as context (local vs arterial), not as a score
 - Named corridor view using [`PRIORITY_CORRIDORS.md`](PRIORITY_CORRIDORS.md)
 - Click a segment: sub-score transparency (width, surface, speed, graffiti proxy, lighting density) with the same caveats as methodology
 - Table view of the ranked list (map alternative)
@@ -389,7 +445,7 @@ Do not say: safe route, high risk, crime hotspot, vulnerable people (when you me
 ## Accessibility and performance
 
 - WCAG 2.1 AA. Colour never the only encoding.
-- Keyboard: Day/Night, suburb list, search, map zoom.
+- Keyboard: Day/Night, suburb list, search, Layers circle, map zoom.
 - Screen reader: index state, selected suburb, score and rank announced.
 - Touch targets 44px on the index switch and list rows.
 - Initial map < 3s on a typical Council office connection (same budget family as [`PHASES.md`](PHASES.md)).
@@ -401,12 +457,15 @@ Do not say: safe route, high risk, crime hotspot, vulnerable people (when you me
 |----|----------|---------|-------------------|-------------|
 | DB-1 | How do officers open D1? | A. Vercel Deployment Protection password, shared with named staff. B. Vercel Authentication (CrowdLab seats only; poor for Council). C. Unlisted URL, no password (scores are from open data). D. Clerk org (L1, too early). | Least friction for 5–15 Casey staff; no login on other hosts; revoke without a rebuild | Before DNS |
 | DB-2 | Night chrome | **A (sitting 1).** Day shell always. B. Full Night surfaces when Night index is on. | Screenshot contrast in a meeting room | Reopen only after an officer sitting |
-| DB-3 | Default rank geography | **A (sitting 1).** Suburb list. B. SA2 only. C. Ward. | Officers can name the unit in a briefing without a glossary | Officer sitting may reopen |
+| DB-3 | Default rank geography | **A (sitting 1).** Suburb list. B. SA2 only. C. Ward. | Officers can name the unit in a briefing without a glossary | Officer sitting 2 may reopen via DB-11 |
 | DB-4 | Accessibility-only paint in D1? | **B (sitting 1).** Night/Day only; Accessibility is the bar in the card. A would be a third paint mode. | Avoid a fourth “overall” reading | Officer sitting may reopen |
 | DB-5 | Community Need fields in D2 | A. SEIFA decile only. B. SEIFA + 65+ + disability + no vehicle (mockup). C. Defer all need | Data already on Casey portal at SA2; extra Census fields need an ingest + privacy pass | Before D2 |
 | DB-6 | Segment click in D1 | **A (sitting 1).** Popup with 0–100 streams only. B. Wait for D2 sub-scores. | Useful without looking like Lab | Officer sitting may reopen |
 | DB-7 | Dashboard analytics | A. None in D1. B. Allowlisted first-party events (recommended if we need EVALUATION counts). | Grant KPI vs privacy | Before D1 prod |
 | DB-8 | Public evidence later | A. Stay staff-only. B. Public read-only after pilot. | Council comms; no safety copy | Not D1 |
+| DB-9 | D1 Layers | **A (lean).** Lights + resident amenities, default off. B. Lights only in D1; amenities wait for D2. C. No overlays in D1. | Officers can see assets under a weak score without a fourth index; copy must separate evidence from overlay-only | Officer sitting 2 |
+| DB-10 | Basemap | A. YourWalk Standard only. **B (test).** Standard + Mapbox satellite, one switch. C. Extra Council GIS basemaps (out for D1). | Aerials help with lights and paths; do not promise Nearmap; Night must not auto-switch satellite | Officer sitting 2. Do not guess. |
+| DB-11 | Area unit switcher | **A (sitting 1 lean).** Suburb only in D1. B. View by Suburb / Ward / SA2, default Suburb. C. Ward default. D. SA2 default. | What they would paste into a briefing; zoom still reaches segments | Officer sitting 2. Do not guess. |
 
 Do not reopen Day/Night 60/40, Mapbox, T1EAM as the segment master, or the host table to answer these.
 

@@ -61,6 +61,8 @@ body {
 .agenda button.on { background: var(--yw-navy); color: #fff; border-color: var(--yw-navy); }
 .coach-body { margin-top: 10px; font-size: 13px; line-height: 1.5; color: var(--ink); max-width: 72rem; }
 .coach-body strong { color: var(--yw-navy); }
+.coach-body ol { margin: 8px 0 0 1.2rem; }
+.coach-body li { margin: 3px 0; }
 .frames { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
 .frames button {
   border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 7px 12px;
@@ -109,6 +111,26 @@ body {
 .label {
   font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8; margin-bottom: 10px;
 }
+.seg3 {
+  display: flex; height: 32px; padding: 3px; border-radius: 999px; background: var(--yw-day-surface);
+  border: 1px solid var(--line); margin-bottom: 14px;
+}
+.seg3 button {
+  flex: 1; border: 0; background: transparent; font: inherit; font-size: 11px; font-weight: 700;
+  cursor: pointer; color: var(--muted); border-radius: 999px;
+}
+.seg3 button.on { background: var(--yw-navy); color: #fff; }
+.layer {
+  display: flex; align-items: flex-start; gap: 8px; width: 100%; text-align: left;
+  border: 0; background: transparent; padding: 7px 4px; cursor: pointer; font: inherit; border-radius: 8px;
+}
+.layer:hover { background: var(--yw-day-surface); }
+.layer .swatch {
+  width: 10px; height: 10px; border-radius: 999px; margin-top: 4px; flex-shrink: 0; border: 1px solid rgba(15,23,42,0.12);
+}
+.layer .lab { font-size: 12px; font-weight: 700; color: var(--ink); }
+.layer .hint { font-size: 10px; color: var(--muted); line-height: 1.35; margin-top: 1px; }
+.layer input { margin-top: 3px; accent-color: var(--yw-navy); }
 .card {
   background: var(--yw-day-surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px;
 }
@@ -129,12 +151,48 @@ body {
 
 .mapwrap { position: relative; background: #e8eef4; min-height: 0; }
 .map-search {
-  position: absolute; top: 12px; left: 12px; right: 12px; z-index: 3; display: flex; justify-content: center;
+  position: absolute; top: 12px; left: 68px; right: 12px; z-index: 3; display: flex; justify-content: center;
 }
 .map-search input {
   width: min(28rem, 100%); height: 40px; border-radius: 10px; border: 1px solid var(--line);
   padding: 0 12px; font: inherit; font-size: 13px; background: #fff; box-shadow: 0 4px 16px rgba(15,23,42,0.08);
 }
+.layer-control { position: absolute; top: 12px; left: 12px; z-index: 6; }
+.layer-fab {
+  width: 44px; height: 44px; border-radius: 999px; border: 1px solid var(--line);
+  background: #fff; color: var(--yw-navy); cursor: pointer;
+  display: grid; place-items: center; position: relative;
+  box-shadow: 0 4px 16px rgba(15,23,42,0.12);
+}
+.layer-fab.on, .layer-fab.has-on { background: var(--yw-teal); color: #fff; border-color: var(--yw-teal); }
+.layer-fab .badge {
+  position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 4px;
+  border-radius: 999px; background: var(--yw-navy); color: #fff;
+  font-size: 10px; font-weight: 800; display: none; place-items: center; border: 2px solid #fff;
+}
+.layer-fab .badge.on { display: grid; }
+.layer-menu {
+  display: none; position: absolute; top: 52px; left: 0; width: 272px;
+  background: #fff; border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(15,23,42,0.14); padding: 12px;
+}
+.layer-menu.on { display: block; }
+.layer-menu-head {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;
+  padding-bottom: 8px; border-bottom: 1px solid var(--line);
+}
+.layer-menu-head strong { font-size: 13px; font-weight: 800; color: var(--yw-navy); }
+.layer-menu-head button {
+  width: 24px; height: 24px; border: 0; background: transparent; cursor: pointer;
+  font-size: 18px; line-height: 1; color: var(--muted);
+}
+.basemap-row { display: flex; gap: 6px; margin-bottom: 12px; }
+.basemap-row button {
+  flex: 1; height: 36px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--yw-day-surface); font: inherit; font-size: 11px; font-weight: 700;
+  cursor: pointer; color: var(--muted);
+}
+.basemap-row button.on { background: var(--yw-navy); color: #fff; border-color: var(--yw-navy); }
 .legend {
   position: absolute; left: 12px; bottom: 12px; z-index: 3; background: #fff; border: 1px solid var(--line);
   border-radius: 10px; padding: 10px 12px; width: 220px; box-shadow: 0 4px 16px rgba(15,23,42,0.06);
@@ -145,14 +203,19 @@ body {
 .legend .ends { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-top: 4px; }
 .count {
   position: absolute; right: 12px; bottom: 12px; z-index: 3; background: #fff; border: 1px solid var(--line);
-  border-radius: 10px; padding: 8px 10px; font-size: 11px; color: var(--muted); font-weight: 600;
+  border-radius: 10px; padding: 8px 10px; font-size: 11px; color: var(--muted); font-weight: 600; max-width: 16rem;
 }
 svg.map { width: 100%; height: 100%; display: block; }
 path.seg { fill: none; stroke-width: 6; stroke-linecap: round; cursor: pointer; }
 path.seg:hover { stroke-width: 8; }
+.mapwrap.sat path.seg { stroke-width: 3.5; opacity: 0.78; }
 circle.sub {
   stroke: #fff; stroke-width: 2; cursor: pointer;
 }
+circle.ov { cursor: pointer; }
+circle.ov.light { stroke: rgba(15,23,42,0.25); stroke-width: 0.6; }
+circle.ov.amenity { stroke: #fff; stroke-width: 1.4; }
+.hull { fill: rgba(0,170,166,0.14); stroke: var(--yw-teal); stroke-width: 2; pointer-events: none; }
 .popup {
   position: absolute; z-index: 4; width: 220px; background: #fff; border: 1px solid var(--line);
   border-radius: 12px; padding: 12px; box-shadow: 0 10px 30px rgba(15,23,42,0.12); display: none;
@@ -186,10 +249,12 @@ circle.sub {
 }
 body.shot .coach { display: none; }
 body.shot .shot-flag { display: block; }
+body.shot .layer-menu { display: none; }
 
 @media (max-width: 1100px) {
   .layout { grid-template-columns: 1fr; grid-template-rows: auto 50vh auto; }
   .side, .list { border: 0; border-top: 1px solid var(--line); }
+  .map-search { left: 68px; right: 12px; }
 }
 </style>
 </head>
@@ -197,26 +262,33 @@ body.shot .shot-flag { display: block; }
 <div class="coach" id="coach">
   <div class="coach-top">
     <div>
-      <div class="coach-kicker">D0 first sitting · internal</div>
-      <div class="coach-title">Council insights · you + AI guide</div>
+      <div class="coach-kicker">D0 sitting 2 · officer brief</div>
+      <div class="coach-title">Council insights · Layers, satellite, area</div>
     </div>
-    <div class="coach-meta">20 Sep 2026 · artefact, not production · ranks are illustrative</div>
+    <div class="coach-meta">21 Sep 2026 · artefact, not production · ranks are illustrative</div>
   </div>
   <div class="agenda" role="tablist" aria-label="Sitting agenda">
     <button type="button" class="on" data-step="1">1. Job</button>
-    <button type="button" data-step="2">2. Frames</button>
-    <button type="button" data-step="3">3. Style</button>
-    <button type="button" data-step="4">4. Walkthrough</button>
-    <button type="button" data-step="5">5. Decisions</button>
+    <button type="button" data-step="2">2. Score frames</button>
+    <button type="button" data-step="3">3. Layers</button>
+    <button type="button" data-step="4">4. Satellite</button>
+    <button type="button" data-step="5">5. View by</button>
+    <button type="button" data-step="6">6. Officer script</button>
   </div>
   <div class="coach-body" id="coachBody"></div>
-  <div class="frames" role="group" aria-label="D1 frames">
-    <button type="button" class="on" data-frame="empty">Frame 1 · Empty Day</button>
-    <button type="button" data-frame="selected">Frame 2 · Suburb selected</button>
-    <button type="button" data-frame="night">Frame 3 · Night</button>
-    <button type="button" data-frame="shot">Frame 4 · Screenshot crop</button>
+  <div class="frames" role="group" aria-label="Sitting 1 frames">
+    <button type="button" class="on" data-frame="empty">1 · Empty Day</button>
+    <button type="button" data-frame="selected">2 · Suburb selected</button>
+    <button type="button" data-frame="night">3 · Night</button>
+    <button type="button" data-frame="shot">4 · Screenshot crop</button>
   </div>
-  <p class="note">Higher score = better walking conditions. No combined index. Day chrome stays when Night is on. Map is a schematic for sitting, not live T1EAM.</p>
+  <div class="frames" role="group" aria-label="Sitting 2 frames">
+    <button type="button" data-frame="lights">5 · Lights on Night</button>
+    <button type="button" data-frame="sat">6 · Satellite + lights</button>
+    <button type="button" data-frame="ward">7 · Ward</button>
+    <button type="button" data-frame="sa2">8 · SA2</button>
+  </div>
+  <p class="note">Higher score = better walking conditions. Overlays never change the index. Night does not auto-switch satellite. Map is a schematic for sitting, not live T1EAM.</p>
 </div>
 
 <div class="app" id="app">
@@ -247,7 +319,13 @@ body.shot .shot-flag { display: block; }
 
   <div class="layout">
     <aside class="side">
-      <div class="label">Selected suburb</div>
+      <div class="label">View by</div>
+      <div class="seg3" id="viewBy" role="group" aria-label="Area unit">
+        <button type="button" class="on" data-view="suburb">Suburb</button>
+        <button type="button" data-view="ward">Ward</button>
+        <button type="button" data-view="sa2">SA2</button>
+      </div>
+      <div class="label" id="areaLabel">Selected suburb</div>
       <div class="card" id="areaCard"></div>
       <div class="label" style="margin-top:18px">Data sources</div>
       <div class="src"><b>Footpaths (T1EAM)</b><em>Casey open data</em></div>
@@ -258,21 +336,53 @@ body.shot .shot-flag { display: block; }
       <p class="note" style="margin-top:12px">General crossings and kerb ramps are not in yet. Scores use reduced confidence. Missing is not treated as zero.</p>
     </aside>
 
-    <div class="mapwrap">
+    <div class="mapwrap" id="mapwrap">
       <span class="shot-flag">Screenshot crop · legend and index stay in frame</span>
+      <div class="layer-control" id="layerControl">
+        <button type="button" class="layer-fab" id="layerFab" aria-label="Map layers" aria-expanded="false" aria-controls="layerMenu">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5zm0 9.5L3.5 7.4 2 8.2l10 5 10-5-1.5-.8L12 11.5zM2 13.2l1.5.8L12 18.5l8.5-4.5 1.5-.8-10 5-10-5z"/></svg>
+          <span class="badge" id="layerBadge">0</span>
+        </button>
+        <div class="layer-menu" id="layerMenu" role="dialog" aria-label="Map layers">
+          <div class="layer-menu-head">
+            <strong>Map layers</strong>
+            <button type="button" id="layerClose" aria-label="Close layers">&times;</button>
+          </div>
+          <div class="label">Basemap</div>
+          <div class="basemap-row" id="basemap" role="group" aria-label="Basemap">
+            <button type="button" class="on" data-base="standard">Standard</button>
+            <button type="button" data-base="satellite">Satellite</button>
+          </div>
+          <div class="label">Overlays</div>
+          <div id="layers"></div>
+          <p class="note">Default off. Toggle does not change the Day or Night number.</p>
+        </div>
+      </div>
       <div class="map-search">
         <input id="search" type="search" placeholder="Search suburb" aria-label="Search suburb">
       </div>
       <svg class="map" viewBox="0 0 800 560" role="img" aria-label="Schematic Casey walking network">
-        <rect x="0" y="0" width="800" height="560" fill="#d7e0e8"/>
-        <path d="M70 90 C 180 40, 420 50, 730 80 C 760 180, 770 320, 720 470 C 480 520, 220 530, 90 460 C 50 320, 40 180, 70 90 Z" fill="#c5d2de" stroke="#8b9aab" stroke-width="2"/>
+        <rect id="mapBg" x="0" y="0" width="800" height="560" fill="#d7e0e8"/>
+        <g id="aerial" style="display:none">
+          <path d="M70 90 C 180 40, 420 50, 730 80 C 760 180, 770 320, 720 470 C 480 520, 220 530, 90 460 C 50 320, 40 180, 70 90 Z" fill="#3a4634"/>
+          <rect x="140" y="150" width="70" height="48" fill="#5a5346" opacity="0.55"/>
+          <rect x="230" y="200" width="90" height="36" fill="#6a5d4a" opacity="0.45"/>
+          <rect x="400" y="160" width="80" height="54" fill="#4a5840" opacity="0.5"/>
+          <rect x="520" y="250" width="110" height="40" fill="#5c4f3e" opacity="0.4"/>
+          <rect x="180" y="340" width="130" height="50" fill="#4f5c42" opacity="0.45"/>
+          <rect x="480" y="360" width="95" height="42" fill="#675848" opacity="0.4"/>
+          <rect x="310" y="280" width="60" height="70" fill="#3f4a38" opacity="0.5"/>
+        </g>
+        <path id="lga" d="M70 90 C 180 40, 420 50, 730 80 C 760 180, 770 320, 720 470 C 480 520, 220 530, 90 460 C 50 320, 40 180, 70 90 Z" fill="#c5d2de" stroke="#8b9aab" stroke-width="2"/>
+        <ellipse id="hull" class="hull" cx="0" cy="0" rx="0" ry="0" style="display:none"/>
         <g id="segs"></g>
         <g id="dots"></g>
+        <g id="ovs"></g>
       </svg>
       <div class="popup" id="popup"></div>
       <div class="legend">
         <h3 id="legendTitle">Day walking conditions</h3>
-        <p>Higher score = better walking conditions. Colours are stretched across Casey, not a 0–100 rainbow.</p>
+        <p id="legendHint">Higher score = better walking conditions. Colours are stretched across Casey, not a 0–100 rainbow.</p>
         <div class="grad" aria-hidden="true"></div>
         <div class="ends"><span>Weaker</span><span>Better</span></div>
       </div>
@@ -281,7 +391,8 @@ body.shot .shot-flag { display: block; }
 
     <aside class="list">
       <div class="label" id="listLabel">Weaker suburbs · Day</div>
-      <div id="rows" role="listbox" aria-label="Suburbs ranked weakest first"></div>
+      <div id="rows" role="listbox" aria-label="Areas ranked weakest first"></div>
+      <p class="note" id="listNote">Illustrative · suburb as tagged on Casey footpaths</p>
     </aside>
   </div>
 </div>
@@ -289,19 +400,47 @@ body.shot .shot-flag { display: block; }
 <script>
 const STEPS = {
   1: "<strong>Job of D1.</strong> A Casey officer finds where Day or Night walking conditions are weaker, sees whether that is mainly footpaths, heat and shade, or lighting after dark, and screenshots the frame into a briefing. We do not tell them what to build. We do not show a combined vulnerability number.",
-  2: "<strong>Four frames.</strong> Use the buttons below. Frame 1 is the empty Day evidence map. Frame 2 selects a suburb. Frame 3 switches the index to Night (shell stays day). Frame 4 hides this coach so you can judge a Word-ready crop.",
-  3: "<strong>Style lock.</strong> Plus Jakarta Sans, day surfaces, navy wordmark, teal selected state, same Day/Night control as the planner. Path paint uses the /lab ramp (red to green, higher = better). Pink is not a danger colour. No Inter, no always-dark BI, no dead Corridors tab.",
-  4: "<strong>Walkthrough (officer stand-in).</strong> Search or click Cranbourne East. Read the 0–10 Day score and 0–100 stream bars. Switch Night: ranks move, Heat and shade becomes After dark. Click a path for the thin segment popup (DB-6 option A).",
-  5: "<strong>First-sitting leans.</strong> DB-3 suburb list. DB-4 Day/Night only (Accessibility stays a bar, not a third paint). DB-6 segment popup with streams only. DB-2 day shell. DB-5 Community Need parked for D2. DB-1 access still open before DNS."
+  2: "<strong>Sitting 1 frames.</strong> Buttons 1–4. Empty Day, suburb selected, Night (shell stays day), Word-ready crop. Ranks are still illustrative.",
+  3: "<strong>Layers (DB-9 lean).</strong> CrashDash pattern: circular Layers button, top left of the map. Opens Basemap plus overlays. Street lights and park lights are Night Index evidence. Fountains and benches already sit in the Day Index. Toilets and dog bags are overlay only. Default off. Turning a layer on never changes the 0–10.",
+  4: "<strong>Satellite (DB-10, do not lock).</strong> Standard / Satellite lives in the Layers menu, not as a second map switch. Night does not auto-flip the basemap. On aerials the score paint goes quiet so poles stay readable. No Nearmap. Ask the officer: keep or drop?",
+  5: "<strong>View by (DB-11, do not lock).</strong> Suburb is the sitting 1 default. Ward and SA2 are dummy ranks for the officer to try. Zoom still reaches segments. If they never touch Ward or SA2, D1 ships suburb-only.",
+  6: "<strong>Officer script (~45 min).</strong><ol><li>Find a suburb they know. Does the rank and 0–10 read?</li><li>Switch Night. Index, or do they look for dark mode?</li><li>Open the Layers circle. Turn on Street lights. Does Night make sense?</li><li>In the same menu, switch Satellite with lights on. Keep or drop?</li><li>Try Ward and SA2. Which goes in a briefing?</li><li>What would they screenshot today?</li></ol>"
 };
 
+const LAYERS = [
+  { id: "street_lights", label: "Street lights", color: "#facc15", r: 2.2, n: 88, seed: 11, kind: "light", note: "Night Index evidence. Toggle does not change the score." },
+  { id: "park_lights", label: "Park / reserve lights", color: "#fde047", r: 3.4, n: 16, seed: 22, kind: "light", note: "Night Index evidence. Toggle does not change the score." },
+  { id: "fountains", label: "Drinking fountains", color: "#27AAE1", r: 5, n: 8, seed: 33, kind: "amenity", note: "In the Day Index as heat and shade amenity. Shown as points." },
+  { id: "benches", label: "Benches", color: "#8DC63F", r: 5, n: 10, seed: 44, kind: "amenity", note: "In the Day Index as heat and shade amenity. Shown as points." },
+  { id: "toilets", label: "Toilets", color: "#7C3AED", r: 5.5, n: 6, seed: 55, kind: "amenity", note: "Overlay only. Not in the index." },
+  { id: "dog_bags", label: "Dog bags", color: "#F6871F", r: 5, n: 5, seed: 66, kind: "amenity", note: "Overlay only. Not in the index." }
+];
+
 const SUBURBS = [
-  { id: "ce", name: "Cranbourne East", day: 5.4, night: 6.6, acc: 58, heat: 48, light: 52, segs: 1840, tagsDay: ["Footpaths", "Heat and shade"], tagsNight: ["Footpaths", "After dark"], x: 520, y: 360 },
-  { id: "cn", name: "Clyde North", day: 5.6, night: 7.1, acc: 61, heat: 44, light: 71, segs: 1622, tagsDay: ["Heat and shade"], tagsNight: ["Footpaths"], x: 610, y: 410 },
-  { id: "hp", name: "Hampton Park", day: 6.1, night: 5.9, acc: 64, heat: 62, light: 41, segs: 980, tagsDay: ["Footpaths"], tagsNight: ["After dark"], x: 280, y: 250 },
-  { id: "nws", name: "Narre Warren South", day: 6.2, night: 6.3, acc: 63, heat: 60, light: 49, segs: 1411, tagsDay: ["Footpaths"], tagsNight: ["After dark"], x: 360, y: 300 },
-  { id: "ly", name: "Lynbrook", day: 6.4, night: 6.8, acc: 70, heat: 58, light: 63, segs: 640, tagsDay: [], tagsNight: ["After dark"], x: 300, y: 330 },
-  { id: "be", name: "Berwick", day: 6.9, night: 7.4, acc: 74, heat: 66, light: 78, segs: 2104, tagsDay: [], tagsNight: [], x: 640, y: 210 }
+  { id: "ce", name: "Cranbourne East", day: 5.4, night: 6.6, acc: 58, heat: 48, light: 52, segs: 1840, tagsDay: ["Footpaths", "Heat and shade"], tagsNight: ["Footpaths", "After dark"], x: 520, y: 360, rx: 70, ry: 48 },
+  { id: "cn", name: "Clyde North", day: 5.6, night: 7.1, acc: 61, heat: 44, light: 71, segs: 1622, tagsDay: ["Heat and shade"], tagsNight: ["Footpaths"], x: 610, y: 410, rx: 62, ry: 44 },
+  { id: "hp", name: "Hampton Park", day: 6.1, night: 5.9, acc: 64, heat: 62, light: 41, segs: 980, tagsDay: ["Footpaths"], tagsNight: ["After dark"], x: 280, y: 250, rx: 58, ry: 42 },
+  { id: "nws", name: "Narre Warren South", day: 6.2, night: 6.3, acc: 63, heat: 60, light: 49, segs: 1411, tagsDay: ["Footpaths"], tagsNight: ["After dark"], x: 360, y: 300, rx: 64, ry: 40 },
+  { id: "ly", name: "Lynbrook", day: 6.4, night: 6.8, acc: 70, heat: 58, light: 63, segs: 640, tagsDay: [], tagsNight: ["After dark"], x: 300, y: 330, rx: 42, ry: 32 },
+  { id: "be", name: "Berwick", day: 6.9, night: 7.4, acc: 74, heat: 66, light: 78, segs: 2104, tagsDay: [], tagsNight: [], x: 640, y: 210, rx: 72, ry: 50 }
+];
+
+const WARDS = [
+  { id: "rg", name: "River Gum", day: 5.7, night: 5.9, acc: 59, heat: 51, light: 44, segs: 5120, tagsDay: ["Footpaths", "Heat and shade"], tagsNight: ["After dark"], x: 300, y: 280, rx: 110, ry: 78 },
+  { id: "fo", name: "Four Oaks", day: 6.0, night: 6.4, acc: 63, heat: 55, light: 58, segs: 4860, tagsDay: ["Footpaths"], tagsNight: ["After dark"], x: 540, y: 360, rx: 120, ry: 80 },
+  { id: "sp", name: "Springfield", day: 6.3, night: 6.6, acc: 66, heat: 60, light: 61, segs: 4310, tagsDay: ["Heat and shade"], tagsNight: ["Footpaths"], x: 430, y: 220, rx: 100, ry: 70 },
+  { id: "gr", name: "Grove", day: 6.5, night: 6.8, acc: 69, heat: 63, light: 66, segs: 3980, tagsDay: [], tagsNight: ["After dark"], x: 220, y: 380, rx: 90, ry: 64 },
+  { id: "ed", name: "Edrington", day: 6.7, night: 7.2, acc: 72, heat: 64, light: 74, segs: 4540, tagsDay: [], tagsNight: [], x: 650, y: 200, rx: 96, ry: 68 },
+  { id: "bb", name: "Balla Balla", day: 6.8, night: 7.0, acc: 71, heat: 68, light: 69, segs: 2760, tagsDay: [], tagsNight: [], x: 180, y: 180, rx: 80, ry: 58 }
+];
+
+const SA2S = [
+  { id: "ce2", name: "Cranbourne East", day: 5.5, night: 6.5, acc: 58, heat: 49, light: 53, segs: 2210, tagsDay: ["Heat and shade"], tagsNight: ["Footpaths"], x: 530, y: 370, rx: 86, ry: 58 },
+  { id: "hpl", name: "Hampton Park - Lynbrook", day: 6.0, night: 5.8, acc: 65, heat: 61, light: 42, segs: 1710, tagsDay: ["Footpaths"], tagsNight: ["After dark"], x: 290, y: 270, rx: 92, ry: 62 },
+  { id: "cn2", name: "Clyde North", day: 5.8, night: 7.0, acc: 61, heat: 45, light: 70, segs: 1980, tagsDay: ["Heat and shade"], tagsNight: ["Footpaths"], x: 610, y: 410, rx: 80, ry: 54 },
+  { id: "nws2", name: "Narre Warren South", day: 6.2, night: 6.3, acc: 64, heat: 60, light: 50, segs: 1880, tagsDay: ["Footpaths"], tagsNight: ["After dark"], x: 370, y: 310, rx: 84, ry: 52 },
+  { id: "bes", name: "Berwick - South", day: 6.6, night: 7.1, acc: 72, heat: 64, light: 76, segs: 1640, tagsDay: [], tagsNight: [], x: 640, y: 240, rx: 78, ry: 50 },
+  { id: "hal", name: "Hallam", day: 6.4, night: 6.1, acc: 67, heat: 62, light: 47, segs: 980, tagsDay: ["Footpaths"], tagsNight: ["After dark"], x: 240, y: 200, rx: 70, ry: 46 }
 ];
 
 const SEGS = [
@@ -320,7 +459,42 @@ const SEGS = [
 let mode = "day";
 let selected = null;
 let step = "1";
+let viewBy = "suburb";
+let basemap = "standard";
+let layersOpen = false;
+let layerOn = Object.fromEntries(LAYERS.map((l) => [l.id, false]));
 
+function mulberry32(a) {
+  return function () {
+    let t = a += 0x6D2B79F5;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function scatter(n, seed) {
+  const rand = mulberry32(seed);
+  const pts = [];
+  for (let i = 0; i < n; i++) pts.push({ x: 95 + rand() * 610, y: 105 + rand() * 370 });
+  return pts;
+}
+const LAYER_PTS = Object.fromEntries(LAYERS.map((l) => [l.id, scatter(l.n, l.seed)]));
+
+function units() {
+  if (viewBy === "ward") return WARDS;
+  if (viewBy === "sa2") return SA2S;
+  return SUBURBS;
+}
+function unitWord() {
+  if (viewBy === "ward") return "ward";
+  if (viewBy === "sa2") return "SA2";
+  return "suburb";
+}
+function unitWordPlural() {
+  if (viewBy === "ward") return "wards";
+  if (viewBy === "sa2") return "SA2s";
+  return "suburbs";
+}
 function tagClass(t) {
   if (t.startsWith("Foot")) return "tag-f";
   if (t.startsWith("Heat")) return "tag-h";
@@ -338,17 +512,41 @@ function scoreColor(v0to10) {
   return cols[cols.length-1];
 }
 function ranked() {
-  return [...SUBURBS].sort((a,b) => (mode === "day" ? a.day - b.day : a.night - b.night));
+  return [...units()].sort((a,b) => (mode === "day" ? a.day - b.day : a.night - b.night));
 }
 function renderCoach() {
   document.getElementById("coachBody").innerHTML = STEPS[step];
   document.querySelectorAll(".agenda button").forEach((b) => b.classList.toggle("on", b.dataset.step === step));
 }
+function renderLayers() {
+  const root = document.getElementById("layers");
+  root.innerHTML = "";
+  LAYERS.forEach((l) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "layer";
+    b.innerHTML = `
+      <input type="checkbox" ${layerOn[l.id] ? "checked" : ""} aria-hidden="true" tabindex="-1">
+      <span class="swatch" style="background:${l.color}"></span>
+      <span>
+        <span class="lab">${l.label}</span>
+        <span class="hint">${l.note}</span>
+      </span>
+    `;
+    b.addEventListener("click", () => {
+      layerOn[l.id] = !layerOn[l.id];
+      hidePopup();
+      render();
+    });
+    root.appendChild(b);
+  });
+}
 function renderCard() {
   const el = document.getElementById("areaCard");
-  const s = SUBURBS.find((x) => x.id === selected);
+  document.getElementById("areaLabel").textContent = `Selected ${unitWord()}`;
+  const s = units().find((x) => x.id === selected);
   if (!s) {
-    el.innerHTML = '<p class="empty">Select a suburb on the list or the map. The card shows a 0–10 index and 0–100 stream bars. There is no combined score.</p>';
+    el.innerHTML = `<p class="empty">Select a ${unitWord()} on the list or the map. The card shows a 0–10 index and 0–100 stream bars. There is no combined score.</p>`;
     return;
   }
   const index = mode === "day" ? s.day : s.night;
@@ -357,7 +555,7 @@ function renderCard() {
   const thirdCol = mode === "day" ? "var(--yw-orange)" : "var(--yw-amber)";
   el.innerHTML = `
     <h2>${s.name}</h2>
-    <div class="hint">City of Casey · ${s.segs.toLocaleString()} scored segments</div>
+    <div class="hint">City of Casey · ${s.segs.toLocaleString()} scored segments · ${unitWord()}</div>
     <div class="score-hero">
       <div>
         <div class="hint">${mode === "day" ? "Day" : "Night"} walking conditions</div>
@@ -395,11 +593,39 @@ function renderList() {
     b.addEventListener("click", () => { selected = s.id; hidePopup(); render(); });
     rows.appendChild(b);
   });
-  document.getElementById("listLabel").textContent = `Weaker suburbs · ${mode === "day" ? "Day" : "Night"}`;
+  document.getElementById("listLabel").textContent = `Weaker ${unitWordPlural()} · ${mode === "day" ? "Day" : "Night"}`;
+  const notes = {
+    suburb: "Illustrative · suburb as tagged on Casey footpaths",
+    ward: "Illustrative · ward as tagged on Casey footpaths. Not a live dissolve.",
+    sa2: "Illustrative SA2 stand-in. Not a live ABS extract."
+  };
+  document.getElementById("listNote").textContent = notes[viewBy];
   document.getElementById("legendTitle").textContent = `${mode === "day" ? "Day" : "Night"} walking conditions`;
-  document.getElementById("count").textContent = "Illustrative · 6 suburbs in this sitting";
+  document.getElementById("legendHint").textContent = basemap === "satellite"
+    ? "Quiet paint on aerials so poles and paths stay readable. Higher score = better walking conditions."
+    : "Higher score = better walking conditions. Colours are stretched across Casey, not a 0–100 rainbow.";
+  const onCount = LAYERS.filter((l) => layerOn[l.id]).length;
+  document.getElementById("count").textContent = onCount
+    ? `Illustrative · ${units().length} ${unitWordPlural()} · ${onCount} layer${onCount === 1 ? "" : "s"} on`
+    : `Illustrative · ${units().length} ${unitWordPlural()} in this sitting`;
 }
-function renderSegs() {
+function showPopup(ev, html) {
+  const pop = document.getElementById("popup");
+  const wrap = document.getElementById("mapwrap");
+  const rect = wrap.getBoundingClientRect();
+  pop.className = "popup on";
+  pop.style.left = Math.min(ev.clientX - rect.left + 16, rect.width - 236) + "px";
+  pop.style.top = Math.min(ev.clientY - rect.top + 16, rect.height - 140) + "px";
+  pop.innerHTML = html;
+}
+function renderMap() {
+  const sat = basemap === "satellite";
+  document.getElementById("mapwrap").classList.toggle("sat", sat);
+  document.getElementById("mapBg").setAttribute("fill", sat ? "#2a3226" : "#d7e0e8");
+  document.getElementById("aerial").style.display = sat ? "block" : "none";
+  document.getElementById("lga").setAttribute("fill", sat ? "#3a4634" : "#c5d2de");
+  document.getElementById("lga").setAttribute("stroke", sat ? "#8a9a7a" : "#8b9aab");
+
   const g = document.getElementById("segs");
   g.innerHTML = "";
   SEGS.forEach((pair, i) => {
@@ -412,27 +638,37 @@ function renderSegs() {
     p.dataset.i = String(i);
     p.addEventListener("click", (ev) => {
       ev.stopPropagation();
-      const pop = document.getElementById("popup");
-      const s = SUBURBS[Math.min(i, SUBURBS.length-1)];
+      const s = units()[Math.min(i, units().length-1)];
       const thirdName = mode === "day" ? "Heat and shade" : "After dark";
       const thirdVal = mode === "day" ? s.heat : s.light;
-      pop.className = "popup on";
-      pop.style.left = (ev.offsetX + 24) + "px";
-      pop.style.top = (ev.offsetY + 24) + "px";
-      pop.innerHTML = `<h4>Footpath segment</h4><p>Near ${s.name} · streams only in D1. Not Lab.</p>
+      showPopup(ev, `<h4>Footpath segment</h4><p>Near ${s.name} · streams only in D1. Not Lab.</p>
         <div class="bar"><span>Footpaths</span><div class="track"><div class="fill" style="width:${s.acc}%;background:var(--yw-blue)"></div></div><span>${s.acc}</span></div>
-        <div class="bar"><span>${thirdName}</span><div class="track"><div class="fill" style="width:${thirdVal}%;background:${mode==="day"?"var(--yw-orange)":"var(--yw-amber)"}"></div></div><span>${thirdVal}</span></div>`;
+        <div class="bar"><span>${thirdName}</span><div class="track"><div class="fill" style="width:${thirdVal}%;background:${mode==="day"?"var(--yw-orange)":"var(--yw-amber)"}"></div></div><span>${thirdVal}</span></div>`);
     });
     g.appendChild(p);
   });
+
+  const sel = units().find((x) => x.id === selected);
+  const hull = document.getElementById("hull");
+  if (sel) {
+    hull.style.display = "block";
+    hull.setAttribute("cx", sel.x);
+    hull.setAttribute("cy", sel.y);
+    hull.setAttribute("rx", sel.rx);
+    hull.setAttribute("ry", sel.ry);
+  } else {
+    hull.style.display = "none";
+  }
+
   const dots = document.getElementById("dots");
   dots.innerHTML = "";
-  SUBURBS.forEach((s) => {
+  const baseR = viewBy === "ward" ? 8 : viewBy === "sa2" ? 7 : 6;
+  units().forEach((s) => {
     const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     c.setAttribute("class", "sub");
     c.setAttribute("cx", s.x);
     c.setAttribute("cy", s.y);
-    c.setAttribute("r", selected === s.id ? 9 : 6);
+    c.setAttribute("r", selected === s.id ? baseR + 3 : baseR);
     c.setAttribute("fill", scoreColor(mode === "day" ? s.day : s.night));
     c.addEventListener("click", (ev) => {
       ev.stopPropagation();
@@ -442,31 +678,96 @@ function renderSegs() {
     });
     dots.appendChild(c);
   });
+
+  const ovs = document.getElementById("ovs");
+  ovs.innerHTML = "";
+  LAYERS.forEach((l) => {
+    if (!layerOn[l.id]) return;
+    LAYER_PTS[l.id].forEach((pt, i) => {
+      const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      c.setAttribute("class", "ov " + (l.kind === "light" ? "light" : "amenity"));
+      c.setAttribute("cx", pt.x);
+      c.setAttribute("cy", pt.y);
+      c.setAttribute("r", l.r);
+      c.setAttribute("fill", l.color);
+      c.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        showPopup(ev, `<h4>${l.label}</h4><p>${l.note}</p><p>Schematic point ${i + 1}. Not live GeoJSON.</p>`);
+      });
+      ovs.appendChild(c);
+    });
+  });
 }
 function hidePopup() {
   document.getElementById("popup").className = "popup";
 }
+function layerCount() {
+  return LAYERS.filter((l) => layerOn[l.id]).length;
+}
+function syncChrome() {
+  document.getElementById("mode").dataset.night = mode === "night" ? "1" : "0";
+  document.querySelectorAll("#mode button").forEach((b) => b.classList.toggle("on", b.dataset.mode === mode));
+  document.querySelectorAll("#viewBy button").forEach((b) => b.classList.toggle("on", b.dataset.view === viewBy));
+  document.querySelectorAll("#basemap button").forEach((b) => b.classList.toggle("on", b.dataset.base === basemap));
+  const n = layerCount();
+  const fab = document.getElementById("layerFab");
+  fab.classList.toggle("on", layersOpen);
+  fab.classList.toggle("has-on", n > 0);
+  fab.setAttribute("aria-expanded", layersOpen ? "true" : "false");
+  const badge = document.getElementById("layerBadge");
+  badge.textContent = String(n);
+  badge.classList.toggle("on", n > 0);
+  document.getElementById("layerMenu").classList.toggle("on", layersOpen);
+  const search = document.getElementById("search");
+  search.placeholder = `Search ${unitWord()}`;
+  search.setAttribute("aria-label", `Search ${unitWord()}`);
+}
+function setLayersOpen(next) {
+  layersOpen = next;
+  if (next) hidePopup();
+  syncChrome();
+}
 function setMode(next) {
   mode = next;
-  document.getElementById("mode").dataset.night = next === "night" ? "1" : "0";
-  document.querySelectorAll("#mode button").forEach((b) => b.classList.toggle("on", b.dataset.mode === next));
   hidePopup();
   render();
+}
+function setView(next) {
+  if (viewBy === next) return;
+  viewBy = next;
+  selected = null;
+  hidePopup();
+  render();
+}
+function setBasemap(next) {
+  basemap = next;
+  hidePopup();
+  render();
+}
+function resetLayers(onIds) {
+  LAYERS.forEach((l) => { layerOn[l.id] = onIds.includes(l.id); });
 }
 function setFrame(frame) {
   document.querySelectorAll(".frames button").forEach((b) => b.classList.toggle("on", b.dataset.frame === frame));
   document.body.classList.toggle("shot", frame === "shot");
-  if (frame === "empty") { mode = "day"; selected = null; }
-  if (frame === "selected") { mode = "day"; selected = "ce"; }
-  if (frame === "night") { mode = "night"; selected = "hp"; }
-  if (frame === "shot") { mode = "day"; selected = "ce"; }
-  setMode(mode);
+  layersOpen = false;
+  if (frame === "empty") { mode = "day"; selected = null; viewBy = "suburb"; basemap = "standard"; resetLayers([]); }
+  if (frame === "selected") { mode = "day"; selected = "ce"; viewBy = "suburb"; basemap = "standard"; resetLayers([]); }
+  if (frame === "night") { mode = "night"; selected = "hp"; viewBy = "suburb"; basemap = "standard"; resetLayers([]); }
+  if (frame === "shot") { mode = "day"; selected = "ce"; viewBy = "suburb"; basemap = "standard"; resetLayers([]); }
+  if (frame === "lights") { mode = "night"; selected = "hp"; viewBy = "suburb"; basemap = "standard"; resetLayers(["street_lights"]); layersOpen = true; }
+  if (frame === "sat") { mode = "night"; selected = "hp"; viewBy = "suburb"; basemap = "satellite"; resetLayers(["street_lights"]); layersOpen = true; }
+  if (frame === "ward") { mode = "day"; selected = "rg"; viewBy = "ward"; basemap = "standard"; resetLayers([]); }
+  if (frame === "sa2") { mode = "day"; selected = "hpl"; viewBy = "sa2"; basemap = "standard"; resetLayers([]); }
+  render();
 }
 function render() {
+  syncChrome();
   renderCoach();
+  renderLayers();
   renderCard();
   renderList();
-  renderSegs();
+  renderMap();
 }
 
 document.querySelectorAll(".agenda button").forEach((b) => {
@@ -478,15 +779,37 @@ document.querySelectorAll(".frames button").forEach((b) => {
 document.querySelectorAll("#mode button").forEach((b) => {
   b.addEventListener("click", () => setMode(b.dataset.mode));
 });
+document.querySelectorAll("#viewBy button").forEach((b) => {
+  b.addEventListener("click", () => setView(b.dataset.view));
+});
+document.querySelectorAll("#basemap button").forEach((b) => {
+  b.addEventListener("click", () => setBasemap(b.dataset.base));
+});
+document.getElementById("layerFab").addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  setLayersOpen(!layersOpen);
+});
+document.getElementById("layerClose").addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  setLayersOpen(false);
+});
+document.getElementById("layerMenu").addEventListener("click", (ev) => ev.stopPropagation());
+document.addEventListener("click", (ev) => {
+  if (!layersOpen) return;
+  if (ev.target.closest("#layerControl") || ev.target.closest(".coach")) return;
+  setLayersOpen(false);
+});
 document.getElementById("search").addEventListener("input", (e) => {
   const q = e.target.value.trim().toLowerCase();
-  const hit = SUBURBS.find((s) => s.name.toLowerCase().startsWith(q));
+  const hit = units().find((s) => s.name.toLowerCase().startsWith(q));
   if (q.length >= 3 && hit) { selected = hit.id; hidePopup(); render(); }
 });
 document.querySelector("svg.map").addEventListener("click", hidePopup);
 
 const params = new URLSearchParams(location.search);
 if (params.get("step")) step = params.get("step");
+if (params.get("view")) viewBy = params.get("view");
+if (params.get("basemap")) basemap = params.get("basemap");
 render();
 if (params.get("frame")) setFrame(params.get("frame"));
 </script>
