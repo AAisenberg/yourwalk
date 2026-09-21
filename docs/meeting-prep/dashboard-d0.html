@@ -215,7 +215,7 @@ circle.sub {
 circle.ov { cursor: pointer; }
 circle.ov.light { stroke: rgba(15,23,42,0.25); stroke-width: 0.6; }
 circle.ov.amenity { stroke: #fff; stroke-width: 1.4; }
-.hull { fill: rgba(0,170,166,0.14); stroke: var(--yw-teal); stroke-width: 2; pointer-events: none; }
+.hull { fill: rgba(0,170,166,0.16); stroke: var(--yw-teal); stroke-width: 2; pointer-events: none; }
 .popup {
   position: absolute; z-index: 4; width: 220px; background: #fff; border: 1px solid var(--line);
   border-radius: 12px; padding: 12px; box-shadow: 0 10px 30px rgba(15,23,42,0.12); display: none;
@@ -265,7 +265,7 @@ body.shot .layer-menu { display: none; }
       <div class="coach-kicker">D0 sitting 2 · officer brief</div>
       <div class="coach-title">Council insights · Layers, satellite, area</div>
     </div>
-    <div class="coach-meta">21 Sep 2026 · artefact, not production · ranks are illustrative</div>
+    <div class="coach-meta">21 Sep 2026 · artefact, not production · suburb and ward are a live extract</div>
   </div>
   <div class="agenda" role="tablist" aria-label="Sitting agenda">
     <button type="button" class="on" data-step="1">1. Job</button>
@@ -288,7 +288,7 @@ body.shot .layer-menu { display: none; }
     <button type="button" data-frame="ward">7 · Ward</button>
     <button type="button" data-frame="sa2">8 · SA2</button>
   </div>
-  <p class="note">Higher score = better walking conditions. Overlays never change the index. Night does not auto-switch satellite. Map is a schematic for sitting, not live T1EAM.</p>
+  <p class="note">Higher score = better walking conditions. Overlays never change the index. Night does not auto-switch satellite. Map is a schematic. Suburb and ward ranks are length-weighted from scored T1EAM. SA2 is still dummy.</p>
 </div>
 
 <div class="app" id="app">
@@ -313,7 +313,7 @@ body.shot .layer-menu { display: none; }
       </button>
     </div>
     <span class="pill">Beta</span>
-    <span class="pill" style="font-family: ui-monospace, monospace; font-weight:600">scores 1.1.3</span>
+    <span class="pill" id="specPill" style="font-family: ui-monospace, monospace; font-weight:600">scores 1.1.3</span>
     <div class="lga">City of Casey</div>
   </header>
 
@@ -374,7 +374,7 @@ body.shot .layer-menu { display: none; }
           <rect x="310" y="280" width="60" height="70" fill="#3f4a38" opacity="0.5"/>
         </g>
         <path id="lga" d="M70 90 C 180 40, 420 50, 730 80 C 760 180, 770 320, 720 470 C 480 520, 220 530, 90 460 C 50 320, 40 180, 70 90 Z" fill="#c5d2de" stroke="#8b9aab" stroke-width="2"/>
-        <ellipse id="hull" class="hull" cx="0" cy="0" rx="0" ry="0" style="display:none"/>
+        <path id="hull" class="hull" d="" style="display:none"/>
         <g id="segs"></g>
         <g id="dots"></g>
         <g id="ovs"></g>
@@ -397,13 +397,14 @@ body.shot .layer-menu { display: none; }
   </div>
 </div>
 
+<script src="dashboard-area-ranks.js"></script>
 <script>
 const STEPS = {
   1: "<strong>Job of D1.</strong> A Casey officer finds where Day or Night walking conditions are weaker, sees whether that is mainly footpaths, heat and shade, or lighting after dark, and screenshots the frame into a briefing. We do not tell them what to build. We do not show a combined vulnerability number.",
-  2: "<strong>Sitting 1 frames.</strong> Buttons 1–4. Empty Day, suburb selected, Night (shell stays day), Word-ready crop. Ranks are still illustrative.",
+  2: "<strong>Sitting 1 frames.</strong> Buttons 1–4. Empty Day, suburb selected, Night (shell stays day), Word-ready crop. Suburb and ward ranks are now a live length-weighted extract.",
   3: "<strong>Layers (DB-9 lean).</strong> CrashDash pattern: circular Layers button, top left of the map. Opens Basemap plus overlays. Street lights and park lights are Night Index evidence. Fountains and benches already sit in the Day Index. Toilets and dog bags are overlay only. Default off. Turning a layer on never changes the 0–10.",
   4: "<strong>Satellite (DB-10, do not lock).</strong> Standard / Satellite lives in the Layers menu, not as a second map switch. Night does not auto-flip the basemap. On aerials the score paint goes quiet so poles stay readable. No Nearmap. Ask the officer: keep or drop?",
-  5: "<strong>View by (DB-11, do not lock).</strong> Suburb is the sitting 1 default. Ward and SA2 are dummy ranks for the officer to try. Zoom still reaches segments. If they never touch Ward or SA2, D1 ships suburb-only.",
+  5: "<strong>View by (DB-11, do not lock).</strong> Suburb is the sitting 1 default and a live extract (tagged on Casey footpaths). Ward is the same extract. SA2 is still a dummy. If they never touch Ward or SA2, D1 ships suburb-only.",
   6: "<strong>Officer script (~45 min).</strong><ol><li>Find a suburb they know. Does the rank and 0–10 read?</li><li>Switch Night. Index, or do they look for dark mode?</li><li>Open the Layers circle. Turn on Street lights. Does Night make sense?</li><li>In the same menu, switch Satellite with lights on. Keep or drop?</li><li>Try Ward and SA2. Which goes in a briefing?</li><li>What would they screenshot today?</li></ol>"
 };
 
@@ -416,23 +417,9 @@ const LAYERS = [
   { id: "dog_bags", label: "Dog bags", color: "#F6871F", r: 5, n: 5, seed: 66, kind: "amenity", note: "Overlay only. Not in the index." }
 ];
 
-const SUBURBS = [
-  { id: "ce", name: "Cranbourne East", day: 5.4, night: 6.6, acc: 58, heat: 48, light: 52, segs: 1840, tagsDay: ["Footpaths", "Heat and shade"], tagsNight: ["Footpaths", "After dark"], x: 520, y: 360, rx: 70, ry: 48 },
-  { id: "cn", name: "Clyde North", day: 5.6, night: 7.1, acc: 61, heat: 44, light: 71, segs: 1622, tagsDay: ["Heat and shade"], tagsNight: ["Footpaths"], x: 610, y: 410, rx: 62, ry: 44 },
-  { id: "hp", name: "Hampton Park", day: 6.1, night: 5.9, acc: 64, heat: 62, light: 41, segs: 980, tagsDay: ["Footpaths"], tagsNight: ["After dark"], x: 280, y: 250, rx: 58, ry: 42 },
-  { id: "nws", name: "Narre Warren South", day: 6.2, night: 6.3, acc: 63, heat: 60, light: 49, segs: 1411, tagsDay: ["Footpaths"], tagsNight: ["After dark"], x: 360, y: 300, rx: 64, ry: 40 },
-  { id: "ly", name: "Lynbrook", day: 6.4, night: 6.8, acc: 70, heat: 58, light: 63, segs: 640, tagsDay: [], tagsNight: ["After dark"], x: 300, y: 330, rx: 42, ry: 32 },
-  { id: "be", name: "Berwick", day: 6.9, night: 7.4, acc: 74, heat: 66, light: 78, segs: 2104, tagsDay: [], tagsNight: [], x: 640, y: 210, rx: 72, ry: 50 }
-];
-
-const WARDS = [
-  { id: "rg", name: "River Gum", day: 5.7, night: 5.9, acc: 59, heat: 51, light: 44, segs: 5120, tagsDay: ["Footpaths", "Heat and shade"], tagsNight: ["After dark"], x: 300, y: 280, rx: 110, ry: 78 },
-  { id: "fo", name: "Four Oaks", day: 6.0, night: 6.4, acc: 63, heat: 55, light: 58, segs: 4860, tagsDay: ["Footpaths"], tagsNight: ["After dark"], x: 540, y: 360, rx: 120, ry: 80 },
-  { id: "sp", name: "Springfield", day: 6.3, night: 6.6, acc: 66, heat: 60, light: 61, segs: 4310, tagsDay: ["Heat and shade"], tagsNight: ["Footpaths"], x: 430, y: 220, rx: 100, ry: 70 },
-  { id: "gr", name: "Grove", day: 6.5, night: 6.8, acc: 69, heat: 63, light: 66, segs: 3980, tagsDay: [], tagsNight: ["After dark"], x: 220, y: 380, rx: 90, ry: 64 },
-  { id: "ed", name: "Edrington", day: 6.7, night: 7.2, acc: 72, heat: 64, light: 74, segs: 4540, tagsDay: [], tagsNight: [], x: 650, y: 200, rx: 96, ry: 68 },
-  { id: "bb", name: "Balla Balla", day: 6.8, night: 7.0, acc: 71, heat: 68, light: 69, segs: 2760, tagsDay: [], tagsNight: [], x: 180, y: 180, rx: 80, ry: 58 }
-];
+const AREA_RANKS = window.YOURWALK_AREA_RANKS || null;
+const SUBURBS = AREA_RANKS && AREA_RANKS.suburbs ? AREA_RANKS.suburbs : [];
+const WARDS = AREA_RANKS && AREA_RANKS.wards ? AREA_RANKS.wards : [];
 
 const SA2S = [
   { id: "ce2", name: "Cranbourne East", day: 5.5, night: 6.5, acc: 58, heat: 49, light: 53, segs: 2210, tagsDay: ["Heat and shade"], tagsNight: ["Footpaths"], x: 530, y: 370, rx: 86, ry: 58 },
@@ -555,7 +542,7 @@ function renderCard() {
   const thirdCol = mode === "day" ? "var(--yw-orange)" : "var(--yw-amber)";
   el.innerHTML = `
     <h2>${s.name}</h2>
-    <div class="hint">City of Casey · ${s.segs.toLocaleString()} scored segments · ${unitWord()}</div>
+    <div class="hint">City of Casey · ${s.segs.toLocaleString()} scored segments${s.length_km != null ? ` · ${s.length_km} km` : ""} · ${unitWord()}</div>
     <div class="score-hero">
       <div>
         <div class="hint">${mode === "day" ? "Day" : "Night"} walking conditions</div>
@@ -568,7 +555,7 @@ function renderCard() {
     </div>
     <div class="bar"><span style="color:var(--yw-blue)">Footpaths</span><div class="track"><div class="fill" style="width:${s.acc}%;background:var(--yw-blue)"></div></div><span>${s.acc}</span></div>
     <div class="bar"><span style="color:${thirdCol}">${thirdName}</span><div class="track"><div class="fill" style="width:${thirdVal}%;background:${thirdCol}"></div></div><span>${thirdVal}</span></div>
-    <p class="note">Stream bars are 0–100. Footpaths is the shared Accessibility score. ${mode === "day" ? "After dark is not in the Day index." : "Heat and shade is not in the Night index."}</p>
+    <p class="note">Stream bars are 0–100. Footpaths is the shared Accessibility score. ${mode === "day" ? "After dark is not in the Day index." : "Heat and shade is not in the Night index."}${s.thin ? " Thin coverage: few scored segments. Treat the roll-up with reduced confidence." : ""}</p>
   `;
 }
 function renderList() {
@@ -595,8 +582,12 @@ function renderList() {
   });
   document.getElementById("listLabel").textContent = `Weaker ${unitWordPlural()} · ${mode === "day" ? "Day" : "Night"}`;
   const notes = {
-    suburb: "Illustrative · suburb as tagged on Casey footpaths",
-    ward: "Illustrative · ward as tagged on Casey footpaths. Not a live dissolve.",
+    suburb: AREA_RANKS
+      ? "Length-weighted mean of eligible segments. Suburb as tagged on Casey footpaths."
+      : "Extract missing. Open this page next to dashboard-area-ranks.js.",
+    ward: AREA_RANKS
+      ? "Length-weighted mean of eligible segments. Ward as tagged on Casey footpaths."
+      : "Extract missing.",
     sa2: "Illustrative SA2 stand-in. Not a live ABS extract."
   };
   document.getElementById("listNote").textContent = notes[viewBy];
@@ -605,9 +596,11 @@ function renderList() {
     ? "Quiet paint on aerials so poles and paths stay readable. Higher score = better walking conditions."
     : "Higher score = better walking conditions. Colours are stretched across Casey, not a 0–100 rainbow.";
   const onCount = LAYERS.filter((l) => layerOn[l.id]).length;
+  const live = viewBy !== "sa2" && AREA_RANKS;
+  const prefix = live ? "Live extract" : "Illustrative";
   document.getElementById("count").textContent = onCount
-    ? `Illustrative · ${units().length} ${unitWordPlural()} · ${onCount} layer${onCount === 1 ? "" : "s"} on`
-    : `Illustrative · ${units().length} ${unitWordPlural()} in this sitting`;
+    ? `${prefix} · ${units().length} ${unitWordPlural()} · ${onCount} layer${onCount === 1 ? "" : "s"} on`
+    : `${prefix} · ${units().length} ${unitWordPlural()}`;
 }
 function showPopup(ev, html) {
   const pop = document.getElementById("popup");
@@ -650,14 +643,17 @@ function renderMap() {
 
   const sel = units().find((x) => x.id === selected);
   const hull = document.getElementById("hull");
-  if (sel) {
+  if (sel && sel.hull) {
     hull.style.display = "block";
-    hull.setAttribute("cx", sel.x);
-    hull.setAttribute("cy", sel.y);
-    hull.setAttribute("rx", sel.rx);
-    hull.setAttribute("ry", sel.ry);
+    hull.setAttribute("d", sel.hull);
+  } else if (sel) {
+    const rx = sel.rx || 40;
+    const ry = sel.ry || 28;
+    hull.style.display = "block";
+    hull.setAttribute("d", `M${sel.x - rx} ${sel.y} A${rx} ${ry} 0 1 0 ${sel.x + rx} ${sel.y} A${rx} ${ry} 0 1 0 ${sel.x - rx} ${sel.y} Z`);
   } else {
     hull.style.display = "none";
+    hull.setAttribute("d", "");
   }
 
   const dots = document.getElementById("dots");
@@ -721,6 +717,13 @@ function syncChrome() {
   const search = document.getElementById("search");
   search.placeholder = `Search ${unitWord()}`;
   search.setAttribute("aria-label", `Search ${unitWord()}`);
+  if (AREA_RANKS && AREA_RANKS.scoring_spec_version) {
+    document.getElementById("specPill").textContent = `scores ${AREA_RANKS.scoring_spec_version}`;
+  }
+}
+function findId(list, name) {
+  const hit = list.find((s) => s.name === name);
+  return hit ? hit.id : (list[0] ? list[0].id : null);
 }
 function setLayersOpen(next) {
   layersOpen = next;
@@ -752,12 +755,12 @@ function setFrame(frame) {
   document.body.classList.toggle("shot", frame === "shot");
   layersOpen = false;
   if (frame === "empty") { mode = "day"; selected = null; viewBy = "suburb"; basemap = "standard"; resetLayers([]); }
-  if (frame === "selected") { mode = "day"; selected = "ce"; viewBy = "suburb"; basemap = "standard"; resetLayers([]); }
-  if (frame === "night") { mode = "night"; selected = "hp"; viewBy = "suburb"; basemap = "standard"; resetLayers([]); }
-  if (frame === "shot") { mode = "day"; selected = "ce"; viewBy = "suburb"; basemap = "standard"; resetLayers([]); }
-  if (frame === "lights") { mode = "night"; selected = "hp"; viewBy = "suburb"; basemap = "standard"; resetLayers(["street_lights"]); layersOpen = true; }
-  if (frame === "sat") { mode = "night"; selected = "hp"; viewBy = "suburb"; basemap = "satellite"; resetLayers(["street_lights"]); layersOpen = true; }
-  if (frame === "ward") { mode = "day"; selected = "rg"; viewBy = "ward"; basemap = "standard"; resetLayers([]); }
+  if (frame === "selected") { mode = "day"; selected = findId(SUBURBS, "Cranbourne East"); viewBy = "suburb"; basemap = "standard"; resetLayers([]); }
+  if (frame === "night") { mode = "night"; selected = findId(SUBURBS, "Hampton Park"); viewBy = "suburb"; basemap = "standard"; resetLayers([]); }
+  if (frame === "shot") { mode = "day"; selected = findId(SUBURBS, "Cranbourne East"); viewBy = "suburb"; basemap = "standard"; resetLayers([]); }
+  if (frame === "lights") { mode = "night"; selected = findId(SUBURBS, "Hampton Park"); viewBy = "suburb"; basemap = "standard"; resetLayers(["street_lights"]); layersOpen = true; }
+  if (frame === "sat") { mode = "night"; selected = findId(SUBURBS, "Hampton Park"); viewBy = "suburb"; basemap = "satellite"; resetLayers(["street_lights"]); layersOpen = true; }
+  if (frame === "ward") { mode = "day"; selected = findId(WARDS, "River Gum") || (WARDS[0] && WARDS[0].id); viewBy = "ward"; basemap = "standard"; resetLayers([]); }
   if (frame === "sa2") { mode = "day"; selected = "hpl"; viewBy = "sa2"; basemap = "standard"; resetLayers([]); }
   render();
 }

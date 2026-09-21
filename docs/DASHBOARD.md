@@ -242,7 +242,7 @@ Product phases in [`PHASES.md`](PHASES.md) still apply. This table is the dashbo
 
 **Who:** product + AI guide. No Casey officer and no XYX in the room. Officer walkthrough still preferred before D1.
 
-**Artefact:** [`meeting-prep/dashboard-d0.html`](meeting-prep/dashboard-d0.html) (open from the repo so the YourWalk mark resolves). Four frames: empty Day, suburb selected, Night, screenshot crop. Ranks are illustrative, not a live extract.
+**Artefact:** [`meeting-prep/dashboard-d0.html`](meeting-prep/dashboard-d0.html) (open from the repo so the YourWalk mark resolves). Four frames: empty Day, suburb selected, Night, screenshot crop. Suburb and ward ranks are now a live extract ([`meeting-prep/dashboard-area-ranks.json`](meeting-prep/dashboard-area-ranks.json)).
 
 Sitting captures: [`screenshots/dashboard-d0/frame-1-empty-day.png`](screenshots/dashboard-d0/frame-1-empty-day.png) · [`frame-2-suburb-selected.png`](screenshots/dashboard-d0/frame-2-suburb-selected.png) · [`frame-3-night.png`](screenshots/dashboard-d0/frame-3-night.png) · [`frame-4-screenshot-crop.png`](screenshots/dashboard-d0/frame-4-screenshot-crop.png)
 
@@ -265,7 +265,7 @@ Sitting captures: [`screenshots/dashboard-d0/frame-1-empty-day.png`](screenshots
 
 **Who:** one Casey officer (transport, assets, or urban design). Product + AI guide. XYX language pass can be the same hour or a follow-up on the frames.
 
-**Artefact:** same [`meeting-prep/dashboard-d0.html`](meeting-prep/dashboard-d0.html). Sitting 1 frames still work. New controls: circular Layers button on the map (Basemap + overlays, CrashDash pattern), View by Suburb | Ward | SA2. Ranks and hulls stay illustrative until a live suburb extract.
+**Artefact:** same [`meeting-prep/dashboard-d0.html`](meeting-prep/dashboard-d0.html). Sitting 1 frames still work. New controls: circular Layers button on the map (Basemap + overlays, CrashDash pattern), View by Suburb | Ward | SA2. Suburb and ward ranks are a live length-weighted extract ([`meeting-prep/dashboard-area-ranks.json`](meeting-prep/dashboard-area-ranks.json)). Hulls are schematic convex hulls of scored footpaths, not official locality boundaries. SA2 stays a dummy.
 
 **Do not lock in this sitting:** satellite into D1, Ward or SA2 as a shipped switcher, Nearmap, mesh blocks, draw-your-own, or a stack of Council GIS basemaps.
 
@@ -280,7 +280,7 @@ Sitting captures: [`screenshots/dashboard-d0/frame-1-empty-day.png`](screenshots
 
 Write answers into DB-2 (reopen only if they hate day chrome), **DB-9 overlays**, **DB-10 basemap**, **DB-11 area unit**. Do not guess DB-10 or DB-11.
 
-**After the sitting:** suburb extract when convenient (full list, length-weighted means, dissolved hulls). Honest copy: suburb as tagged on Casey footpaths. Still no `dashboard.yourwalk.au` DNS and no Next.js dashboard until this sitting and DB-1.
+**Suburb extract (21 Sep 2026):** [`meeting-prep/dashboard-area-ranks.json`](meeting-prep/dashboard-area-ranks.json) from `segment_scores.parquet` v1.1.3. Rebuild with `python scripts/extract_dashboard_area_ranks.py` from `pipeline/`. Honest copy: suburb as tagged on Casey footpaths. Still no `dashboard.yourwalk.au` DNS and no Next.js dashboard until the officer sitting and DB-1.
 
 ### D1. Evidence map (pilot MVP / Sprint E / N5)
 

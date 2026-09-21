@@ -215,7 +215,7 @@ Full column list: [`SCORING_SPEC_v1.1.md`](SCORING_SPEC_v1.1.md) §9.
 
 **Sitting 1 (20 Sep 2026, internal):** artefact [`docs/meeting-prep/dashboard-d0.html`](meeting-prep/dashboard-d0.html). First-sitting leans: suburb rank, Day/Night paint only, thin segment popup, day shell. Officer sitting still preferred. DB-1 still open.
 
-**Sitting 2 (brief 21 Sep 2026):** same artefact plus circular Layers on the map (Basemap + overlays, CrashDash pattern) and View by Suburb | Ward | SA2. Overlay lean: lights + resident amenities, default off (DB-9). Do not lock satellite or area-scale into D1 until the officer sitting (DB-10, DB-11).
+**Sitting 2 (brief 21 Sep 2026):** same artefact plus circular Layers on the map (Basemap + overlays, CrashDash pattern) and View by Suburb | Ward | SA2. Overlay lean: lights + resident amenities, default off (DB-9). Suburb and ward ranks are a live length-weighted extract. Do not lock satellite or area-scale into D1 until the officer sitting (DB-10, DB-11).
 
 **D1 in:** Day/Night, suburb search/select, weakest-first suburb list, selected-area stream bars, Layers (lean), sources/vintage, WCAG 2.1 AA.
 

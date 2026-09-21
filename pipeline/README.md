@@ -456,4 +456,18 @@ python scripts/score_segments.py
 | **QA report** | `data/qa/segment_scoring.json` |
 | **Spec** | [`docs/SCORING_SPEC_v1.1.md`](../docs/SCORING_SPEC_v1.1.md) |
 
+### Dashboard suburb / ward ranks (D0 sitting)
+
+Length-weighted Day/Night means for the Council insights artefact. Eligible segments only. Suburb and ward as tagged on Casey footpaths.
+
+```bash
+python scripts/extract_dashboard_area_ranks.py
+```
+
+| Item | Detail |
+|------|--------|
+| **Script** | `scripts/extract_dashboard_area_ranks.py` |
+| **Input** | `data/intermediate/segment_scores.parquet` |
+| **Output** | [`docs/meeting-prep/dashboard-area-ranks.json`](../docs/meeting-prep/dashboard-area-ranks.json) (and `.js` for the HTML artefact) |
+
 See also: [`docs/meeting-prep/casey-pipeline-status.html`](../docs/meeting-prep/casey-pipeline-status.html) · [`casey-data-sources-flow.html`](../docs/meeting-prep/casey-data-sources-flow.html)
