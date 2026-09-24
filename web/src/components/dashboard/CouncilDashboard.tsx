@@ -7,6 +7,7 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   MdClose,
+  MdExpandMore,
   MdInfoOutline,
   MdLayers,
   MdMap,
@@ -108,14 +109,15 @@ const STREAM_HELP = {
     "Street and park lights along the path, and pedestrian crashes at night. Counts for 40% of the Night score only.",
 } as const;
 
-function viewOptions(mode: IndexMode) {
-  const index = mode === "day" ? "Day" : "Night";
-  const stream = streamName(mode);
-  return [
-    { id: "index" as const, label: `${index} score`, hint: `Footpaths and ${stream.toLowerCase()} together` },
-    { id: "footpaths" as const, label: "Footpaths only", hint: `One part of the ${index} score` },
-    { id: "stream" as const, label: `${stream} only`, hint: `One part of the ${index} score` },
-  ];
+/**
+ * Card part switches: both on shows the full score; one off shows the other
+ * part only. The last part that is on cannot be switched off.
+ */
+function nextView(view: ScoreView, part: "footpaths" | "stream"): ScoreView {
+  const other = part === "footpaths" ? "stream" : "footpaths";
+  if (view === "index") return other;
+  if (view === part) return view;
+  return "index";
 }
 
 function confidenceNote(c: string | null): string | null {
@@ -623,6 +625,8 @@ export function CouncilDashboard() {
     };
   }, [layersOpen]);
 
+  const togglePart = (part: "footpaths" | "stream") => setView((v) => nextView(v, part));
+
   const changeUnit = (next: AreaUnit) => {
     if (next === unit) return;
     setUnit(next);
@@ -747,88 +751,66 @@ export function CouncilDashboard() {
 
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[20rem_minmax(0,1fr)_22rem]">
         <aside className="order-2 min-h-0 overflow-y-auto border-[#E8ECF2] bg-white p-4 lg:order-1 lg:border-r">
-          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">Show on map and list</p>
-          <div role="radiogroup" aria-label="Show the full score or one part only" className="mb-4 space-y-1">
-            {viewOptions(mode).map((opt) => {
-              const on = view === opt.id;
-              return (
-                <button
-                  key={opt.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={on}
-                  onClick={() => setView(opt.id)}
-                  className={`flex min-h-10 w-full items-center gap-2.5 rounded-xl px-2.5 text-left ring-1 ${
-                    on ? "bg-yw-navy/5 ring-yw-navy" : "ring-[#E8ECF2] hover:bg-yw-day-surface"
-                  }`}
-                >
-                  <span
-                    aria-hidden
-                    className={`grid h-4 w-4 shrink-0 place-items-center rounded-full ring-2 ${
-                      on ? "ring-yw-navy" : "ring-slate-300"
-                    }`}
-                  >
-                    {on ? <span className="h-2 w-2 rounded-full bg-yw-navy" /> : null}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[12px] font-bold text-slate-900">{opt.label}</span>
-                    <span className="block text-[10px] leading-snug text-slate-500">{opt.hint}</span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">View by</p>
-          <SegmentedPill
-            value={unit}
-            options={hasWard ? UNIT_OPTIONS : UNIT_OPTIONS.slice(0, 1)}
-            onChange={changeUnit}
-            isNight={false}
-            ariaLabel="Area unit"
-            className="h-9!"
-          />
-
-          <p className="mb-2 mt-5 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">
             {selected ? `Selected ${UNIT_WORD[unit].one}` : "City of Casey"}
           </p>
           <AreaCard
             title={selected?.name ?? "All scored footpaths"}
             unitLabel={selected ? UNIT_WORD[unit].one : "LGA"}
             stats={selected ?? casey}
-            casey={selected ? casey : null}
+            casey={casey}
+            isCasey={!selected}
             mode={mode}
             view={view}
+            onTogglePart={togglePart}
             thin={selected?.thin ?? false}
             onClear={selected ? clearSelection : undefined}
             empty={!selected}
           />
 
-          <p className="mb-2 mt-5 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">Data sources</p>
-          <ul className="divide-y divide-[#E8ECF2]">
-            {DASHBOARD_SOURCES.map((s) => (
-              <li key={s.name} className="py-2">
-                <a
-                  href={s.href}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-1 text-[12px] font-semibold text-yw-navy hover:underline"
-                >
-                  {s.name}
-                  <MdOpenInNew className="h-3 w-3 shrink-0 text-slate-400" aria-label="opens in a new tab" />
-                </a>
-                <p className="text-[11px] text-slate-500">
-                  {s.vintage} · {s.role}
-                </p>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-3 text-[11px] leading-snug text-slate-500">{PENDING_DATA_NOTE}</p>
-          <p className="mt-2 text-[11px] leading-snug text-slate-500">
-            Methodology v1.1 · scores {spec}
-            {scoredAt ? ` · scored ${scoredAt}` : ""}. Scores describe conditions in the data. They are not a promise that
-            a walk will feel safe.
+          <p className="mt-4 text-[11px] leading-snug text-slate-600">
+            Crossings and kerb ramps are not in the data yet. Scores describe conditions in the data; they are not a
+            promise that a walk will feel safe.
           </p>
+
+          <details className="group mt-4 rounded-xl ring-1 ring-[#E8ECF2]">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 [&::-webkit-details-marker]:hidden">
+              <span>
+                <span className="block text-[12px] font-bold text-yw-navy">
+                  Data sources · {DASHBOARD_SOURCES.length}
+                </span>
+                <span className="block text-[11px] text-slate-500">
+                  {scoredAt ? `Scored ${scoredAt}` : `Scores ${spec}`} · heat data 2018
+                </span>
+              </span>
+              <MdExpandMore className="h-5 w-5 shrink-0 text-slate-400 transition-transform group-open:rotate-180" aria-hidden />
+            </summary>
+            <div className="border-t border-[#E8ECF2] px-3 pb-3">
+              <ul className="divide-y divide-[#E8ECF2]">
+                {DASHBOARD_SOURCES.map((s) => (
+                  <li key={s.name} className="py-2">
+                    <a
+                      href={s.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1 text-[12px] font-semibold text-yw-navy hover:underline"
+                    >
+                      {s.name}
+                      <MdOpenInNew className="h-3 w-3 shrink-0 text-slate-400" aria-label="opens in a new tab" />
+                    </a>
+                    <p className="text-[11px] text-slate-500">
+                      {s.vintage} · {s.role}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-[11px] leading-snug text-slate-500">{PENDING_DATA_NOTE}</p>
+              <p className="mt-2 text-[11px] leading-snug text-slate-500">
+                Methodology v1.1 · scores {spec}
+                {scoredAt ? ` · scored ${scoredAt}` : ""}.
+              </p>
+            </div>
+          </details>
         </aside>
 
         <section
@@ -1021,8 +1003,17 @@ export function CouncilDashboard() {
         </section>
 
         <aside className="order-3 min-h-0 overflow-y-auto border-[#E8ECF2] bg-white p-4 lg:border-l">
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">View by</p>
+          <SegmentedPill
+            value={unit}
+            options={hasWard ? UNIT_OPTIONS : UNIT_OPTIONS.slice(0, 1)}
+            onChange={changeUnit}
+            isNight={false}
+            ariaLabel="Area unit"
+            className="mb-4 h-9!"
+          />
           <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">
-            Weaker {UNIT_WORD[unit].many} · {singleStream ? `${showing} (${indexLabel})` : `${indexLabel} score`}
+            Weaker {UNIT_WORD[unit].many} · {singleStream ? `${showing} only (${indexLabel})` : `${indexLabel} score`}
           </p>
           <ol className="space-y-0.5" aria-label={`${UNIT_WORD[unit].many} ranked weakest first on ${showing}`}>
             {ranked.map((a, i) => {
@@ -1133,8 +1124,10 @@ function AreaCard({
   unitLabel,
   stats,
   casey,
+  isCasey,
   mode,
   view,
+  onTogglePart,
   thin,
   empty,
   onClear,
@@ -1142,20 +1135,25 @@ function AreaCard({
   title: string;
   unitLabel: string;
   stats: AreaStats | CaseySummary;
-  /** Casey summary for comparison; null when the card is Casey itself. */
-  casey: CaseySummary | null;
+  casey: CaseySummary;
+  /** The card is Casey itself: no "Casey average" comparisons. */
+  isCasey: boolean;
   mode: IndexMode;
   view: ScoreView;
+  onTogglePart: (part: "footpaths" | "stream") => void;
   thin: boolean;
   empty: boolean;
   onClear?: () => void;
 }) {
   const parts = breakdown(stats, mode);
-  const caseyIndex = casey ? areaValue(casey, mode) : null;
-  const held = casey ? heldBackBy(stats, casey, mode) : null;
+  const caseyParts = breakdown(casey, mode);
+  const held = isCasey ? null : heldBackBy(stats, casey, mode);
   const conf = confidenceNote(mode === "day" ? stats.confidenceDay : stats.confidenceNight);
   const heldText = heldBackText(held);
-  const highlight: "footpaths" | "stream" | null = view === "index" ? null : view;
+  const indexName = mode === "day" ? "Day score" : "Night score";
+  const headlineLabel = view === "index" ? indexName : `${viewName(mode, view)} only`;
+  const headline = areaValue(stats, mode, view);
+  const headlineCasey = isCasey ? null : areaValue(casey, mode, view);
   return (
     <div className="rounded-xl bg-yw-day-surface p-3.5 ring-1 ring-[#E8ECF2]">
       <div className="flex items-start justify-between gap-2">
@@ -1178,29 +1176,51 @@ function AreaCard({
       </div>
       <div className="my-3 flex items-end justify-between gap-2">
         <div>
-          <p className="text-[11px] font-semibold text-slate-700">{mode === "day" ? "Day" : "Night"} score</p>
-          <p className="text-[11px] text-slate-500">Out of 10 · higher is better</p>
+          <p className="text-[11px] font-semibold text-slate-700">{headlineLabel}</p>
+          <p className="text-[11px] text-slate-500">
+            {view === "index" ? "Out of 10 · higher is better" : `One part of the ${indexName}`}
+          </p>
         </div>
         <div className="text-right" aria-live="polite">
           <p>
-            <span className="text-[36px] font-extrabold leading-none tracking-tight text-yw-navy">
-              {fmt10(parts.total)}
-            </span>
+            <span className="text-[36px] font-extrabold leading-none tracking-tight text-yw-navy">{fmt10(headline)}</span>
             <span className="ml-0.5 text-[12px] font-semibold text-slate-500">/ 10</span>
           </p>
-          {caseyIndex != null ? (
-            <p className="text-[11px] text-slate-500">Casey average {fmt10(caseyIndex)}</p>
+          {headlineCasey != null ? (
+            <p className="text-[11px] text-slate-500">Casey average {fmt10(headlineCasey)}</p>
           ) : null}
         </div>
       </div>
 
-      <ScoreBar footpaths={parts.footpaths} stream={parts.stream} />
-      <PartRow part={parts.footpaths} emphasis={highlight === "footpaths"} dim={highlight === "stream"} />
-      <PartRow part={parts.stream} emphasis={highlight === "stream"} dim={highlight === "footpaths"} />
-      <div className="mt-1 flex items-center justify-between border-t border-[#E8ECF2] pt-1.5">
-        <span className="text-[12px] font-bold text-slate-700">{mode === "day" ? "Day" : "Night"} score</span>
+      <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">
+        Parts · tap to show one on the map
+      </p>
+      <PartRow
+        part={parts.footpaths}
+        casey={isCasey ? null : caseyParts.footpaths.score}
+        weightPct={60}
+        on={view !== "stream"}
+        locked={view === "footpaths"}
+        onToggle={() => onTogglePart("footpaths")}
+      />
+      <PartRow
+        part={parts.stream}
+        casey={isCasey ? null : caseyParts.stream.score}
+        weightPct={40}
+        on={view !== "footpaths"}
+        locked={view === "stream"}
+        onToggle={() => onTogglePart("stream")}
+      />
+      <div className="mt-1.5 flex items-center justify-between border-t border-[#E8ECF2] pt-1.5">
+        <span className="text-[12px] font-bold text-slate-700">
+          {indexName}
+          <span className="font-medium text-slate-400">
+            {" "}
+            = {fmt10(parts.footpaths.points)} + {fmt10(parts.stream.points)}
+          </span>
+        </span>
         <span className="text-[12px] font-extrabold text-yw-navy">
-          {fmt10(parts.total)} <span className="font-medium text-slate-400">of 10</span>
+          {fmt10(parts.total)} <span className="font-medium text-slate-400">/ 10</span>
         </span>
       </div>
 
@@ -1219,52 +1239,86 @@ function AreaCard({
 }
 
 /**
- * The score as one 0–10 bar: Footpaths points then stream points, end to end.
- * Faint marks show each part's ceiling (6 and 4), so the fill reads as
- * "how much of each part this area earned".
+ * One part of the score: a switch for the map and list, the part's own score
+ * out of 10 on a 0–10 bar with the Casey average marked, and how much it
+ * counts toward the Day or Night score.
  */
-function ScoreBar({ footpaths, stream }: { footpaths: BreakdownPart; stream: BreakdownPart }) {
-  const f = Math.max(0, Math.min(footpaths.maxPoints, footpaths.points ?? 0));
-  const s = Math.max(0, Math.min(stream.maxPoints, stream.points ?? 0));
-  return (
-    <div className="mb-2" aria-hidden>
-      <div className="relative flex h-3 overflow-hidden rounded-full bg-white ring-1 ring-[#E8ECF2]">
-        <span className="flex h-full" style={{ width: `${footpaths.maxPoints * 10}%` }}>
-          <span className="h-full" style={{ width: `${(f / footpaths.maxPoints) * 100}%`, background: STREAM_COLOR[footpaths.name] }} />
-        </span>
-        <span className="h-full w-px bg-slate-300" />
-        <span className="flex h-full flex-1">
-          <span className="h-full" style={{ width: `${(s / stream.maxPoints) * 100}%`, background: STREAM_COLOR[stream.name] }} />
-        </span>
-      </div>
-    </div>
-  );
-}
-
-/** One part of the score as points toward the total, with a "?" note. */
-function PartRow({ part, emphasis, dim }: { part: BreakdownPart; emphasis: boolean; dim: boolean }) {
+function PartRow({
+  part,
+  casey,
+  weightPct,
+  on,
+  locked,
+  onToggle,
+}: {
+  part: BreakdownPart;
+  casey: number | null;
+  weightPct: number;
+  on: boolean;
+  /** The only part still on; switching it off is not allowed. */
+  locked: boolean;
+  onToggle: () => void;
+}) {
+  const [helpOpen, setHelpOpen] = useState(false);
   const color = STREAM_COLOR[part.name];
+  const pct = Math.max(0, Math.min(100, (part.score ?? 0) * 10));
+  const tick = casey == null ? null : Math.max(0, Math.min(100, casey * 10));
   return (
-    <details className={`group my-1 ${dim ? "opacity-50" : ""}`}>
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
-        <span className={`flex items-center gap-1.5 text-[12px] ${emphasis ? "font-extrabold" : "font-semibold"}`}>
-          <span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{ background: color }} />
-          <span className="text-slate-800">{part.name}</span>
+    <div className={`my-1 rounded-lg px-1.5 py-1.5 ${on ? "" : "opacity-55"}`}>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={on}
+          aria-disabled={locked}
+          onClick={locked ? undefined : onToggle}
+          title={locked ? "At least one part stays on" : on ? `Hide ${part.name} on the map` : `Show ${part.name}`}
+          className={`flex min-h-9 flex-1 items-center gap-2 rounded-md text-left ${locked ? "cursor-default" : "cursor-pointer"}`}
+        >
           <span
             aria-hidden
-            className="grid h-4 w-4 place-items-center rounded-full bg-white text-[10px] font-bold text-slate-500 ring-1 ring-[#E8ECF2] group-open:bg-yw-navy group-open:text-white"
+            className={`grid h-4 w-4 shrink-0 place-items-center rounded ring-1 ${on ? "ring-transparent" : "bg-white ring-slate-300"}`}
+            style={on ? { background: color } : undefined}
           >
-            ?
+            {on ? (
+              <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3.5 8.5 6.5 11.5 12.5 4.5" />
+              </svg>
+            ) : null}
           </span>
-          <span className="sr-only">What goes into {part.name}</span>
-        </span>
-        <span className="text-[12px] font-bold text-slate-700">
-          {fmt10(part.points)} <span className="font-medium text-slate-400">of {part.maxPoints}</span>
-        </span>
-      </summary>
-      <p className="mt-1 rounded-lg bg-white px-2 py-1.5 text-[11px] leading-snug text-slate-600 ring-1 ring-[#E8ECF2]">
-        {STREAM_HELP[part.name]} On its own: {fmt10(part.score)} out of 10.
+          <span className="min-w-0 flex-1 text-[12px] font-bold text-slate-800">{part.name}</span>
+          <span className="text-[13px] font-extrabold text-slate-800">
+            {fmt10(part.score)}
+            <span className="text-[11px] font-medium text-slate-400"> /10</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setHelpOpen((o) => !o)}
+          aria-expanded={helpOpen}
+          aria-label={`What goes into ${part.name}`}
+          className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-bold ring-1 ${
+            helpOpen ? "bg-yw-navy text-white ring-yw-navy" : "bg-white text-slate-500 ring-[#E8ECF2]"
+          }`}
+        >
+          ?
+        </button>
+      </div>
+      <div className="relative ml-6 mt-1 h-2 rounded-full bg-white ring-1 ring-[#E8ECF2]" aria-hidden>
+        <span className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${pct}%`, background: color }} />
+        {tick != null ? (
+          <span className="absolute -top-1 -bottom-1 w-0.5 rounded bg-slate-700" style={{ left: `calc(${tick}% - 1px)` }} />
+        ) : null}
+      </div>
+      <p className="ml-6 mt-1 text-[10px] leading-snug text-slate-500">
+        {casey != null ? `Casey ${fmt10(casey)} (marked) · ` : ""}counts {weightPct}% · {fmt10(part.points)} of{" "}
+        {part.maxPoints} points
       </p>
-    </details>
+      {helpOpen ? (
+        <p className="ml-6 mt-1 rounded-lg bg-white px-2 py-1.5 text-[11px] leading-snug text-slate-600 ring-1 ring-[#E8ECF2]">
+          {STREAM_HELP[part.name]}
+        </p>
+      ) : null}
+    </div>
   );
 }
