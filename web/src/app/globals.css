@@ -112,6 +112,44 @@ body {
   color: #475569;
 }
 
+/* Council insights map popup: content is React (DashboardPopup) */
+.yw-dash-popup .mapboxgl-popup-content {
+  padding: 0;
+  border-radius: 8px;
+  box-shadow:
+    0 10px 28px rgba(15, 23, 42, 0.16),
+    0 0 0 1px rgba(15, 23, 42, 0.06);
+  font-family: var(--font-yourwalk), system-ui, sans-serif;
+}
+.yw-dash-popup.mapboxgl-popup-anchor-top .mapboxgl-popup-tip,
+.yw-dash-popup.mapboxgl-popup-anchor-top-left .mapboxgl-popup-tip,
+.yw-dash-popup.mapboxgl-popup-anchor-top-right .mapboxgl-popup-tip {
+  border-bottom-color: #ffffff;
+}
+.yw-dash-popup.mapboxgl-popup-anchor-bottom .mapboxgl-popup-tip,
+.yw-dash-popup.mapboxgl-popup-anchor-bottom-left .mapboxgl-popup-tip,
+.yw-dash-popup.mapboxgl-popup-anchor-bottom-right .mapboxgl-popup-tip {
+  border-top-color: #ffffff;
+}
+@keyframes yw-dash-popup-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.yw-dash-popup-body {
+  animation: yw-dash-popup-in 160ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .yw-dash-popup-body {
+    animation: none;
+  }
+}
+
 .yw-amenity-popup-night .mapboxgl-popup-content {
   background: #14152a;
   color: #fff;

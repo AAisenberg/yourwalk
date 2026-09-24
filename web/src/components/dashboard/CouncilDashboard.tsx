@@ -5,6 +5,7 @@ import { convex } from "@turf/convex";
 import mapboxgl, { type ExpressionSpecification } from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   MdClose,
   MdExpandMore,
@@ -25,8 +26,6 @@ import {
   heldBackBy,
   rankAreas,
   rollUpAreas,
-  round1,
-  streamName,
   summariseCasey,
   viewName,
   type AreaStats,
@@ -59,7 +58,7 @@ import {
   fetchSegmentsGeoJSON,
   type SegmentsMeta,
 } from "@/lib/fetchSegments";
-import { escapeOverlayHtml, overlayPopupHtml, type OverlayId } from "@/lib/overlays";
+import { DashboardPopup, type PopupInfo } from "@/components/dashboard/DashboardPopup";
 import { CASEY_BOUNDS } from "@/lib/scores";
 
 const INTRO_KEY = "yw-dashboard-intro-v2";
@@ -76,6 +75,12 @@ const SEG_SETS = {
 } as const;
 type SegSet = keyof typeof SEG_SETS;
 const FADE_MS = 280;
+// Hover and selected outlines on the scored paths (feature-state, keyed by segment_id)
+const SEG_HOVER = "dash-segments-hover";
+const SEG_SEL_CASING = "dash-segments-selected-casing";
+const SEG_SEL = "dash-segments-selected";
+const POINT_SEL_SRC = "dash-point-selected";
+const POINT_SEL = "dash-point-selected-ring";
 const AREA_SRC = "dash-area";
 const AREA_LINE = "dash-area-line";
 const MASK_SRC = "dash-mask";
@@ -390,33 +395,6 @@ function fmt10(v: number | null): string {
   return v == null ? "–" : v.toFixed(1);
 }
 
-function num(v: unknown): number | null {
-  return typeof v === "number" && Number.isFinite(v) ? v : null;
-}
-
-function to10(v: number | null): string {
-  const r = round1(v == null ? null : v / 10);
-  return r == null ? "–" : r.toFixed(1);
-}
-
-function segmentPopupHtml(p: GeoJSON.GeoJsonProperties, mode: IndexMode): string {
-  if (!p) return "";
-  const idx = num(mode === "day" ? p.day_index_score : p.night_index_score);
-  const foot = num(p.accessibility_score);
-  const third = num(mode === "day" ? p.heat_shade_score : p.lighting_after_dark_score);
-  const conf = mode === "day" ? p.confidence_day : p.confidence_night;
-  const place = [p.suburb, p.ward ? `${p.ward} ward` : null]
-    .filter((x): x is string => typeof x === "string" && x.length > 0)
-    .join(" · ");
-  const lines = [
-    place,
-    `${mode === "day" ? "Day" : "Night"} score ${to10(idx)} out of 10 · higher is better`,
-    `Footpaths ${to10(foot)} · ${streamName(mode)} ${to10(third)}`,
-    typeof conf === "string" ? `Confidence: ${conf}` : null,
-  ].filter((x): x is string => Boolean(x));
-  return popupHtml("Footpath segment", lines);
-}
-
 const EMPTY_FC: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
 
 function hullFor(features: GeoJSON.Feature[]): GeoJSON.FeatureCollection {
@@ -441,12 +419,6 @@ function maskFor(hull: GeoJSON.FeatureCollection): GeoJSON.FeatureCollection {
   };
 }
 
-function popupHtml(title: string, lines: string[]): string {
-  return `<div class="yw-amenity-popup-body"><p class="yw-amenity-popup-title">${escapeOverlayHtml(title)}</p>${lines
-    .map((l) => `<p class="yw-amenity-popup-line">${escapeOverlayHtml(l)}</p>`)
-    .join("")}</div>`;
-}
-
 type MapState = {
   mode: IndexMode;
   view: ScoreView;
@@ -468,6 +440,14 @@ export function CouncilDashboard() {
   const paintKeyRef = useRef<string | null>(null);
   const handlersRef = useRef(false);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
+  const hoverIdRef = useRef<string | null>(null);
+  const clearSelectionRef = useRef<() => void>(() => {});
+  const selectedSegRef = useRef<string | null>(null);
+  const [popupInfo, setPopupInfo] = useState<PopupInfo | null>(null);
+  // Mapbox owns the popup DOM; React renders into it through a portal
+  const [popupNode] = useState<HTMLDivElement | null>(() =>
+    typeof document === "undefined" ? null : document.createElement("div"),
+  );
   const locateMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const layersRef = useRef<HTMLDivElement | null>(null);
 
@@ -727,6 +707,7 @@ export function CouncilDashboard() {
           data: { type: "FeatureCollection", features: featuresRef.current },
           tolerance: 0,
           buffer: 128,
+          promoteId: "segment_id",
         });
         const fade = { duration: prefersReducedMotion() ? 0 : FADE_MS, delay: 0 };
         for (const set of ["A", "B"] as const) {
@@ -772,6 +753,69 @@ export function CouncilDashboard() {
         });
       }
       for (const def of DASHBOARD_LAYERS) ensureOverlay(map, def, s.layers[def.id]);
+      if (!map.getLayer(SEG_HOVER)) {
+        const state = (key: string, on: number, off = 0): ExpressionSpecification => [
+          "case",
+          ["boolean", ["feature-state", key], false],
+          on,
+          off,
+        ];
+        map.addLayer({
+          id: SEG_HOVER,
+          type: "line",
+          source: SEG_SRC,
+          layout: { "line-cap": "round", "line-join": "round" },
+          paint: {
+            "line-color": "#292984",
+            "line-width": 2.5,
+            "line-opacity": state("hover", 0.7),
+            "line-emissive-strength": 1,
+          },
+        });
+        map.addLayer({
+          id: SEG_SEL_CASING,
+          type: "line",
+          source: SEG_SRC,
+          layout: { "line-cap": "round", "line-join": "round" },
+          paint: {
+            "line-color": "#FFFFFF",
+            "line-width": 7,
+            "line-opacity": state("selected", 1),
+            "line-emissive-strength": 1,
+          },
+        });
+        map.addLayer({
+          id: SEG_SEL,
+          type: "line",
+          source: SEG_SRC,
+          layout: { "line-cap": "round", "line-join": "round" },
+          paint: {
+            "line-color": "#292984",
+            "line-width": 3.5,
+            "line-opacity": state("selected", 1),
+            "line-emissive-strength": 1,
+          },
+        });
+      }
+      if (!map.getSource(POINT_SEL_SRC)) {
+        map.addSource(POINT_SEL_SRC, { type: "geojson", data: EMPTY_FC });
+        map.addLayer({
+          id: POINT_SEL,
+          type: "circle",
+          source: POINT_SEL_SRC,
+          paint: {
+            "circle-radius": 11,
+            "circle-color": "rgba(0,0,0,0)",
+            "circle-stroke-color": "#292984",
+            "circle-stroke-width": 2.5,
+            "circle-emissive-strength": 1,
+          },
+        });
+      }
+      // Feature state does not survive a source rebuild
+      if (selectedSegRef.current) {
+        map.setFeatureState({ source: SEG_SRC, id: selectedSegRef.current }, { selected: true });
+      }
       applyPaint(map);
     },
     [applyPaint, ensureOverlay],
@@ -781,17 +825,24 @@ export function CouncilDashboard() {
     if (handlersRef.current) return;
     handlersRef.current = true;
 
-    const showPopup = (lngLat: mapboxgl.LngLatLike, html: string) => {
-      popupRef.current?.remove();
-      popupRef.current = new mapboxgl.Popup({ className: "yw-amenity-popup", maxWidth: "260px" })
-        .setLngLat(lngLat)
-        .setHTML(html)
-        .addTo(map);
+    const setSelectedSeg = (id: string | null) => {
+      if (selectedSegRef.current) {
+        map.setFeatureState({ source: SEG_SRC, id: selectedSegRef.current }, { selected: false });
+      }
+      selectedSegRef.current = id;
+      if (id) map.setFeatureState({ source: SEG_SRC, id }, { selected: true });
+    };
+    const setSelectedPoint = (geom: GeoJSON.Geometry | null) => {
+      const src = map.getSource(POINT_SEL_SRC) as mapboxgl.GeoJSONSource | undefined;
+      src?.setData(
+        geom && geom.type === "Point"
+          ? { type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: geom }] }
+          : EMPTY_FC,
+      );
     };
 
-    const AMENITIES: DashboardLayerId[] = ["fountains", "benches", "toilets", "dog_bags"];
-
     map.on("click", (e) => {
+      const lngLat: [number, number] = [e.lngLat.lng, e.lngLat.lat];
       const visible = (id: string) =>
         map.getLayer(id) && map.getLayoutProperty(id, "visibility") !== "none";
       // Points first, then paths, then area layers under the paths
@@ -806,34 +857,57 @@ export function CouncilDashboard() {
         (a, b) => order.indexOf(a.layer?.id ?? "") - order.indexOf(b.layer?.id ?? ""),
       )[0];
       if (!hit) {
-        popupRef.current?.remove();
+        setSelectedSeg(null);
+        setSelectedPoint(null);
+        setPopupInfo(null);
         return;
       }
       const layerId = hit.layer?.id ?? "";
       const def = DASHBOARD_LAYERS.find((d) => layerDraw(d.id) === layerId);
       if (def) {
-        const html = AMENITIES.includes(def.id)
-          ? overlayPopupHtml(def.id as OverlayId, hit.properties)
-          : (() => {
-              const c = def.popup(hit.properties);
-              return popupHtml(c.title, [...c.lines, def.note]);
-            })();
-        showPopup(e.lngLat, html);
+        setSelectedSeg(null);
+        setSelectedPoint(def.draw.type === "circle" ? hit.geometry : null);
+        const anchor: [number, number] =
+          hit.geometry.type === "Point" ? (hit.geometry.coordinates as [number, number]) : lngLat;
+        setPopupInfo({ kind: "layer", layerId: def.id, props: hit.properties, lngLat: anchor });
         return;
       }
-      showPopup(e.lngLat, segmentPopupHtml(hit.properties, stateRef.current?.mode ?? "day"));
+      const segId = hit.properties?.segment_id;
+      setSelectedPoint(null);
+      setSelectedSeg(segId != null ? String(segId) : null);
+      setPopupInfo({ kind: "segment", props: hit.properties, lngLat });
     });
 
     const pointer = () => (map.getCanvas().style.cursor = "pointer");
     const clear = () => (map.getCanvas().style.cursor = "");
-    for (const id of [
-      SEG_SETS.A.fill,
-      SEG_SETS.B.fill,
-      ...DASHBOARD_LAYERS.filter((d) => !d.under).map((d) => layerDraw(d.id)),
-    ]) {
+    for (const id of DASHBOARD_LAYERS.filter((d) => !d.under).map((d) => layerDraw(d.id))) {
       map.on("mouseenter", id, pointer);
       map.on("mouseleave", id, clear);
     }
+
+    // Hover outline on the path under the cursor (not while paths are hidden)
+    const setHover = (id: string | null) => {
+      if (hoverIdRef.current === id) return;
+      if (hoverIdRef.current) {
+        map.setFeatureState({ source: SEG_SRC, id: hoverIdRef.current }, { hover: false });
+      }
+      hoverIdRef.current = id;
+      if (id) map.setFeatureState({ source: SEG_SRC, id }, { hover: true });
+      map.getCanvas().style.cursor = id ? "pointer" : "";
+    };
+    for (const set of ["A", "B"] as const) {
+      map.on("mousemove", SEG_SETS[set].fill, (e) => {
+        if (activeSetRef.current !== set || stateRef.current?.pathMode === "off") return;
+        const id = e.features?.[0]?.properties?.segment_id;
+        setHover(id != null ? String(id) : null);
+      });
+      map.on("mouseleave", SEG_SETS[set].fill, () => setHover(null));
+    }
+
+    clearSelectionRef.current = () => {
+      setSelectedSeg(null);
+      setSelectedPoint(null);
+    };
   }, []);
 
   // Map + data bootstrap
@@ -911,7 +985,6 @@ export function CouncilDashboard() {
     if (!map || phase !== "ready") return;
     applyLook(map, mode);
     applyPaint(map, true);
-    popupRef.current?.remove();
   }, [mode, view, phase, applyPaint]);
 
   // Selection: outline, soft fade, fit bounds
@@ -978,6 +1051,49 @@ export function CouncilDashboard() {
     };
   }, [layersOpen]);
 
+  // One Mapbox popup; React fills it through a portal so it can reuse card parts
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !popupNode) return;
+    if (!popupInfo) {
+      popupRef.current?.remove();
+      popupRef.current = null;
+      clearSelectionRef.current();
+      return;
+    }
+    if (!popupRef.current) {
+      const p = new mapboxgl.Popup({
+        className: "yw-dash-popup",
+        closeButton: false,
+        closeOnClick: false,
+        maxWidth: "300px",
+        offset: 12,
+        focusAfterOpen: false,
+      }).setDOMContent(popupNode);
+      p.on("close", () => {
+        popupRef.current = null;
+        setPopupInfo(null);
+      });
+      popupRef.current = p;
+    }
+    popupRef.current.setLngLat(popupInfo.lngLat);
+    if (!popupRef.current.isOpen()) popupRef.current.addTo(map);
+  }, [popupInfo, popupNode]);
+
+  useEffect(() => {
+    if (!popupInfo) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPopupInfo(null);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [popupInfo]);
+
+  const showAreaByName = (name: string) => {
+    const hit = areasByUnit[unit].find((a) => a.name === name);
+    if (hit) selectArea(hit);
+  };
+
   const togglePart = (part: "footpaths" | "stream") => setView((v) => nextView(v, part));
 
   const changeUnit = (next: AreaUnit) => {
@@ -990,7 +1106,7 @@ export function CouncilDashboard() {
   const selectArea = (a: AreaStats | null) => {
     setSelectedId(a?.id ?? null);
     setQuery(a?.name ?? "");
-    popupRef.current?.remove();
+    setPopupInfo(null);
   };
 
   const clearSelection = () => {
@@ -1446,6 +1562,23 @@ export function CouncilDashboard() {
           </p>
         </aside>
       </div>
+
+      {popupInfo && popupNode
+        ? createPortal(
+            <DashboardPopup
+              info={popupInfo}
+              mode={mode}
+              view={view}
+              unit={unit}
+              casey={casey}
+              spec={spec}
+              selectedArea={selected?.name ?? null}
+              onClose={() => setPopupInfo(null)}
+              onShowArea={showAreaByName}
+            />,
+            popupNode,
+          )
+        : null}
 
       {introOpen ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/30 p-4" role="presentation">
