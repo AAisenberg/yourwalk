@@ -6,15 +6,20 @@ import { NextResponse, type NextRequest } from "next/server";
  *   yourwalk.au       → front door (rewrite / → /front-door)
  *   www.yourwalk.au   → redirect to yourwalk.au
  *   app.yourwalk.au   → today's planner (pass through; /front-door bounces
- *                       to the apex so planner and front door never mix)
+ *                       to the apex so planner and front door never mix;
+ *                       /dashboard never serves here)
+ *   dashboard.*       → Council insights (rewrite / → /dashboard). Only
+ *                       dashboard.localhost today; no public DNS until DB-1
+ *                       (docs/DASHBOARD.md) picks an access method.
  *
  * Localhost and Vercel previews match none of these hosts and pass through,
- * so /front-door stays directly viewable for review.
+ * so /front-door and /dashboard stay directly viewable for review.
  */
 
 const APEX = "yourwalk.au";
 const WWW = "www.yourwalk.au";
 const PLANNER = "app.yourwalk.au";
+const DASHBOARD_HOSTS = new Set(["dashboard.localhost"]);
 
 /** Paths the apex serves besides the front door itself. */
 const APEX_ALLOWED_EXACT = new Set([
@@ -63,6 +68,17 @@ export function proxy(request: NextRequest) {
     (pathname === "/front-door" || pathname.startsWith("/front-door/"))
   ) {
     return NextResponse.redirect(new URL(`https://${APEX}/`), 308);
+  }
+
+  if (
+    host === PLANNER &&
+    (pathname === "/dashboard" || pathname.startsWith("/dashboard/"))
+  ) {
+    return NextResponse.redirect(new URL(`https://${PLANNER}/`), 307);
+  }
+
+  if (DASHBOARD_HOSTS.has(host) && pathname === "/") {
+    return NextResponse.rewrite(new URL("/dashboard", request.url));
   }
 
   return NextResponse.next();

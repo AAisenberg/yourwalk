@@ -17,6 +17,7 @@ MAP_COLUMNS = [
     "segment_id",
     "walk_path_class",
     "suburb",
+    "ward",
     "day_index_score",
     "night_index_score",
     "accessibility_score",
@@ -62,6 +63,10 @@ def build_map_geojson(
     if missing:
         raise ValueError(f"Parquet missing columns: {missing}")
 
+    scored_at = None
+    if "scored_at" in gdf.columns and gdf["scored_at"].notna().any():
+        scored_at = str(gdf["scored_at"].dropna().iloc[0])
+
     keep = [c for c in MAP_COLUMNS if c in gdf.columns]
     gdf = gdf[keep].copy()
     if gdf.crs is None:
@@ -85,6 +90,7 @@ def build_map_geojson(
     meta = {
         "feature_count": len(gdf),
         "scoring_spec_version": spec,
+        "scored_at": scored_at,
         "methodology_version": "1.1",
         "eligible_only": eligible_only,
         "simplify_deg": simplify_deg,

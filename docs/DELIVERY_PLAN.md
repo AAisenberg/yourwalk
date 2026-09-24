@@ -217,7 +217,9 @@ Full column list: [`SCORING_SPEC_v1.1.md`](SCORING_SPEC_v1.1.md) §9.
 
 **Sitting 2 (brief 21 Sep 2026):** same artefact plus circular Layers on the map (Basemap + overlays, CrashDash pattern) and View by Suburb | Ward | SA2. Overlay lean: lights + resident amenities, default off (DB-9). Suburb and ward ranks are a live length-weighted extract. Do not lock satellite or area-scale into D1 until the officer sitting (DB-10, DB-11).
 
-**D1 in:** Day/Night, suburb search/select, weakest-first suburb list, selected-area stream bars, Layers (lean), sources/vintage, WCAG 2.1 AA.
+**D1 local build (24 Sep 2026):** `/dashboard` in `web/`, after the 23 Sep XYX catch-up. Suburb + ward (SA2 deferred), Night lighting wording, soft fade, source links + scored date, onboarding, locate in Casey, Layers circle with satellite. Run `WEB_PORT=3003 ./scripts/dev-up.sh` and open `/dashboard`. Next: DB-1 access, then Casey officer testing.
+
+**D1 in:** Day/Night, suburb and ward search/select, weakest-first list, selected-area stream bars, Layers (lean), sources/vintage, WCAG 2.1 AA.
 
 **D1 out:** Clerk, exports, Community Need, corridor/priority tabs, combined index, “high risk” copy, observation heatmaps, Accessibility-only paint. Satellite and Ward/SA2 wait on sitting 2.
 

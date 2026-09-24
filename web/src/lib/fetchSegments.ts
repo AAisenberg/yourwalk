@@ -10,6 +10,7 @@ export type SegmentsMeta = {
   feature_count?: number;
   scoring_spec_version?: string | null;
   methodology_version?: string;
+  scored_at?: string | null;
 };
 
 export type SegmentsPayload = GeoJSON.FeatureCollection & {
@@ -66,6 +67,7 @@ export async function fetchSegmentsGeoJSON(
           feature_count: m.feature_count ?? meta.feature_count,
           scoring_spec_version: m.scoring_spec_version,
           methodology_version: m.methodology_version,
+          scored_at: m.scored_at,
         };
       }
     }

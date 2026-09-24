@@ -246,7 +246,7 @@ Before a backlog item is considered complete, it must meet all of the following:
 
 **Dependencies**: D0 design sitting ([`DASHBOARD.md`](DASHBOARD.md)); scored GeoJSON / PostGIS (N0a); host access decision (DB-1). Not blocked on crossings/kerbs, Clerk, or submissions.
 
-**Status**: Specced 20 Sep 2026. Parked until you say go on D0 design / D1 build.
+**Status**: Specced 20 Sep 2026. D1 built for local testing 24 Sep 2026 at `/dashboard` after the 23 Sep XYX catch-up (suburb + ward, Night lighting wording, soft fade, source links, onboarding, locate, Layers circle with satellite). Not deployed: planner host redirects `/dashboard`; no DNS until DB-1 access is chosen. See [`DASHBOARD.md`](DASHBOARD.md) D1.
 
 ---
 

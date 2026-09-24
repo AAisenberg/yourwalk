@@ -1,6 +1,6 @@
 # Council insights dashboard
 
-**Status:** Spec (20 Sep 2026). Sitting 2 brief added 21 Sep 2026. Not built. Host `dashboard.yourwalk.au` does not exist yet (ADR-012).  
+**Status:** D1 built for local testing (24 Sep 2026) at `/dashboard`. Spec 20 Sep; sitting 2 brief 21 Sep; XYX input 23 Sep. Not deployed: the production planner host redirects `/dashboard` away, and there is no `dashboard.yourwalk.au` DNS until DB-1 (ADR-012).  
 **Audience:** City of Casey staff first (transport, urban design, assets, inclusion, grant sponsor). Not residents.  
 **Build SoT for this surface:** this document. Older FLOW / REQS / mockup are inputs.
 
@@ -15,7 +15,7 @@ Give Casey officers a shared, honest picture of **where the walking network is s
 The dashboard answers:
 
 1. Where are Day or Night walking conditions weaker in Casey?
-2. Is that mainly footpaths, heat and shade, or lighting after dark?
+2. Is that mainly footpaths, heat and shade, or lighting at night?
 3. How confident are we, and how old is the evidence?
 4. (Later) Where do weaker conditions overlap community need or named corridors?
 
@@ -122,7 +122,7 @@ Styling is a first-class requirement, not a polish pass. Council staff will judg
 
 Night is a **walk-mode index**, not a designer dark-mode default. Officers work in daylight.
 
-**Locked lean chrome:** the dashboard shell stays on **day surfaces** so screenshots print and contrast holds in a meeting room. Switching to Night changes the **map** (`lightPreset` dusk/night), the stream labels (After dark instead of Heat and shade), and the colour-ramp title. It does not flip the whole workstation to `#0B0C1A`. A full Night chrome matching the planner is an open question (DB-2), not D1.
+**Locked lean chrome:** the dashboard shell stays on **day surfaces** so screenshots print and contrast holds in a meeting room. Switching to Night changes the **map** (`lightPreset` dusk/night), the stream labels (Night lighting instead of Heat and shade), and the colour-ramp title. It does not flip the whole workstation to `#0B0C1A`. A full Night chrome matching the planner is an open question (DB-2), not D1.
 
 ### Map
 
@@ -171,7 +171,7 @@ Assume the primary “export” in D1 is **a clean browser screenshot** into Wor
 |-------|-------|--------|
 | Selected index on the map | 0–100 stored, painted continuously | Segment choropleth |
 | Suburb / SA2 roll-up | 0–10, one decimal (same as resident pills) | Ranked list and selected card |
-| Stream breakdown | 0–100 (scoring spec §3) | Selected-area bars: Footpaths (Accessibility), Heat and shade or After dark |
+| Stream breakdown | 0–100 (scoring spec §3) | Selected-area bars: Footpaths (Accessibility), Heat and shade or Night lighting |
 
 Copy next to the first score: **Higher is better walking conditions.** Repeat on the legend.
 
@@ -280,9 +280,34 @@ Sitting captures: [`screenshots/dashboard-d0/frame-1-empty-day.png`](screenshots
 
 Write answers into DB-2 (reopen only if they hate day chrome), **DB-9 overlays**, **DB-10 basemap**, **DB-11 area unit**. Do not guess DB-10 or DB-11.
 
-**Suburb extract (21 Sep 2026):** [`meeting-prep/dashboard-area-ranks.json`](meeting-prep/dashboard-area-ranks.json) from `segment_scores.parquet` v1.1.3. Rebuild with `python scripts/extract_dashboard_area_ranks.py` from `pipeline/`. Honest copy: suburb as tagged on Casey footpaths. Still no `dashboard.yourwalk.au` DNS and no Next.js dashboard until the officer sitting and DB-1.
+**Suburb extract (21 Sep 2026):** [`meeting-prep/dashboard-area-ranks.json`](meeting-prep/dashboard-area-ranks.json) from `segment_scores.parquet` v1.1.3. Rebuild with `python scripts/extract_dashboard_area_ranks.py` from `pipeline/`. Honest copy: suburb as tagged on Casey footpaths.
+
+#### XYX input · 23 Sep 2026 (Nikki catch-up)
+
+Source: Notion Development page, 23 Sep entry (Granola notes). Nikki asked to push on toward Casey user testing. What it changes here:
+
+| Topic | Call | Effect on this spec |
+|-------|------|---------------------|
+| Area units | Suburb and ward first. SA2 deferred until the data is accurate | DB-11 moves to B without SA2 |
+| Scoring | 60/40 per index, flips with Day/Night | Already locked |
+| Wording | Say night or nighttime, not after dark | Stream label is **Night lighting** |
+| Layers | Casey assets toggleable | DB-9 lean stands |
+| Map | Soft boundary fade on the selected area | In D1: segments outside the selection fade |
+| Provenance | Data-source links plus last updated (CrashDash pattern) | In D1 |
+| Screenshots | Screenshot capture, no formal export yet | Browser screenshot stays the D1 export |
+| Onboarding | First-visit onboarding | In D1: one "How to read this" card, reopenable |
+| Location | Geolocation zoom when inside Casey | In D1 |
+| Access | Intranet behind Council login, named users plus shared password, or individual accounts | DB-1 still open |
+| Next build | CFA index overlay | Not built. Meaning unconfirmed (SEIFA-style need index, or a CFA layer?). Ask Nikki |
+| Resident app | Fix green-on-green routes | Planner backlog, not this surface |
+
+Ethics and recruitment (paid spots for harder-to-reach residents, survey after about two weeks, target mid-Oct submit, mid-Nov pilot) are resident-testing items, tracked on Notion Development.
 
 ### D1. Evidence map (pilot MVP / Sprint E / N5)
+
+**Local build (24 Sep 2026).** `web/src/app/dashboard` with `CouncilDashboard`. Run `WEB_PORT=3003 ./scripts/dev-up.sh` (or any free port), then open `http://localhost:3003/dashboard` or `http://dashboard.localhost:3003/`. It reads the same scored GeoJSON as the planner. Suburb and ward roll-ups run in the browser and match `extract_dashboard_area_ranks.py` exactly (`npm run test:dashboard`). The production planner host redirects `/dashboard` to its root and the apex already refuses it, so nothing reaches the public until DB-1.
+
+Built: Day/Night index switch, View by Suburb | Ward, weakest-first list with stream tags and thin-data flags, selected-area card (0 to 10 index, 0 to 100 streams, segment count, km, modal confidence), soft fade outside the selection with a dashed extent outline, thin segment popup (streams only), circular Layers button (Standard or Satellite, plus six Casey asset layers), data sources with links and vintages, scored date, first-visit onboarding, locate within Casey. No analytics (DB-7 open). No export.
 
 **Grant:** Q3 dashboard development. **Product phase:** MVP “basic insights”.
 
@@ -301,7 +326,7 @@ Staff open `dashboard.yourwalk.au` and see Casey scored paths.
 - Keyboard path through list + map controls
 - Not linked from the front door or resident header
 
-Satellite (DB-10) and View by Ward / SA2 (DB-11) are **not** D1 until sitting 2 locks them. Default D1 remains suburb + YourWalk Standard.
+Ward is in D1 (XYX, 23 Sep). SA2 waits. Satellite is built for officer testing (DB-10) and stays off by default. Default view remains suburb + YourWalk Standard.
 
 **Out:**
 
@@ -358,7 +383,7 @@ Satellite (DB-10) and View by Ward / SA2 (DB-11) are **not** D1 until sitting 2 
 
 **In:**
 
-- Theme filter: Footpaths, Heat and shade, After dark (filters paint and ranks; does not create a fourth index)
+- Theme filter: Footpaths, Heat and shade, Night lighting (filters paint and ranks; does not create a fourth index)
 - SA2 roll-up toggle or SA2 on the selected card if sitting 2 did not already lock View by (ADR-008, DB-11)
 - Community Need overlay: SEIFA 2021 at SA2 (Casey portal). Age / disability / no-vehicle only if the ABS extract is ingested and labelled 2021
 - Keep D1 Layers. Add road responsibility as context (local vs arterial), not as a score
@@ -435,7 +460,7 @@ Language bank (use these, do not invent slogans):
 - YourWalk Council insights
 - Walking conditions (Day / Night)
 - Higher score = better walking conditions
-- Footpaths, Heat and shade, After dark
+- Footpaths, Heat and shade, Night lighting (XYX, 23 Sep: say night or nighttime, not after dark)
 - Scores describe conditions in the data; they are not a promise that a walk will feel safe
 - Community need is shown beside the index; it is not in the score
 - Graffiti is an environmental order / maintenance proxy
@@ -463,9 +488,9 @@ Do not say: safe route, high risk, crime hotspot, vulnerable people (when you me
 | DB-6 | Segment click in D1 | **A (sitting 1).** Popup with 0–100 streams only. B. Wait for D2 sub-scores. | Useful without looking like Lab | Officer sitting may reopen |
 | DB-7 | Dashboard analytics | A. None in D1. B. Allowlisted first-party events (recommended if we need EVALUATION counts). | Grant KPI vs privacy | Before D1 prod |
 | DB-8 | Public evidence later | A. Stay staff-only. B. Public read-only after pilot. | Council comms; no safety copy | Not D1 |
-| DB-9 | D1 Layers | **A (lean).** Lights + resident amenities, default off. B. Lights only in D1; amenities wait for D2. C. No overlays in D1. | Officers can see assets under a weak score without a fourth index; copy must separate evidence from overlay-only | Officer sitting 2 |
-| DB-10 | Basemap | A. YourWalk Standard only. **B (test).** Standard + Mapbox satellite, one switch. C. Extra Council GIS basemaps (out for D1). | Aerials help with lights and paths; do not promise Nearmap; Night must not auto-switch satellite | Officer sitting 2. Do not guess. |
-| DB-11 | Area unit switcher | **A (sitting 1 lean).** Suburb only in D1. B. View by Suburb / Ward / SA2, default Suburb. C. Ward default. D. SA2 default. | What they would paste into a briefing; zoom still reaches segments | Officer sitting 2. Do not guess. |
+| DB-9 | D1 Layers | **A (built, XYX 23 Sep: Casey assets toggleable).** Lights + resident amenities, default off. B. Lights only in D1; amenities wait for D2. C. No overlays in D1. | Officers can see assets under a weak score without a fourth index; copy must separate evidence from overlay-only | Officer testing confirms |
+| DB-10 | Basemap | A. YourWalk Standard only. **B (built for testing).** Standard + Mapbox satellite, one switch in the Layers circle. C. Extra Council GIS basemaps (out for D1). | Aerials help with lights and paths; do not promise Nearmap; Night must not auto-switch satellite | Officer testing. Keep or drop |
+| DB-11 | Area unit switcher | A. Suburb only. **B (XYX 23 Sep, built).** View by Suburb / Ward, default Suburb. SA2 deferred until the data is accurate. C. Ward default. | What they would paste into a briefing; zoom still reaches segments | Revisit SA2 with D2 Community Need |
 
 Do not reopen Day/Night 60/40, Mapbox, T1EAM as the segment master, or the host table to answer these.
 
