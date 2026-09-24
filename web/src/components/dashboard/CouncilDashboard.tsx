@@ -18,17 +18,25 @@ import { IconLocate, IconMoon, IconSun } from "@/components/resident/icons";
 import { SegmentedPill } from "@/components/resident/SegmentedPill";
 import { BETA_LABEL, SCORING_SPEC_VERSION } from "@/lib/beta";
 import {
-  areaIndex,
+  areaValue,
+  breakdown,
   featuresInArea,
+  heldBackBy,
   rankAreas,
   rollUpAreas,
+  round1,
+  streamName,
   summariseCasey,
+  viewName,
   type AreaStats,
   type AreaUnit,
+  type BreakdownPart,
   type CaseySummary,
+  type HeldBack,
   type IndexMode,
-  type StreamTag,
+  type ScoreView,
 } from "@/lib/dashboard/areas";
+import { colorExpression, fieldFor, rampColors } from "@/lib/dashboard/paint";
 import {
   DASHBOARD_LAYERS,
   DEFAULT_DASHBOARD_LAYERS,
@@ -48,11 +56,10 @@ import {
   fetchSegmentsGeoJSON,
   type SegmentsMeta,
 } from "@/lib/fetchSegments";
-import { scoreColorExpression } from "@/lib/mapStyle";
 import { escapeOverlayHtml, overlayPopupHtml, type OverlayId } from "@/lib/overlays";
-import { CASEY_BOUNDS, legendStops, type ScoreField } from "@/lib/scores";
+import { CASEY_BOUNDS } from "@/lib/scores";
 
-const INTRO_KEY = "yw-dashboard-intro-v1";
+const INTRO_KEY = "yw-dashboard-intro-v2";
 
 const SEG_SRC = "dash-segments";
 const SEG_FILL = "dash-segments-fill";
@@ -85,14 +92,43 @@ const UNIT_WORD: Record<AreaUnit, { one: string; many: string }> = {
   ward: { one: "ward", many: "wards" },
 };
 
-const TAG_CLASS: Record<StreamTag, string> = {
-  Footpaths: "bg-yw-blue/12 text-[#1b6f96]",
-  "Heat and shade": "bg-yw-orange/15 text-[#a4520c]",
-  "Night lighting": "bg-yw-amber/30 text-[#7a5600]",
-};
+const STREAM_COLOR = {
+  Footpaths: "#27AAE1",
+  "Heat and shade": "#F6871F",
+  "Night lighting": "#E0A800",
+} as const;
 
-function fieldFor(mode: IndexMode): ScoreField {
-  return mode === "day" ? "day_index_score" : "night_index_score";
+/** One line on what goes into each part (scoring spec v1.1.3). */
+const STREAM_HELP = {
+  Footpaths:
+    "Path width and surface, speed of traffic alongside, graffiti, and school crossings. Counts for 60% of both Day and Night.",
+  "Heat and shade":
+    "Urban heat (2018 data), tree canopy, drinking fountains and seats. Counts for 40% of the Day score only.",
+  "Night lighting":
+    "Street and park lights along the path, and pedestrian crashes at night. Counts for 40% of the Night score only.",
+} as const;
+
+function viewOptions(mode: IndexMode) {
+  const index = mode === "day" ? "Day" : "Night";
+  const stream = streamName(mode);
+  return [
+    { id: "index" as const, label: `${index} score`, hint: `Footpaths and ${stream.toLowerCase()} together` },
+    { id: "footpaths" as const, label: "Footpaths only", hint: `One part of the ${index} score` },
+    { id: "stream" as const, label: `${stream} only`, hint: `One part of the ${index} score` },
+  ];
+}
+
+function confidenceNote(c: string | null): string | null {
+  if (c === "low") return "Lower confidence here: some inputs are thin, and crossings and kerb ramps are not in the data yet.";
+  if (c === "medium") return "Indicative: crossings and kerb ramps are not in the data yet.";
+  if (c === "high") return "Crossings and kerb ramps are not in the data yet.";
+  return null;
+}
+
+function heldBackText(h: HeldBack): string | null {
+  if (!h) return null;
+  if (h.kind === "above") return "At or near the Casey average on both parts.";
+  return `Held back mainly by ${h.name.toLowerCase()} (${h.score.toFixed(1)}, Casey ${h.casey.toFixed(1)}).`;
 }
 
 function resolveSegmentsUrl(): string {
@@ -136,6 +172,11 @@ function num(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
+function to10(v: number | null): string {
+  const r = round1(v == null ? null : v / 10);
+  return r == null ? "–" : r.toFixed(1);
+}
+
 function segmentPopupHtml(p: GeoJSON.GeoJsonProperties, mode: IndexMode): string {
   if (!p) return "";
   const idx = num(mode === "day" ? p.day_index_score : p.night_index_score);
@@ -147,8 +188,8 @@ function segmentPopupHtml(p: GeoJSON.GeoJsonProperties, mode: IndexMode): string
     .join(" · ");
   const lines = [
     place,
-    `${mode === "day" ? "Day" : "Night"} ${idx == null ? "–" : (idx / 10).toFixed(1)} / 10 · higher is better`,
-    `Footpaths ${foot == null ? "–" : Math.round(foot)} · ${mode === "day" ? "Heat and shade" : "Night lighting"} ${third == null ? "–" : Math.round(third)}`,
+    `${mode === "day" ? "Day" : "Night"} score ${to10(idx)} out of 10 · higher is better`,
+    `Footpaths ${to10(foot)} · ${streamName(mode)} ${to10(third)}`,
     typeof conf === "string" ? `Confidence: ${conf}` : null,
   ].filter((x): x is string => Boolean(x));
   return `<div class="yw-amenity-popup-body"><p class="yw-amenity-popup-title">Footpath segment</p>${lines
@@ -165,6 +206,7 @@ function hullFor(features: GeoJSON.Feature[]): GeoJSON.FeatureCollection {
 
 type MapState = {
   mode: IndexMode;
+  view: ScoreView;
   unit: AreaUnit;
   selectedName: string | null;
   basemap: Basemap;
@@ -192,6 +234,7 @@ export function CouncilDashboard() {
   const [features, setFeatures] = useState<GeoJSON.Feature[]>([]);
   const [meta, setMeta] = useState<SegmentsMeta | undefined>();
   const [mode, setMode] = useState<IndexMode>("day");
+  const [view, setView] = useState<ScoreView>("index");
   const [unit, setUnit] = useState<AreaUnit>("suburb");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [basemap, setBasemap] = useState<Basemap>("standard");
@@ -210,7 +253,10 @@ export function CouncilDashboard() {
     [features],
   );
   const casey = useMemo(() => summariseCasey(features), [features]);
-  const ranked = useMemo(() => rankAreas(areasByUnit[unit], mode), [areasByUnit, unit, mode]);
+  const ranked = useMemo(
+    () => rankAreas(areasByUnit[unit], mode, view),
+    [areasByUnit, unit, mode, view],
+  );
   const selected = useMemo(
     () => areasByUnit[unit].find((a) => a.id === selectedId) ?? null,
     [areasByUnit, unit, selectedId],
@@ -221,8 +267,8 @@ export function CouncilDashboard() {
   const selectedName = selected?.name ?? null;
   // Layout effect so map effects below always read the current state.
   useLayoutEffect(() => {
-    stateRef.current = { mode, unit, selectedName, basemap, layers };
-  }, [mode, unit, selectedName, basemap, layers]);
+    stateRef.current = { mode, view, unit, selectedName, basemap, layers };
+  }, [mode, view, unit, selectedName, basemap, layers]);
 
   /* eslint-disable react-hooks/set-state-in-effect -- one-time client
      read from localStorage; cannot be lazy-initialised under SSR */
@@ -249,8 +295,7 @@ export function CouncilDashboard() {
     const s = stateRef.current;
     if (!s || !map.getLayer(SEG_FILL)) return;
     const sat = s.basemap === "satellite";
-    const field = fieldFor(s.mode);
-    const color = scoreColorExpression(field);
+    const color = colorExpression(fieldFor(s.mode, s.view));
     const on = sat ? 0.62 : 0.8;
     const off = sat ? 0.14 : 0.2;
     const inArea: ExpressionSpecification | null = s.selectedName
@@ -512,7 +557,7 @@ export function CouncilDashboard() {
     applyLook(map, mode);
     applyPaint(map);
     popupRef.current?.remove();
-  }, [mode, phase, applyPaint]);
+  }, [mode, view, phase, applyPaint]);
 
   // Selection: outline, soft fade, fit bounds
   useEffect(() => {
@@ -653,8 +698,12 @@ export function CouncilDashboard() {
 
   const scoredAt = formatScoredAt(meta?.scored_at);
   const spec = meta?.scoring_spec_version ?? SCORING_SPEC_VERSION;
-  const stops = legendStops(fieldFor(mode));
   const indexLabel = mode === "day" ? "Day" : "Night";
+  const showing = viewName(mode, view);
+  const singleStream = view !== "index";
+  const example =
+    areasByUnit.suburb.find((a) => a.name === "Cranbourne North") ?? rankAreas(areasByUnit.suburb, "day")[0];
+  const exampleParts = example ? breakdown(example, "day") : null;
 
   return (
     <div className="flex h-dvh min-h-0 flex-col bg-yw-day-surface text-slate-900">
@@ -698,6 +747,38 @@ export function CouncilDashboard() {
 
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[20rem_minmax(0,1fr)_22rem]">
         <aside className="order-2 min-h-0 overflow-y-auto border-[#E8ECF2] bg-white p-4 lg:order-1 lg:border-r">
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">Show on map and list</p>
+          <div role="radiogroup" aria-label="Show the full score or one part only" className="mb-4 space-y-1">
+            {viewOptions(mode).map((opt) => {
+              const on = view === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => setView(opt.id)}
+                  className={`flex min-h-10 w-full items-center gap-2.5 rounded-xl px-2.5 text-left ring-1 ${
+                    on ? "bg-yw-navy/5 ring-yw-navy" : "ring-[#E8ECF2] hover:bg-yw-day-surface"
+                  }`}
+                >
+                  <span
+                    aria-hidden
+                    className={`grid h-4 w-4 shrink-0 place-items-center rounded-full ring-2 ${
+                      on ? "ring-yw-navy" : "ring-slate-300"
+                    }`}
+                  >
+                    {on ? <span className="h-2 w-2 rounded-full bg-yw-navy" /> : null}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[12px] font-bold text-slate-900">{opt.label}</span>
+                    <span className="block text-[10px] leading-snug text-slate-500">{opt.hint}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
           <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">View by</p>
           <SegmentedPill
             value={unit}
@@ -715,7 +796,9 @@ export function CouncilDashboard() {
             title={selected?.name ?? "All scored footpaths"}
             unitLabel={selected ? UNIT_WORD[unit].one : "LGA"}
             stats={selected ?? casey}
+            casey={selected ? casey : null}
             mode={mode}
+            view={view}
             thin={selected?.thin ?? false}
             onClear={selected ? clearSelection : undefined}
             empty={!selected}
@@ -913,14 +996,17 @@ export function CouncilDashboard() {
           ) : null}
 
           <div className="absolute bottom-3 left-3 z-10 w-60 rounded-xl bg-white p-3 shadow-md ring-1 ring-[#E8ECF2]">
-            <p className="text-[11px] font-extrabold text-yw-navy">{indexLabel} walking conditions</p>
+            <p className="text-[11px] font-extrabold text-yw-navy">
+              {singleStream ? `${showing} only · ${indexLabel}` : `${indexLabel} score`}
+            </p>
             <p className="mt-1 text-[11px] leading-snug text-slate-600">
-              Higher score = better walking conditions. Colours are stretched across Casey.
+              Higher = better walking conditions. Colours are stretched across Casey.
+              {singleStream ? ` One part of the ${indexLabel} score, not the score itself.` : ""}
             </p>
             <div
               className="mt-2 h-2 rounded-full"
               aria-hidden
-              style={{ background: `linear-gradient(90deg, ${stops.map((s) => s.color).join(", ")})` }}
+              style={{ background: `linear-gradient(90deg, ${rampColors().join(", ")})` }}
             />
             <div className="mt-1 flex justify-between text-[10px] text-slate-500">
               <span>Weaker</span>
@@ -936,13 +1022,14 @@ export function CouncilDashboard() {
 
         <aside className="order-3 min-h-0 overflow-y-auto border-[#E8ECF2] bg-white p-4 lg:border-l">
           <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">
-            Weaker {UNIT_WORD[unit].many} · {indexLabel}
+            Weaker {UNIT_WORD[unit].many} · {singleStream ? `${showing} (${indexLabel})` : `${indexLabel} score`}
           </p>
-          <ol className="space-y-0.5" aria-label={`${UNIT_WORD[unit].many} ranked weakest first on ${indexLabel}`}>
+          <ol className="space-y-0.5" aria-label={`${UNIT_WORD[unit].many} ranked weakest first on ${showing}`}>
             {ranked.map((a, i) => {
               const on = a.id === selectedId;
-              const tags = mode === "day" ? a.tagsDay : a.tagsNight;
-              const v = areaIndex(a, mode);
+              const held = singleStream ? null : heldBackBy(a, casey, mode);
+              const hint = held?.kind === "stream" ? `Mainly ${held.name.toLowerCase()}` : null;
+              const v = areaValue(a, mode, view);
               return (
                 <li key={a.id}>
                   <button
@@ -962,13 +1049,9 @@ export function CouncilDashboard() {
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[13px] font-bold text-slate-900">{a.name}</span>
-                      {tags.length || a.thin ? (
-                        <span className="mt-0.5 flex flex-wrap gap-1">
-                          {tags.map((t) => (
-                            <span key={t} className={`rounded px-1.5 py-px text-[10px] font-bold ${TAG_CLASS[t]}`}>
-                              {t}
-                            </span>
-                          ))}
+                      {hint || a.thin ? (
+                        <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+                          {hint ? <span>{hint}</span> : null}
                           {a.thin ? (
                             <span className="rounded px-1.5 py-px text-[10px] font-bold text-slate-500 ring-1 ring-[#E8ECF2]">
                               Thin data
@@ -984,8 +1067,9 @@ export function CouncilDashboard() {
             })}
           </ol>
           <p className="mt-3 text-[11px] leading-snug text-slate-500">
-            Length-weighted mean of scored footpath segments, {UNIT_WORD[unit].one} as tagged on Casey footpaths. A tag
-            means that stream is below the Casey median for {UNIT_WORD[unit].many}. It is not resident reports.
+            All scores are out of 10. Casey {showing.toLowerCase()}:{" "}
+            {fmt10(areaValue(casey, mode, view))}. Averages are weighted by path length, {UNIT_WORD[unit].one} as tagged
+            on Casey footpaths. &ldquo;Mainly&rdquo; names the part that pulls the score furthest below Casey.
           </p>
         </aside>
       </div>
@@ -1003,22 +1087,32 @@ export function CouncilDashboard() {
             </p>
             <ul className="mt-3 space-y-2 text-[13px] leading-snug text-slate-700">
               <li>
-                <strong className="text-yw-navy">Higher is better.</strong> Scores describe walking conditions on Casey
-                footpaths, from 0 to 10.
+                <strong className="text-yw-navy">Every score is out of 10. Higher is better.</strong> Scores describe
+                walking conditions on Casey footpaths.
               </li>
               <li>
-                <strong className="text-yw-navy">Day and Night are separate.</strong> Both share Footpaths (60%). Day
-                adds heat and shade. Night adds lighting at night. There is no combined score.
+                <strong className="text-yw-navy">Each score has two parts that add up.</strong> Footpaths gives up to
+                6 points. Heat and shade (Day) or night lighting (Night) gives up to 4.
               </li>
               <li>
-                <strong className="text-yw-navy">The list shows weaker areas first.</strong> Pick a suburb or ward to
-                see why, then open Layers to see Casey assets on the map.
-              </li>
-              <li>
-                <strong className="text-yw-navy">Honest about gaps.</strong> Crossings and kerb ramps are not in yet.
-                Heat data is from 2018. Scores are not a safety promise.
+                <strong className="text-yw-navy">Compare with Casey, not with a pass mark.</strong> Heat and shade is
+                low across all of Casey, so Day scores run lower than Night.
               </li>
             </ul>
+            {example && exampleParts ? (
+              <div className="mt-3 rounded-xl bg-yw-day-surface p-3 text-[12px] leading-snug text-slate-700 ring-1 ring-[#E8ECF2]">
+                <p className="font-bold text-yw-navy">Example: {example.name}, Day</p>
+                <p className="mt-1">
+                  Footpaths {fmt10(exampleParts.footpaths.points)} of 6, plus heat and shade{" "}
+                  {fmt10(exampleParts.stream.points)} of 4, makes <strong>{fmt10(exampleParts.total)}</strong>. Casey
+                  average is {fmt10(casey.day)}.
+                </p>
+              </div>
+            ) : null}
+            <p className="mt-3 text-[11px] leading-snug text-slate-500">
+              Crossings and kerb ramps are not in the data yet. Heat data is from 2018. Scores are not a promise that a
+              walk will feel safe.
+            </p>
             <button
               type="button"
               autoFocus
@@ -1038,7 +1132,9 @@ function AreaCard({
   title,
   unitLabel,
   stats,
+  casey,
   mode,
+  view,
   thin,
   empty,
   onClear,
@@ -1046,16 +1142,20 @@ function AreaCard({
   title: string;
   unitLabel: string;
   stats: AreaStats | CaseySummary;
+  /** Casey summary for comparison; null when the card is Casey itself. */
+  casey: CaseySummary | null;
   mode: IndexMode;
+  view: ScoreView;
   thin: boolean;
   empty: boolean;
   onClear?: () => void;
 }) {
-  const index = areaIndex(stats, mode);
-  const thirdName = mode === "day" ? "Heat and shade" : "Night lighting";
-  const thirdVal = mode === "day" ? stats.heatShade : stats.nightLighting;
-  const thirdColor = mode === "day" ? "#F6871F" : "#E0A800";
-  const conf = mode === "day" ? stats.confidenceDay : stats.confidenceNight;
+  const parts = breakdown(stats, mode);
+  const caseyIndex = casey ? areaValue(casey, mode) : null;
+  const held = casey ? heldBackBy(stats, casey, mode) : null;
+  const conf = confidenceNote(mode === "day" ? stats.confidenceDay : stats.confidenceNight);
+  const heldText = heldBackText(held);
+  const highlight: "footpaths" | "stream" | null = view === "index" ? null : view;
   return (
     <div className="rounded-xl bg-yw-day-surface p-3.5 ring-1 ring-[#E8ECF2]">
       <div className="flex items-start justify-between gap-2">
@@ -1076,23 +1176,38 @@ function AreaCard({
           </button>
         ) : null}
       </div>
-      <div className="my-3 flex items-end justify-between">
+      <div className="my-3 flex items-end justify-between gap-2">
         <div>
-          <p className="text-[11px] text-slate-600">{mode === "day" ? "Day" : "Night"} walking conditions</p>
-          <p className="text-[11px] text-slate-500">Higher is better</p>
+          <p className="text-[11px] font-semibold text-slate-700">{mode === "day" ? "Day" : "Night"} score</p>
+          <p className="text-[11px] text-slate-500">Out of 10 · higher is better</p>
         </div>
-        <p className="text-right" aria-live="polite">
-          <span className="text-[36px] font-extrabold leading-none tracking-tight text-yw-navy">{fmt10(index)}</span>
-          <span className="ml-0.5 text-[12px] font-semibold text-slate-500">/ 10</span>
-        </p>
+        <div className="text-right" aria-live="polite">
+          <p>
+            <span className="text-[36px] font-extrabold leading-none tracking-tight text-yw-navy">
+              {fmt10(parts.total)}
+            </span>
+            <span className="ml-0.5 text-[12px] font-semibold text-slate-500">/ 10</span>
+          </p>
+          {caseyIndex != null ? (
+            <p className="text-[11px] text-slate-500">Casey average {fmt10(caseyIndex)}</p>
+          ) : null}
+        </div>
       </div>
-      <StreamBar label="Footpaths" value={stats.footpaths} color="#27AAE1" />
-      <StreamBar label={thirdName} value={thirdVal} color={thirdColor} />
+
+      <ScoreBar footpaths={parts.footpaths} stream={parts.stream} />
+      <PartRow part={parts.footpaths} emphasis={highlight === "footpaths"} dim={highlight === "stream"} />
+      <PartRow part={parts.stream} emphasis={highlight === "stream"} dim={highlight === "footpaths"} />
+      <div className="mt-1 flex items-center justify-between border-t border-[#E8ECF2] pt-1.5">
+        <span className="text-[12px] font-bold text-slate-700">{mode === "day" ? "Day" : "Night"} score</span>
+        <span className="text-[12px] font-extrabold text-yw-navy">
+          {fmt10(parts.total)} <span className="font-medium text-slate-400">of 10</span>
+        </span>
+      </div>
+
+      {heldText ? <p className="mt-2 text-[12px] font-semibold leading-snug text-slate-700">{heldText}</p> : null}
       <p className="mt-2 text-[11px] leading-snug text-slate-500">
-        Streams are 0 to 100. Footpaths is shared by Day and Night.{" "}
-        {mode === "day" ? "Night lighting is not in the Day index." : "Heat and shade is not in the Night index."}
-        {conf ? ` Confidence is mostly ${conf}.` : ""}
-        {thin ? " Few scored segments here, so treat this roll-up with care." : ""}
+        {conf}
+        {thin ? " Few scored paths here, so treat this with care." : ""}
       </p>
       {empty ? (
         <p className="mt-2 text-[11px] leading-snug text-slate-500">
@@ -1103,19 +1218,53 @@ function AreaCard({
   );
 }
 
-function StreamBar({ label, value, color }: { label: string; value: number | null; color: string }) {
+/**
+ * The score as one 0–10 bar: Footpaths points then stream points, end to end.
+ * Faint marks show each part's ceiling (6 and 4), so the fill reads as
+ * "how much of each part this area earned".
+ */
+function ScoreBar({ footpaths, stream }: { footpaths: BreakdownPart; stream: BreakdownPart }) {
+  const f = Math.max(0, Math.min(footpaths.maxPoints, footpaths.points ?? 0));
+  const s = Math.max(0, Math.min(stream.maxPoints, stream.points ?? 0));
   return (
-    <div className="my-1.5 grid grid-cols-[7.5rem_1fr_2rem] items-center gap-2">
-      <span className="text-[12px] font-semibold" style={{ color }}>
-        {label}
-      </span>
-      <span className="h-2 overflow-hidden rounded-full bg-white ring-1 ring-[#E8ECF2]">
-        <span
-          className="block h-full rounded-full"
-          style={{ width: `${Math.max(0, Math.min(100, value ?? 0))}%`, background: color }}
-        />
-      </span>
-      <span className="text-right text-[12px] font-bold text-slate-700">{value ?? "–"}</span>
+    <div className="mb-2" aria-hidden>
+      <div className="relative flex h-3 overflow-hidden rounded-full bg-white ring-1 ring-[#E8ECF2]">
+        <span className="flex h-full" style={{ width: `${footpaths.maxPoints * 10}%` }}>
+          <span className="h-full" style={{ width: `${(f / footpaths.maxPoints) * 100}%`, background: STREAM_COLOR[footpaths.name] }} />
+        </span>
+        <span className="h-full w-px bg-slate-300" />
+        <span className="flex h-full flex-1">
+          <span className="h-full" style={{ width: `${(s / stream.maxPoints) * 100}%`, background: STREAM_COLOR[stream.name] }} />
+        </span>
+      </div>
     </div>
+  );
+}
+
+/** One part of the score as points toward the total, with a "?" note. */
+function PartRow({ part, emphasis, dim }: { part: BreakdownPart; emphasis: boolean; dim: boolean }) {
+  const color = STREAM_COLOR[part.name];
+  return (
+    <details className={`group my-1 ${dim ? "opacity-50" : ""}`}>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
+        <span className={`flex items-center gap-1.5 text-[12px] ${emphasis ? "font-extrabold" : "font-semibold"}`}>
+          <span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{ background: color }} />
+          <span className="text-slate-800">{part.name}</span>
+          <span
+            aria-hidden
+            className="grid h-4 w-4 place-items-center rounded-full bg-white text-[10px] font-bold text-slate-500 ring-1 ring-[#E8ECF2] group-open:bg-yw-navy group-open:text-white"
+          >
+            ?
+          </span>
+          <span className="sr-only">What goes into {part.name}</span>
+        </span>
+        <span className="text-[12px] font-bold text-slate-700">
+          {fmt10(part.points)} <span className="font-medium text-slate-400">of {part.maxPoints}</span>
+        </span>
+      </summary>
+      <p className="mt-1 rounded-lg bg-white px-2 py-1.5 text-[11px] leading-snug text-slate-600 ring-1 ring-[#E8ECF2]">
+        {STREAM_HELP[part.name]} On its own: {fmt10(part.score)} out of 10.
+      </p>
+    </details>
   );
 }

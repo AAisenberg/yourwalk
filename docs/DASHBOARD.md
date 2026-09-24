@@ -171,11 +171,11 @@ Assume the primary “export” in D1 is **a clean browser screenshot** into Wor
 |-------|-------|--------|
 | Selected index on the map | 0–100 stored, painted continuously | Segment choropleth |
 | Suburb / SA2 roll-up | 0–10, one decimal (same as resident pills) | Ranked list and selected card |
-| Stream breakdown | 0–100 (scoring spec §3) | Selected-area bars: Footpaths (Accessibility), Heat and shade or Night lighting |
+| Stream breakdown | Shown 0–10 (stored 0–100, scoring spec §3) | Selected-area card as points toward the score: Footpaths up to 6, Heat and shade or Night lighting up to 4 |
 
 Copy next to the first score: **Higher is better walking conditions.** Repeat on the legend.
 
-Selected card shows **two** numbers only: the selected index (0–10) and the three stream bars (0–100). Never a fourth “combined index”.
+**One scale (24 Sep 2026).** Everything officers see is out of 10, one decimal: list, card, popup, legend. The card shows the index as two parts that add up, for example Cranbourne North Day: Footpaths 4.5 of 6 plus Heat and shade 1.2 of 4 makes 5.7 (Casey 6.3). Parts are rounded so they always add up to the shown score; plain rounding misses by 0.1 for about a third of suburbs. The card also names the part that pulls the score furthest below Casey, but only when it costs at least 0.1 of the score. Never a combined Day plus Night number.
 
 Weak-stream tags on a ranked row (for example “Lighting”) mean that stream is **below the Casey median for that stream**, not that residents filed issues there.
 
@@ -254,7 +254,7 @@ Sitting captures: [`screenshots/dashboard-d0/frame-1-empty-day.png`](screenshots
 |----|------|-----|
 | DB-2 | A. Day shell always | Meeting-room contrast and Word screenshots. Night changes the map and stream labels only. |
 | DB-3 | A. Suburb list | Officers already name suburbs. SA2 stays on the selected card later (D2). |
-| DB-4 | B. Day / Night paint only | A third Accessibility paint reads as another overall score. Footpaths stay as the 0–100 bar. |
+| DB-4 | B. Day / Night paint only (reopened 24 Sep: single-stream Show is in D1) | A third Accessibility paint reads as another overall score. Footpaths stay as the 0–100 bar. |
 | DB-6 | A. Thin segment popup | Assets need to click a path. Streams only. Not Lab sub-scores. |
 
 **Parked:** DB-5 Community Need (D2). **Still open:** DB-1 access (before DNS), DB-7 analytics (before D1 prod), DB-8 public later.
@@ -307,7 +307,7 @@ Ethics and recruitment (paid spots for harder-to-reach residents, survey after a
 
 **Local build (24 Sep 2026).** `web/src/app/dashboard` with `CouncilDashboard`. Run `WEB_PORT=3003 ./scripts/dev-up.sh` (or any free port), then open `http://localhost:3003/dashboard` or `http://dashboard.localhost:3003/`. It reads the same scored GeoJSON as the planner. Suburb and ward roll-ups run in the browser and match `extract_dashboard_area_ranks.py` exactly (`npm run test:dashboard`). The production planner host redirects `/dashboard` to its root and the apex already refuses it, so nothing reaches the public until DB-1.
 
-Built: Day/Night index switch, View by Suburb | Ward, weakest-first list with stream tags and thin-data flags, selected-area card (0 to 10 index, 0 to 100 streams, segment count, km, modal confidence), soft fade outside the selection with a dashed extent outline, thin segment popup (streams only), circular Layers button (Standard or Satellite, plus six Casey asset layers), data sources with links and vintages, scored date, first-visit onboarding, locate within Casey. No analytics (DB-7 open). No export.
+Built: Day/Night index switch, **Show** (full score, Footpaths only, or Heat and shade / Night lighting only; repaints the map and re-ranks the list), View by Suburb | Ward, weakest-first list with a "Mainly …" hint and thin-data flags, selected-area card (score out of 10, Casey average, parts as points that add up, "?" note per part, plain-language confidence, segment count, km), soft fade outside the selection with a dashed extent outline, thin segment popup (streams only), circular Layers button (Standard or Satellite, plus six Casey asset layers), data sources with links and vintages, scored date, first-visit onboarding, locate within Casey. No analytics (DB-7 open). No export.
 
 **Grant:** Q3 dashboard development. **Product phase:** MVP “basic insights”.
 
@@ -339,7 +339,6 @@ Ward is in D1 (XYX, 23 Sep). SA2 waits. Satellite is built for officer testing (
 - Dead nav pills
 - Combined index
 - “High risk” language
-- Accessibility-only paint (sitting 1: Footpaths stays a bar)
 - Nearmap or a stack of Council GIS basemaps
 - Auto-switch to satellite when Night is on
 - Mesh blocks, PSP layers, or draw-your-own areas
@@ -383,7 +382,7 @@ Ward is in D1 (XYX, 23 Sep). SA2 waits. Satellite is built for officer testing (
 
 **In:**
 
-- Theme filter: Footpaths, Heat and shade, Night lighting (filters paint and ranks; does not create a fourth index)
+- Theme filter moved into D1 as **Show** (24 Sep 2026). D2 can add multi-stream or threshold filters if officers ask
 - SA2 roll-up toggle or SA2 on the selected card if sitting 2 did not already lock View by (ADR-008, DB-11)
 - Community Need overlay: SEIFA 2021 at SA2 (Casey portal). Age / disability / no-vehicle only if the ABS extract is ingested and labelled 2021
 - Keep D1 Layers. Add road responsibility as context (local vs arterial), not as a score
@@ -483,7 +482,7 @@ Do not say: safe route, high risk, crime hotspot, vulnerable people (when you me
 | DB-1 | How do officers open D1? | A. Vercel Deployment Protection password, shared with named staff. B. Vercel Authentication (CrowdLab seats only; poor for Council). C. Unlisted URL, no password (scores are from open data). D. Clerk org (L1, too early). | Least friction for 5–15 Casey staff; no login on other hosts; revoke without a rebuild | Before DNS |
 | DB-2 | Night chrome | **A (sitting 1).** Day shell always. B. Full Night surfaces when Night index is on. | Screenshot contrast in a meeting room | Reopen only after an officer sitting |
 | DB-3 | Default rank geography | **A (sitting 1).** Suburb list. B. SA2 only. C. Ward. | Officers can name the unit in a briefing without a glossary | Officer sitting 2 may reopen via DB-11 |
-| DB-4 | Accessibility-only paint in D1? | **B (sitting 1).** Night/Day only; Accessibility is the bar in the card. A would be a third paint mode. | Avoid a fourth “overall” reading | Officer sitting may reopen |
+| DB-4 | Single-stream paint in D1? | **A (reopened by product, 24 Sep).** Show: full score, Footpaths only, or the Day/Night stream only. Labelled "only" and "one part of the score, not the score itself" on the control, legend and list. B. Day / Night paint only (sitting 1). | Officers ask stream questions ("where is lighting weak?"); avoid it reading as another overall score | Officer testing confirms |
 | DB-5 | Community Need fields in D2 | A. SEIFA decile only. B. SEIFA + 65+ + disability + no vehicle (mockup). C. Defer all need | Data already on Casey portal at SA2; extra Census fields need an ingest + privacy pass | Before D2 |
 | DB-6 | Segment click in D1 | **A (sitting 1).** Popup with 0–100 streams only. B. Wait for D2 sub-scores. | Useful without looking like Lab | Officer sitting may reopen |
 | DB-7 | Dashboard analytics | A. None in D1. B. Allowlisted first-party events (recommended if we need EVALUATION counts). | Grant KPI vs privacy | Before D1 prod |

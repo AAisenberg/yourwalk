@@ -3,12 +3,21 @@
  * scored segments tagged to each suburb or ward. Missing values are skipped,
  * never treated as zero. Must agree with
  * pipeline/scripts/extract_dashboard_area_ranks.py.
+ *
+ * Everything officers see is on one 0–10 scale. Streams are stored 0–100 in
+ * the data and divided by 10 for display.
  */
 
 export type AreaUnit = "suburb" | "ward";
 export type IndexMode = "day" | "night";
-export type StreamTag = "Footpaths" | "Heat and shade" | "Night lighting";
+/** What the map paints and the list ranks: the full index or one stream. */
+export type ScoreView = "index" | "footpaths" | "stream";
+export type StreamName = "Footpaths" | "Heat and shade" | "Night lighting";
 export type Confidence = "low" | "medium" | "high";
+
+/** Locked v1.1 weights (docs/VULNERABILITY_INDEX.md): shared 60, mode-specific 40. */
+export const FOOTPATHS_WEIGHT = 0.6;
+export const STREAM_WEIGHT = 0.4;
 
 export type AreaStats = {
   id: string;
@@ -17,7 +26,7 @@ export type AreaStats = {
   /** 0–10, one decimal (same scale as resident pills). */
   day: number | null;
   night: number | null;
-  /** Streams 0–100. */
+  /** Unrounded 0–100 stream means; round only for display. */
   footpaths: number | null;
   heatShade: number | null;
   nightLighting: number | null;
@@ -27,14 +36,9 @@ export type AreaStats = {
   confidenceDay: Confidence | null;
   confidenceNight: Confidence | null;
   thin: boolean;
-  tagsDay: StreamTag[];
-  tagsNight: StreamTag[];
 };
 
-export type CaseySummary = Omit<
-  AreaStats,
-  "id" | "name" | "unit" | "thin" | "tagsDay" | "tagsNight"
->;
+export type CaseySummary = Omit<AreaStats, "id" | "name" | "unit" | "thin">;
 
 /** Below either threshold, the roll-up carries a thin-coverage note. */
 export const THIN_SEGMENTS = 50;
@@ -57,17 +61,11 @@ function mean(acc: Acc): number | null {
   return acc.w > 0 ? acc.sum / acc.w : null;
 }
 
-function round1(v: number | null): number | null {
+export function round1(v: number | null): number | null {
   return v == null ? null : Math.round(v * 10) / 10;
 }
 
-function round0(v: number | null): number | null {
-  return v == null ? null : Math.round(v);
-}
-
-function modalConfidence(
-  weights: Record<string, number>,
-): Confidence | null {
+function modalConfidence(weights: Record<string, number>): Confidence | null {
   let best: Confidence | null = null;
   let bestW = 0;
   for (const key of ["low", "medium", "high"] as const) {
@@ -131,9 +129,9 @@ function summarise(b: Bucket): CaseySummary {
   return {
     day: round1(day100 == null ? null : day100 / 10),
     night: round1(night100 == null ? null : night100 / 10),
-    footpaths: round0(mean(b.footpaths)),
-    heatShade: round0(mean(b.heat)),
-    nightLighting: round0(mean(b.lighting)),
+    footpaths: mean(b.footpaths),
+    heatShade: mean(b.heat),
+    nightLighting: mean(b.lighting),
     segments: b.segments,
     lengthKm: Math.round(b.lengthM / 100) / 10,
     confidenceDay: modalConfidence(b.confDay),
@@ -146,44 +144,8 @@ function weightOf(p: GeoJSON.GeoJsonProperties): number {
   return w != null && w > 0 ? w : 0;
 }
 
-function median(values: number[]): number | null {
-  if (!values.length) return null;
-  const s = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(s.length / 2);
-  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
-}
-
-function tagStreams(areas: AreaStats[]) {
-  const medFoot = median(
-    areas.map((a) => a.footpaths).filter((v): v is number => v != null),
-  );
-  const medHeat = median(
-    areas.map((a) => a.heatShade).filter((v): v is number => v != null),
-  );
-  const medLight = median(
-    areas.map((a) => a.nightLighting).filter((v): v is number => v != null),
-  );
-  for (const a of areas) {
-    const foot = medFoot != null && a.footpaths != null && a.footpaths < medFoot;
-    const heat = medHeat != null && a.heatShade != null && a.heatShade < medHeat;
-    const light =
-      medLight != null && a.nightLighting != null && a.nightLighting < medLight;
-    a.tagsDay = [
-      ...(foot ? (["Footpaths"] as const) : []),
-      ...(heat ? (["Heat and shade"] as const) : []),
-    ];
-    a.tagsNight = [
-      ...(foot ? (["Footpaths"] as const) : []),
-      ...(light ? (["Night lighting"] as const) : []),
-    ];
-  }
-}
-
 /** Roll every scored segment up to one unit (suburb or ward). */
-export function rollUpAreas(
-  features: GeoJSON.Feature[],
-  unit: AreaUnit,
-): AreaStats[] {
+export function rollUpAreas(features: GeoJSON.Feature[], unit: AreaUnit): AreaStats[] {
   const buckets = new Map<string, Bucket>();
   for (const f of features) {
     const p = f.properties;
@@ -199,7 +161,7 @@ export function rollUpAreas(
     }
     addFeature(b, p, w);
   }
-  const areas: AreaStats[] = [...buckets.entries()].map(([name, b]) => {
+  return [...buckets.entries()].map(([name, b]) => {
     const s = summarise(b);
     return {
       ...s,
@@ -207,12 +169,8 @@ export function rollUpAreas(
       name,
       unit,
       thin: s.segments < THIN_SEGMENTS || s.lengthKm < THIN_KM,
-      tagsDay: [],
-      tagsNight: [],
     };
   });
-  tagStreams(areas);
-  return areas;
 }
 
 export function summariseCasey(features: GeoJSON.Feature[]): CaseySummary {
@@ -224,20 +182,159 @@ export function summariseCasey(features: GeoJSON.Feature[]): CaseySummary {
   return summarise(b);
 }
 
-/** Weakest first on the selected index; unscored areas sink to the end. */
-export function rankAreas(areas: AreaStats[], mode: IndexMode): AreaStats[] {
+export function streamName(mode: IndexMode): StreamName {
+  return mode === "day" ? "Heat and shade" : "Night lighting";
+}
+
+export function viewName(mode: IndexMode, view: ScoreView): string {
+  if (view === "footpaths") return "Footpaths";
+  if (view === "stream") return streamName(mode);
+  return mode === "day" ? "Day score" : "Night score";
+}
+
+function stream100(a: AreaStats | CaseySummary, mode: IndexMode): number | null {
+  return mode === "day" ? a.heatShade : a.nightLighting;
+}
+
+/** The number the list ranks and shows for this view, on the 0–10 scale. */
+export function areaValue(
+  a: AreaStats | CaseySummary,
+  mode: IndexMode,
+  view: ScoreView = "index",
+): number | null {
+  if (view === "footpaths") return round1(a.footpaths == null ? null : a.footpaths / 10);
+  if (view === "stream") {
+    const s = stream100(a, mode);
+    return round1(s == null ? null : s / 10);
+  }
+  return mode === "day" ? a.day : a.night;
+}
+
+export type BreakdownPart = {
+  name: StreamName;
+  /** Stream score on 0–10. */
+  score: number | null;
+  /** Points this stream adds to the index, and the most it could add. */
+  points: number | null;
+  maxPoints: number;
+};
+
+/**
+ * Round two parts to tenths so they add up exactly to the shown total
+ * (largest remainder). Plain rounding misses the total by 0.1 for about a
+ * third of Casey suburbs. Returns null if the parts are too far off to share.
+ */
+function partsThatAddUp(a: number, b: number, total: number): [number, number] | null {
+  const target = Math.round(total * 10);
+  const fa = Math.floor(a * 10);
+  const fb = Math.floor(b * 10);
+  let diff = target - fa - fb;
+  if (diff < 0 || diff > 2) return null;
+  const order = a * 10 - fa >= b * 10 - fb ? [0, 1] : [1, 0];
+  const out = [fa, fb];
+  for (const i of order) {
+    if (diff <= 0) break;
+    out[i] += 1;
+    diff -= 1;
+  }
+  return [out[0] / 10, out[1] / 10];
+}
+
+/** The index as two parts that add up: Footpaths (up to 6) + stream (up to 4). */
+export function breakdown(
+  a: AreaStats | CaseySummary,
+  mode: IndexMode,
+): { footpaths: BreakdownPart; stream: BreakdownPart; total: number | null } {
+  const foot = a.footpaths;
+  const other = stream100(a, mode);
+  const footPts = foot == null ? null : (foot / 100) * 10 * FOOTPATHS_WEIGHT;
+  const otherPts = other == null ? null : (other / 100) * 10 * STREAM_WEIGHT;
+  const total = mode === "day" ? a.day : a.night;
+  let shownFoot = round1(footPts);
+  let shownOther = round1(otherPts);
+  if (footPts != null && otherPts != null && total != null) {
+    const pair = partsThatAddUp(footPts, otherPts, total);
+    if (pair) [shownFoot, shownOther] = pair;
+  }
+  return {
+    footpaths: {
+      name: "Footpaths",
+      score: round1(foot == null ? null : foot / 10),
+      points: shownFoot,
+      maxPoints: 10 * FOOTPATHS_WEIGHT,
+    },
+    stream: {
+      name: streamName(mode),
+      score: round1(other == null ? null : other / 10),
+      points: shownOther,
+      maxPoints: 10 * STREAM_WEIGHT,
+    },
+    total,
+  };
+}
+
+export type HeldBack =
+  | { kind: "stream"; name: StreamName; score: number; casey: number }
+  | { kind: "above" }
+  | null;
+
+/** A part must cost at least 0.1 of the 0–10 score before we name it. */
+const HELD_BACK_MIN_POINTS = 0.1;
+
+/**
+ * Which part pulls this area below Casey the most, in index points
+ * (a stream gap is weighted by how much that stream counts).
+ */
+export function heldBackBy(
+  a: AreaStats | CaseySummary,
+  casey: CaseySummary,
+  mode: IndexMode,
+): HeldBack {
+  const parts: { name: StreamName; v: number | null; c: number | null; w: number }[] = [
+    { name: "Footpaths", v: a.footpaths, c: casey.footpaths, w: FOOTPATHS_WEIGHT },
+    { name: streamName(mode), v: stream100(a, mode), c: stream100(casey, mode), w: STREAM_WEIGHT },
+  ];
+  let worst: (typeof parts)[number] | null = null;
+  let worstGap = HELD_BACK_MIN_POINTS * 10;
+  for (const p of parts) {
+    if (p.v == null || p.c == null) continue;
+    // 0–100 gap × weight is tenths of an index point
+    const gap = (p.c - p.v) * p.w;
+    if (gap >= worstGap) {
+      worst = p;
+      worstGap = gap;
+    }
+  }
+  if (!worst) {
+    return parts.every((p) => p.v != null && p.c != null) ? { kind: "above" } : null;
+  }
+  return {
+    kind: "stream",
+    name: worst.name,
+    score: round1(worst.v! / 10)!,
+    casey: round1(worst.c! / 10)!,
+  };
+}
+
+/** Weakest first on the selected view; unscored areas sink to the end. */
+export function rankAreas(
+  areas: AreaStats[],
+  mode: IndexMode,
+  view: ScoreView = "index",
+): AreaStats[] {
+  const raw = (a: AreaStats) => {
+    if (view === "footpaths") return a.footpaths;
+    if (view === "stream") return stream100(a, mode);
+    return mode === "day" ? a.day : a.night;
+  };
   return [...areas].sort((a, b) => {
-    const av = mode === "day" ? a.day : a.night;
-    const bv = mode === "day" ? b.day : b.night;
+    const av = raw(a);
+    const bv = raw(b);
     if (av == null && bv == null) return a.name.localeCompare(b.name);
     if (av == null) return 1;
     if (bv == null) return -1;
     return av - bv || a.name.localeCompare(b.name);
   });
-}
-
-export function areaIndex(a: AreaStats | CaseySummary, mode: IndexMode) {
-  return mode === "day" ? a.day : a.night;
 }
 
 export function featuresInArea(
