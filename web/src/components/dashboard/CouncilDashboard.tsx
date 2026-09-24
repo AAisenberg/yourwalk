@@ -37,10 +37,18 @@ import {
   type IndexMode,
   type ScoreView,
 } from "@/lib/dashboard/areas";
-import { colorExpression, fieldFor, rampColors } from "@/lib/dashboard/paint";
+import {
+  RAMPS,
+  colorExpression,
+  fieldFor,
+  isRampId,
+  rampColors,
+  type RampId,
+} from "@/lib/dashboard/paint";
 import {
   DASHBOARD_LAYERS,
   DEFAULT_DASHBOARD_LAYERS,
+  LAYER_GROUPS,
   SATELLITE_TILES,
   YOURWALK_STANDARD_STYLE,
   type Basemap,
@@ -49,7 +57,6 @@ import {
   type DashboardLayerState,
 } from "@/lib/dashboard/layers";
 import { DASHBOARD_SOURCES, PENDING_DATA_NOTE } from "@/lib/dashboard/sources";
-import { evidencePopupHtml } from "@/lib/evidenceLayers";
 import {
   defaultLgaBoundaryUrl,
   defaultSegmentsGeoJsonUrl,
@@ -63,18 +70,40 @@ import { CASEY_BOUNDS } from "@/lib/scores";
 const INTRO_KEY = "yw-dashboard-intro-v2";
 
 const SEG_SRC = "dash-segments";
-const SEG_FILL = "dash-segments-fill";
-const SEG_LINE = "dash-segments-line";
+/**
+ * Two copies of the score paint (A and B) on one source. A colour change is
+ * drawn on the hidden copy, then the copies crossfade: Mapbox cannot tween a
+ * data-driven colour, but it can tween a plain opacity.
+ */
+const SEG_SETS = {
+  A: { fill: "dash-segments-fill-a", line: "dash-segments-line-a" },
+  B: { fill: "dash-segments-fill-b", line: "dash-segments-line-b" },
+} as const;
+type SegSet = keyof typeof SEG_SETS;
+const FADE_MS = 280;
 const AREA_SRC = "dash-area";
-const AREA_FILL = "dash-area-fill";
 const AREA_LINE = "dash-area-line";
+const MASK_SRC = "dash-mask";
+const MASK_FILL = "dash-mask-fill";
 const LGA_SRC = "dash-lga";
 const LGA_LINE = "dash-lga-line";
 const SAT_SRC = "dash-satellite";
 const SAT_LAYER = "dash-satellite-raster";
 
 const layerSrc = (id: DashboardLayerId) => `dash-ov-${id}`;
-const layerCircle = (id: DashboardLayerId) => `dash-ov-${id}-circle`;
+const layerDraw = (id: DashboardLayerId) => `dash-ov-${id}-draw`;
+
+const WORLD_RING: GeoJSON.Position[] = [
+  [-180, -85],
+  [180, -85],
+  [180, 85],
+  [-180, 85],
+  [-180, -85],
+];
+
+function prefersReducedMotion(): boolean {
+  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
 
 type Phase = "loading" | "ready" | "error";
 
@@ -92,6 +121,80 @@ const UNIT_WORD: Record<AreaUnit, { one: string; many: string }> = {
   suburb: { one: "suburb", many: "suburbs" },
   ward: { one: "ward", many: "wards" },
 };
+
+type SortOrder = "low" | "high" | "az";
+
+const SORT_OPTIONS: { id: SortOrder; label: string; title: string }[] = [
+  { id: "low", label: "Lowest", title: "Lowest score first" },
+  { id: "high", label: "Highest", title: "Highest score first" },
+  { id: "az", label: "A–Z", title: "Alphabetical" },
+];
+
+function sortLabel(s: SortOrder): string {
+  return SORT_OPTIONS.find((o) => o.id === s)?.title.toLowerCase() ?? "";
+}
+
+/** Low-first ranking from rankAreas, flipped or alphabetised; unscored stay last. */
+function sortAreas(ranked: AreaStats[], mode: IndexMode, view: ScoreView, sort: SortOrder): AreaStats[] {
+  if (sort === "low") return ranked;
+  if (sort === "az") return [...ranked].sort((a, b) => a.name.localeCompare(b.name));
+  const scored = ranked.filter((a) => areaValue(a, mode, view) != null).reverse();
+  return [...scored, ...ranked.filter((a) => areaValue(a, mode, view) == null)];
+}
+
+/** Count between values over ~400 ms (the CrashDash ticker feel). */
+function AnimatedNumber({ value, className }: { value: number | null; className?: string }) {
+  const [shown, setShown] = useState<number | null>(value);
+  const fromRef = useRef<number | null>(value);
+  useEffect(() => {
+    let raf = 0;
+    const from = fromRef.current;
+    if (value == null || from == null || prefersReducedMotion()) {
+      raf = requestAnimationFrame(() => setShown(value));
+      fromRef.current = value;
+      return () => cancelAnimationFrame(raf);
+    }
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / 420);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const next = from + (value - from) * eased;
+      setShown(t < 1 ? next : value);
+      fromRef.current = t < 1 ? next : value;
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+  return <span className={`tabular-nums ${className ?? ""}`}>{fmt10(shown)}</span>;
+}
+
+/** Rows glide to new positions when the order changes (FLIP). */
+function useFlip(listRef: React.RefObject<HTMLOListElement | null>, key: string) {
+  const tops = useRef<Map<string, number>>(new Map());
+  useLayoutEffect(() => {
+    const root = listRef.current;
+    if (!root) return;
+    const items = [...root.querySelectorAll<HTMLElement>("[data-flip-id]")];
+    const next = new Map<string, number>();
+    // offsetTop, not viewport position, so list scrolling is not read as movement
+    for (const el of items) next.set(el.dataset.flipId ?? "", el.offsetTop);
+    if (!prefersReducedMotion()) {
+      for (const el of items) {
+        const before = tops.current.get(el.dataset.flipId ?? "");
+        const after = next.get(el.dataset.flipId ?? "");
+        if (before == null || after == null || before === after) continue;
+        el.style.transition = "none";
+        el.style.transform = `translateY(${before - after}px)`;
+        requestAnimationFrame(() => {
+          el.style.transition = "transform 320ms cubic-bezier(0.22, 1, 0.36, 1)";
+          el.style.transform = "";
+        });
+      }
+    }
+    tops.current = next;
+  }, [listRef, key]);
+}
 
 const STREAM_COLOR = {
   Footpaths: "#27AAE1",
@@ -194,16 +297,37 @@ function segmentPopupHtml(p: GeoJSON.GeoJsonProperties, mode: IndexMode): string
     `Footpaths ${to10(foot)} · ${streamName(mode)} ${to10(third)}`,
     typeof conf === "string" ? `Confidence: ${conf}` : null,
   ].filter((x): x is string => Boolean(x));
-  return `<div class="yw-amenity-popup-body"><p class="yw-amenity-popup-title">Footpath segment</p>${lines
-    .map((l) => `<p class="yw-amenity-popup-line">${escapeOverlayHtml(l)}</p>`)
-    .join("")}</div>`;
+  return popupHtml("Footpath segment", lines);
 }
 
+const EMPTY_FC: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
+
 function hullFor(features: GeoJSON.Feature[]): GeoJSON.FeatureCollection {
-  const empty: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
-  if (!features.length) return empty;
+  if (!features.length) return EMPTY_FC;
   const hull = convex({ type: "FeatureCollection", features } as GeoJSON.FeatureCollection);
-  return hull ? { type: "FeatureCollection", features: [hull] } : empty;
+  return hull ? { type: "FeatureCollection", features: [hull] } : EMPTY_FC;
+}
+
+/** Soft boundary fade: veil the world with a hole cut for the selected area. */
+function maskFor(hull: GeoJSON.FeatureCollection): GeoJSON.FeatureCollection {
+  const poly = hull.features[0]?.geometry;
+  if (!poly || poly.type !== "Polygon") return EMPTY_FC;
+  return {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        properties: {},
+        geometry: { type: "Polygon", coordinates: [WORLD_RING, poly.coordinates[0]] },
+      },
+    ],
+  };
+}
+
+function popupHtml(title: string, lines: string[]): string {
+  return `<div class="yw-amenity-popup-body"><p class="yw-amenity-popup-title">${escapeOverlayHtml(title)}</p>${lines
+    .map((l) => `<p class="yw-amenity-popup-line">${escapeOverlayHtml(l)}</p>`)
+    .join("")}</div>`;
 }
 
 type MapState = {
@@ -213,6 +337,7 @@ type MapState = {
   selectedName: string | null;
   basemap: Basemap;
   layers: DashboardLayerState;
+  ramp: RampId;
 };
 
 export function CouncilDashboard() {
@@ -220,8 +345,10 @@ export function CouncilDashboard() {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const featuresRef = useRef<GeoJSON.Feature[]>([]);
   const lgaRef = useRef<GeoJSON.FeatureCollection | null>(null);
-  const hullRef = useRef<GeoJSON.FeatureCollection>({ type: "FeatureCollection", features: [] });
+  const hullRef = useRef<GeoJSON.FeatureCollection>(EMPTY_FC);
   const stateRef = useRef<MapState | null>(null);
+  const activeSetRef = useRef<SegSet>("A");
+  const paintKeyRef = useRef<string | null>(null);
   const handlersRef = useRef(false);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
   const locateMarkerRef = useRef<mapboxgl.Marker | null>(null);
@@ -246,6 +373,8 @@ export function CouncilDashboard() {
   const [query, setQuery] = useState("");
   const [introOpen, setIntroOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [ramp, setRamp] = useState<RampId>("current");
+  const [sort, setSort] = useState<SortOrder>("low");
 
   const areasByUnit = useMemo(
     () => ({
@@ -259,6 +388,9 @@ export function CouncilDashboard() {
     () => rankAreas(areasByUnit[unit], mode, view),
     [areasByUnit, unit, mode, view],
   );
+  const listed = useMemo(() => sortAreas(ranked, mode, view, sort), [ranked, mode, view, sort]);
+  const listRef = useRef<HTMLOListElement | null>(null);
+  useFlip(listRef, listed.map((a) => a.id).join("|"));
   const selected = useMemo(
     () => areasByUnit[unit].find((a) => a.id === selectedId) ?? null,
     [areasByUnit, unit, selectedId],
@@ -269,17 +401,19 @@ export function CouncilDashboard() {
   const selectedName = selected?.name ?? null;
   // Layout effect so map effects below always read the current state.
   useLayoutEffect(() => {
-    stateRef.current = { mode, view, unit, selectedName, basemap, layers };
-  }, [mode, view, unit, selectedName, basemap, layers]);
+    stateRef.current = { mode, view, unit, selectedName, basemap, layers, ramp };
+  }, [mode, view, unit, selectedName, basemap, layers, ramp]);
 
   /* eslint-disable react-hooks/set-state-in-effect -- one-time client
-     read from localStorage; cannot be lazy-initialised under SSR */
+     read from localStorage and the URL; cannot be lazy-initialised under SSR */
   useEffect(() => {
     try {
       if (window.localStorage.getItem(INTRO_KEY) !== "1") setIntroOpen(true);
     } catch {
       setIntroOpen(true);
     }
+    const r = new URLSearchParams(window.location.search).get("ramp");
+    if (isRampId(r)) setRamp(r);
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -292,26 +426,19 @@ export function CouncilDashboard() {
     }
   };
 
-  /** Paint and filters that depend on Day/Night, unit, selection, basemap. */
-  const applyPaint = useCallback((map: mapboxgl.Map) => {
+  /**
+   * Paint that depends on Day/Night, the part shown, selection and basemap.
+   * With `animate`, a colour change crossfades between the A and B copies.
+   */
+  const applyPaint = useCallback((map: mapboxgl.Map, animate = false) => {
     const s = stateRef.current;
-    if (!s || !map.getLayer(SEG_FILL)) return;
+    if (!s || !map.getLayer(SEG_SETS.A.fill)) return;
     const sat = s.basemap === "satellite";
-    const color = colorExpression(fieldFor(s.mode, s.view));
-    const on = sat ? 0.62 : 0.8;
-    const off = sat ? 0.14 : 0.2;
-    const inArea: ExpressionSpecification | null = s.selectedName
-      ? ["==", ["get", s.unit], s.selectedName]
-      : null;
-    map.setPaintProperty(SEG_FILL, "fill-color", color);
-    map.setPaintProperty(SEG_FILL, "fill-opacity", inArea ? ["case", inArea, on, off] : on);
-    map.setPaintProperty(SEG_LINE, "line-color", color);
-    map.setPaintProperty(
-      SEG_LINE,
-      "line-opacity",
-      inArea ? ["case", inArea, sat ? 0.8 : 0.95, off] : sat ? 0.8 : 0.95,
-    );
-    map.setPaintProperty(SEG_LINE, "line-width", [
+    const field = fieldFor(s.mode, s.view);
+    const key = `${field}:${s.ramp}`;
+    const fillOn = sat ? 0.62 : 0.8;
+    const lineOn = sat ? 0.8 : 0.95;
+    const width: ExpressionSpecification = [
       "interpolate",
       ["linear"],
       ["zoom"],
@@ -321,9 +448,43 @@ export function CouncilDashboard() {
       sat ? 1.2 : 1.6,
       16,
       sat ? 1.6 : 2.4,
-    ]);
-    const areaSrc = map.getSource(AREA_SRC) as mapboxgl.GeoJSONSource | undefined;
-    areaSrc?.setData(hullRef.current);
+    ];
+    const setOpacity = (set: SegSet, on: boolean) => {
+      map.setPaintProperty(SEG_SETS[set].fill, "fill-opacity", on ? fillOn : 0);
+      map.setPaintProperty(SEG_SETS[set].line, "line-opacity", on ? lineOn : 0);
+    };
+    const setColor = (set: SegSet) => {
+      const color = colorExpression(field, s.ramp);
+      map.setPaintProperty(SEG_SETS[set].fill, "fill-color", color);
+      map.setPaintProperty(SEG_SETS[set].line, "line-color", color);
+    };
+    for (const set of ["A", "B"] as const) map.setPaintProperty(SEG_SETS[set].line, "line-width", width);
+
+    const active = activeSetRef.current;
+    const hidden: SegSet = active === "A" ? "B" : "A";
+    if (paintKeyRef.current !== key) {
+      if (animate && paintKeyRef.current != null && !prefersReducedMotion()) {
+        setColor(hidden);
+        setOpacity(hidden, true);
+        setOpacity(active, false);
+        activeSetRef.current = hidden;
+      } else {
+        setColor(active);
+        setOpacity(active, true);
+        setOpacity(hidden, false);
+      }
+      paintKeyRef.current = key;
+    } else {
+      setOpacity(activeSetRef.current, true);
+    }
+
+    (map.getSource(AREA_SRC) as mapboxgl.GeoJSONSource | undefined)?.setData(hullRef.current);
+    (map.getSource(MASK_SRC) as mapboxgl.GeoJSONSource | undefined)?.setData(maskFor(hullRef.current));
+    if (map.getLayer(MASK_FILL)) {
+      const veil = sat ? "#0B0C1A" : s.mode === "night" ? "#14152A" : "#F5F7FA";
+      map.setPaintProperty(MASK_FILL, "fill-color", veil);
+      map.setPaintProperty(MASK_FILL, "fill-opacity", sat ? 0.45 : s.mode === "night" ? 0.5 : 0.62);
+    }
     if (map.getLayer(LGA_LINE)) {
       map.setPaintProperty(LGA_LINE, "line-color", sat ? "#ffffff" : "#292984");
     }
@@ -334,7 +495,7 @@ export function CouncilDashboard() {
 
   const ensureOverlay = useCallback((map: mapboxgl.Map, def: DashboardLayerDef, visible: boolean) => {
     const src = layerSrc(def.id);
-    const lyr = layerCircle(def.id);
+    const lyr = layerDraw(def.id);
     if (!visible) {
       if (map.getLayer(lyr)) map.setLayoutProperty(lyr, "visibility", "none");
       return;
@@ -343,19 +504,50 @@ export function CouncilDashboard() {
       map.addSource(src, { type: "geojson", data: def.url() });
     }
     if (!map.getLayer(lyr)) {
-      map.addLayer({
-        id: lyr,
-        type: "circle",
-        source: src,
-        paint: {
-          "circle-color": def.color,
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 11, def.radius[0], 16, def.radius[1]],
-          "circle-stroke-color": def.kind === "evidence" ? "rgba(15,23,42,0.45)" : "#ffffff",
-          "circle-stroke-width": def.kind === "evidence" ? 0.5 : 1.4,
-          "circle-opacity": 0.95,
-          "circle-emissive-strength": 1,
-        },
-      });
+      // Area layers sit under the score paint so paths stay on top
+      const before = def.under && map.getLayer(SEG_SETS.A.fill) ? SEG_SETS.A.fill : undefined;
+      const d = def.draw;
+      if (d.type === "circle") {
+        map.addLayer({
+          id: lyr,
+          type: "circle",
+          source: src,
+          paint: {
+            "circle-color": d.color,
+            "circle-radius": ["interpolate", ["linear"], ["zoom"], 11, d.radius[0], 16, d.radius[1]],
+            "circle-stroke-color": d.stroke === "dark" ? "rgba(15,23,42,0.45)" : "#ffffff",
+            "circle-stroke-width": d.stroke === "dark" ? 0.5 : 1.4,
+            "circle-opacity": 0.95,
+            "circle-emissive-strength": 1,
+          },
+        });
+      } else if (d.type === "fill") {
+        map.addLayer(
+          {
+            id: lyr,
+            type: "fill",
+            source: src,
+            paint: { "fill-color": d.color, "fill-opacity": d.opacity, "fill-emissive-strength": 1 },
+          },
+          before,
+        );
+      } else {
+        map.addLayer(
+          {
+            id: lyr,
+            type: "line",
+            source: src,
+            layout: { "line-cap": "round", "line-join": "round" },
+            paint: {
+              "line-color": d.color,
+              "line-width": ["interpolate", ["linear"], ["zoom"], 11, d.width[0], 16, d.width[1]],
+              "line-opacity": 0.85,
+              "line-emissive-strength": 1,
+            },
+          },
+          before,
+        );
+      }
     }
     map.setLayoutProperty(lyr, "visibility", "visible");
   }, []);
@@ -399,29 +591,37 @@ export function CouncilDashboard() {
           tolerance: 0,
           buffer: 128,
         });
-        // Emissive so Standard's dusk light preset does not dim the evidence
+        const fade = { duration: prefersReducedMotion() ? 0 : FADE_MS, delay: 0 };
+        for (const set of ["A", "B"] as const) {
+          // Emissive so Standard's dusk light preset does not dim the evidence
+          map.addLayer({
+            id: SEG_SETS[set].fill,
+            type: "fill",
+            source: SEG_SRC,
+            paint: { "fill-emissive-strength": 1, "fill-opacity": 0, "fill-opacity-transition": fade },
+          });
+          map.addLayer({
+            id: SEG_SETS[set].line,
+            type: "line",
+            source: SEG_SRC,
+            layout: { "line-cap": "round", "line-join": "round" },
+            paint: { "line-emissive-strength": 1, "line-opacity": 0, "line-opacity-transition": fade },
+          });
+        }
+        activeSetRef.current = "A";
+        paintKeyRef.current = null;
+      }
+      if (!map.getSource(MASK_SRC)) {
+        map.addSource(MASK_SRC, { type: "geojson", data: maskFor(hullRef.current) });
         map.addLayer({
-          id: SEG_FILL,
+          id: MASK_FILL,
           type: "fill",
-          source: SEG_SRC,
-          paint: { "fill-emissive-strength": 1 },
-        });
-        map.addLayer({
-          id: SEG_LINE,
-          type: "line",
-          source: SEG_SRC,
-          layout: { "line-cap": "round", "line-join": "round" },
-          paint: { "line-emissive-strength": 1 },
+          source: MASK_SRC,
+          paint: { "fill-emissive-strength": 1, "fill-opacity-transition": { duration: 300, delay: 0 } },
         });
       }
       if (!map.getSource(AREA_SRC)) {
         map.addSource(AREA_SRC, { type: "geojson", data: hullRef.current });
-        map.addLayer({
-          id: AREA_FILL,
-          type: "fill",
-          source: AREA_SRC,
-          paint: { "fill-color": "#00AAA6", "fill-opacity": 0.06, "fill-emissive-strength": 1 },
-        });
         map.addLayer({
           id: AREA_LINE,
           type: "line",
@@ -452,23 +652,33 @@ export function CouncilDashboard() {
         .addTo(map);
     };
 
+    const AMENITIES: DashboardLayerId[] = ["fountains", "benches", "toilets", "dog_bags"];
+
     map.on("click", (e) => {
-      const overlayIds = DASHBOARD_LAYERS.map((d) => layerCircle(d.id)).filter((id) => map.getLayer(id));
-      const hits = map.queryRenderedFeatures(e.point, {
-        layers: [...overlayIds, ...(map.getLayer(SEG_FILL) ? [SEG_FILL, SEG_LINE] : [])],
-      });
-      const hit = hits[0];
+      const visible = (id: string) =>
+        map.getLayer(id) && map.getLayoutProperty(id, "visibility") !== "none";
+      // Points first, then paths, then area layers under the paths
+      const points = DASHBOARD_LAYERS.filter((d) => !d.under).map((d) => layerDraw(d.id));
+      const areas = DASHBOARD_LAYERS.filter((d) => d.under).map((d) => layerDraw(d.id));
+      const seg = SEG_SETS[activeSetRef.current];
+      const order = [...points, seg.line, seg.fill, ...areas].filter(visible);
+      const hits = map.queryRenderedFeatures(e.point, { layers: order });
+      const hit = [...hits].sort(
+        (a, b) => order.indexOf(a.layer?.id ?? "") - order.indexOf(b.layer?.id ?? ""),
+      )[0];
       if (!hit) {
         popupRef.current?.remove();
         return;
       }
       const layerId = hit.layer?.id ?? "";
-      const def = DASHBOARD_LAYERS.find((d) => layerCircle(d.id) === layerId);
+      const def = DASHBOARD_LAYERS.find((d) => layerDraw(d.id) === layerId);
       if (def) {
-        const html =
-          def.kind === "evidence"
-            ? evidencePopupHtml(def.id as "street_lights" | "park_lights", hit.properties)
-            : overlayPopupHtml(def.id as OverlayId, hit.properties);
+        const html = AMENITIES.includes(def.id)
+          ? overlayPopupHtml(def.id as OverlayId, hit.properties)
+          : (() => {
+              const c = def.popup(hit.properties);
+              return popupHtml(c.title, [...c.lines, def.note]);
+            })();
         showPopup(e.lngLat, html);
         return;
       }
@@ -477,7 +687,11 @@ export function CouncilDashboard() {
 
     const pointer = () => (map.getCanvas().style.cursor = "pointer");
     const clear = () => (map.getCanvas().style.cursor = "");
-    for (const id of [SEG_FILL, ...DASHBOARD_LAYERS.map((d) => layerCircle(d.id))]) {
+    for (const id of [
+      SEG_SETS.A.fill,
+      SEG_SETS.B.fill,
+      ...DASHBOARD_LAYERS.filter((d) => !d.under).map((d) => layerDraw(d.id)),
+    ]) {
       map.on("mouseenter", id, pointer);
       map.on("mouseleave", id, clear);
     }
@@ -557,16 +771,16 @@ export function CouncilDashboard() {
     const map = mapRef.current;
     if (!map || phase !== "ready") return;
     applyLook(map, mode);
-    applyPaint(map);
+    applyPaint(map, true);
     popupRef.current?.remove();
-  }, [mode, view, phase, applyPaint]);
+  }, [mode, view, ramp, phase, applyPaint]);
 
   // Selection: outline, soft fade, fit bounds
   useEffect(() => {
     const map = mapRef.current;
     if (!map || phase !== "ready") return;
     if (!selected) {
-      hullRef.current = { type: "FeatureCollection", features: [] };
+      hullRef.current = EMPTY_FC;
       applyPaint(map);
       return;
     }
@@ -716,7 +930,7 @@ export function CouncilDashboard() {
         <img src="/brand/yourwalk-mark.svg" alt="" width={36} height={28} className="h-7 w-auto" aria-hidden />
         <div className="leading-none">
           <p className="text-lg font-extrabold tracking-tight text-yw-navy">YourWalk</p>
-          <p className="mt-0.5 text-[11px] font-medium text-slate-500">Council insights</p>
+          <p className="mt-0.5 text-[12px] font-medium text-slate-500">Council insights</p>
         </div>
         <div className="mx-1 h-7 w-px bg-[#E8ECF2]" aria-hidden />
         <SegmentedPill
@@ -728,12 +942,12 @@ export function CouncilDashboard() {
           className="h-9! w-40!"
         />
         <span
-          className="rounded-md bg-yw-navy/8 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-yw-navy ring-1 ring-yw-navy/15"
+          className="rounded-md bg-yw-navy/8 px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-yw-navy ring-1 ring-yw-navy/15"
           title="Pilot build for City of Casey staff"
         >
           {BETA_LABEL}
         </span>
-        <span className="rounded-md bg-yw-day-surface px-1.5 py-0.5 font-mono text-[10px] text-slate-600 ring-1 ring-[#E8ECF2]">
+        <span className="rounded-md bg-yw-day-surface px-1.5 py-0.5 font-mono text-[11px] text-slate-600 ring-1 ring-[#E8ECF2]">
           scores {spec}
         </span>
         <div className="ml-auto flex items-center gap-3">
@@ -751,7 +965,7 @@ export function CouncilDashboard() {
 
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[20rem_minmax(0,1fr)_22rem]">
         <aside className="order-2 min-h-0 overflow-y-auto border-[#E8ECF2] bg-white p-4 lg:order-1 lg:border-r">
-          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">
             {selected ? `Selected ${UNIT_WORD[unit].one}` : "City of Casey"}
           </p>
           <AreaCard
@@ -768,22 +982,22 @@ export function CouncilDashboard() {
             empty={!selected}
           />
 
-          <p className="mt-4 text-[11px] leading-snug text-slate-600">
+          <p className="mt-4 text-[12px] leading-snug text-slate-600">
             Crossings and kerb ramps are not in the data yet. Scores describe conditions in the data; they are not a
             promise that a walk will feel safe.
           </p>
 
-          <details className="group mt-4 rounded-xl ring-1 ring-[#E8ECF2]">
+          <details className="group mt-4 rounded-lg ring-1 ring-[#E8ECF2]">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 [&::-webkit-details-marker]:hidden">
               <span>
                 <span className="block text-[12px] font-bold text-yw-navy">
                   Data sources · {DASHBOARD_SOURCES.length}
                 </span>
-                <span className="block text-[11px] text-slate-500">
+                <span className="block text-[12px] text-slate-500">
                   {scoredAt ? `Scored ${scoredAt}` : `Scores ${spec}`} · heat data 2018
                 </span>
               </span>
-              <MdExpandMore className="h-5 w-5 shrink-0 text-slate-400 transition-transform group-open:rotate-180" aria-hidden />
+              <MdExpandMore className="h-5 w-5 shrink-0 text-slate-500 transition-transform group-open:rotate-180" aria-hidden />
             </summary>
             <div className="border-t border-[#E8ECF2] px-3 pb-3">
               <ul className="divide-y divide-[#E8ECF2]">
@@ -796,16 +1010,16 @@ export function CouncilDashboard() {
                       className="flex items-center gap-1 text-[12px] font-semibold text-yw-navy hover:underline"
                     >
                       {s.name}
-                      <MdOpenInNew className="h-3 w-3 shrink-0 text-slate-400" aria-label="opens in a new tab" />
+                      <MdOpenInNew className="h-3 w-3 shrink-0 text-slate-500" aria-label="opens in a new tab" />
                     </a>
-                    <p className="text-[11px] text-slate-500">
+                    <p className="text-[12px] text-slate-500">
                       {s.vintage} · {s.role}
                     </p>
                   </li>
                 ))}
               </ul>
-              <p className="mt-2 text-[11px] leading-snug text-slate-500">{PENDING_DATA_NOTE}</p>
-              <p className="mt-2 text-[11px] leading-snug text-slate-500">
+              <p className="mt-2 text-[12px] leading-snug text-slate-500">{PENDING_DATA_NOTE}</p>
+              <p className="mt-2 text-[12px] leading-snug text-slate-500">
                 Methodology v1.1 · scores {spec}
                 {scoredAt ? ` · scored ${scoredAt}` : ""}.
               </p>
@@ -828,7 +1042,7 @@ export function CouncilDashboard() {
           ) : null}
           {phase === "error" ? (
             <div className="absolute inset-0 z-10 grid place-items-center p-6">
-              <p className="max-w-md rounded-xl bg-white p-4 text-[13px] text-slate-700 shadow ring-1 ring-[#E8ECF2]">
+              <p className="max-w-md rounded-lg bg-white p-4 text-[13px] text-slate-700 shadow ring-1 ring-[#E8ECF2]">
                 The map could not load. {error}
               </p>
             </div>
@@ -850,7 +1064,7 @@ export function CouncilDashboard() {
             >
               <MdLayers className="h-5 w-5" aria-hidden />
               {layersOnCount > 0 ? (
-                <span className="absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full border-2 border-white bg-yw-navy px-1 text-[10px] font-extrabold text-white">
+                <span className="absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full border-2 border-white bg-yw-navy px-1 text-[11px] font-extrabold text-white">
                   {layersOnCount}
                 </span>
               ) : null}
@@ -860,7 +1074,7 @@ export function CouncilDashboard() {
                 id="dash-layers-menu"
                 role="dialog"
                 aria-label="Map layers"
-                className="absolute left-0 top-[52px] w-72 rounded-2xl bg-white p-3 shadow-xl ring-1 ring-black/10"
+                className="yw-sheet-scroll absolute left-0 top-[52px] max-h-[calc(100dvh-9rem)] w-80 overflow-y-auto rounded-lg bg-white p-3 shadow-xl ring-1 ring-black/10"
               >
                 <div className="mb-2 flex items-center justify-between border-b border-[#E8ECF2] pb-2">
                   <p className="text-[13px] font-extrabold text-yw-navy">Map layers</p>
@@ -873,7 +1087,7 @@ export function CouncilDashboard() {
                     <MdClose className="h-4 w-4" aria-hidden />
                   </button>
                 </div>
-                <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">Basemap</p>
+                <p className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">Basemap</p>
                 <div className="mb-3 grid grid-cols-2 gap-1.5">
                   {(
                     [
@@ -886,7 +1100,7 @@ export function CouncilDashboard() {
                       type="button"
                       aria-pressed={basemap === id}
                       onClick={() => setBasemap(id)}
-                      className={`flex h-10 items-center justify-center gap-1.5 rounded-lg text-[12px] font-bold ring-1 ${
+                      className={`flex h-10 items-center justify-center gap-1.5 rounded-md text-[12px] font-bold ring-1 ${
                         basemap === id
                           ? "bg-yw-navy text-white ring-yw-navy"
                           : "bg-yw-day-surface text-slate-600 ring-[#E8ECF2]"
@@ -897,34 +1111,42 @@ export function CouncilDashboard() {
                     </button>
                   ))}
                 </div>
-                <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">Casey assets</p>
-                <ul className="space-y-0.5">
-                  {DASHBOARD_LAYERS.map((def) => (
-                    <li key={def.id}>
-                      <label className="flex min-h-11 cursor-pointer items-start gap-2 rounded-lg px-1.5 py-1.5 hover:bg-yw-day-surface">
-                        <input
-                          type="checkbox"
-                          className="yw-check mt-0.5"
-                          checked={layers[def.id]}
-                          onChange={(e) => setLayers((prev) => ({ ...prev, [def.id]: e.target.checked }))}
-                        />
-                        <span
-                          aria-hidden
-                          className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-black/15"
-                          style={{ background: def.color }}
-                        />
-                        <span className="min-w-0">
-                          <span className="block text-[12px] font-bold text-slate-900">{def.label}</span>
-                          <span className="block text-[10px] leading-snug text-slate-500">{def.note}</span>
-                        </span>
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-2 text-[10px] leading-snug text-slate-500">
-                  Default off. Turning a layer on never changes a Day or Night number.
+                {LAYER_GROUPS.map((group) => (
+                  <div key={group.id} className="mb-2">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">{group.label}</p>
+                    <p className="mb-1 text-[11px] text-slate-500">{group.hint}</p>
+                    <ul className="space-y-0.5">
+                      {DASHBOARD_LAYERS.filter((d) => d.group === group.id).map((def) => (
+                        <li key={def.id}>
+                          <label className="flex min-h-11 cursor-pointer items-start gap-2 rounded-md px-1.5 py-1.5 hover:bg-yw-day-surface">
+                            <input
+                              type="checkbox"
+                              className="yw-check mt-0.5"
+                              checked={layers[def.id]}
+                              onChange={(e) => setLayers((prev) => ({ ...prev, [def.id]: e.target.checked }))}
+                            />
+                            <span
+                              aria-hidden
+                              className={`mt-1 h-2.5 w-2.5 shrink-0 ring-1 ring-black/15 ${
+                                def.draw.type === "circle" ? "rounded-full" : "rounded-sm"
+                              }`}
+                              style={{ background: def.swatch }}
+                            />
+                            <span className="min-w-0">
+                              <span className="block text-[12px] font-bold text-slate-900">{def.label}</span>
+                              <span className="block text-[11px] leading-snug text-slate-500">{def.note}</span>
+                            </span>
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+                <p className="mt-2 text-[11px] leading-snug text-slate-500">
+                  Default off. Turning a layer on never changes a Day or Night number. Graffiti and night crashes also
+                  feed the score; they wait on a wording review before they appear here.
                 </p>
-                {layerError ? <p className="mt-1 text-[10px] text-[#b91c1c]">{layerError}</p> : null}
+                {layerError ? <p className="mt-1 text-[11px] text-[#b91c1c]">{layerError}</p> : null}
               </div>
             ) : null}
           </div>
@@ -959,7 +1181,7 @@ export function CouncilDashboard() {
               }}
               placeholder={`Search ${UNIT_WORD[unit].one}`}
               aria-label={`Search ${UNIT_WORD[unit].one}`}
-              className="h-10 w-full max-w-md rounded-xl border border-[#E8ECF2] bg-white px-3 text-[13px] shadow-md"
+              className="h-10 w-full max-w-md rounded-lg border border-[#E8ECF2] bg-white px-3 text-[13px] shadow-md"
             />
             <datalist id="dash-area-names">
               {areasByUnit[unit].map((a) => (
@@ -977,33 +1199,52 @@ export function CouncilDashboard() {
             </p>
           ) : null}
 
-          <div className="absolute bottom-3 left-3 z-10 w-60 rounded-xl bg-white p-3 shadow-md ring-1 ring-[#E8ECF2]">
-            <p className="text-[11px] font-extrabold text-yw-navy">
+          <div className="absolute bottom-3 left-3 z-10 w-64 rounded-lg bg-white p-3 shadow-md ring-1 ring-[#E8ECF2]">
+            <p className="text-[12px] font-extrabold text-yw-navy">
               {singleStream ? `${showing} only · ${indexLabel}` : `${indexLabel} score`}
             </p>
-            <p className="mt-1 text-[11px] leading-snug text-slate-600">
+            <p className="mt-1 text-[12px] leading-snug text-slate-600">
               Higher = better walking conditions. Colours are stretched across Casey.
               {singleStream ? ` One part of the ${indexLabel} score, not the score itself.` : ""}
             </p>
             <div
               className="mt-2 h-2 rounded-full"
               aria-hidden
-              style={{ background: `linear-gradient(90deg, ${rampColors().join(", ")})` }}
+              style={{ background: `linear-gradient(90deg, ${rampColors(ramp).join(", ")})` }}
             />
-            <div className="mt-1 flex justify-between text-[10px] text-slate-500">
+            <div className="mt-1 flex justify-between text-[11px] text-slate-500">
               <span>Weaker</span>
               <span>Better</span>
             </div>
             {selected ? (
-              <p className="mt-2 text-[10px] leading-snug text-slate-500">
+              <p className="mt-2 text-[11px] leading-snug text-slate-500">
                 Dashed outline is the extent of scored footpaths in {selected.name}, not the official boundary.
               </p>
+            ) : null}
+            {process.env.NODE_ENV === "development" ? (
+              <label className="mt-2 flex items-center gap-1.5 border-t border-[#E8ECF2] pt-2 text-[11px] text-slate-500">
+                Colour scale (review)
+                <select
+                  value={ramp}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    if (isRampId(next)) setRamp(next);
+                  }}
+                  className="min-w-0 flex-1 rounded-md border border-[#E8ECF2] bg-white px-1 py-0.5 text-[12px] text-slate-700"
+                >
+                  {(Object.keys(RAMPS) as RampId[]).map((id) => (
+                    <option key={id} value={id}>
+                      {RAMPS[id].label}
+                    </option>
+                  ))}
+                </select>
+              </label>
             ) : null}
           </div>
         </section>
 
         <aside className="order-3 min-h-0 overflow-y-auto border-[#E8ECF2] bg-white p-4 lg:border-l">
-          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">View by</p>
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">View by</p>
           <SegmentedPill
             value={unit}
             options={hasWard ? UNIT_OPTIONS : UNIT_OPTIONS.slice(0, 1)}
@@ -1012,55 +1253,67 @@ export function CouncilDashboard() {
             ariaLabel="Area unit"
             className="mb-4 h-9!"
           />
-          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">
-            Weaker {UNIT_WORD[unit].many} · {singleStream ? `${showing} only (${indexLabel})` : `${indexLabel} score`}
-          </p>
-          <ol className="space-y-0.5" aria-label={`${UNIT_WORD[unit].many} ranked weakest first on ${showing}`}>
-            {ranked.map((a, i) => {
+          <div className="mb-2 flex items-end justify-between gap-2">
+            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">
+              {UNIT_WORD[unit].many} · {singleStream ? `${showing} only (${indexLabel})` : `${indexLabel} score`}
+            </p>
+            <div role="radiogroup" aria-label="Sort the list" className="flex shrink-0 rounded-md bg-yw-day-surface p-0.5 ring-1 ring-[#E8ECF2]">
+              {SORT_OPTIONS.map((o) => (
+                <button
+                  key={o.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={sort === o.id}
+                  title={o.title}
+                  onClick={() => setSort(o.id)}
+                  className={`rounded px-1.5 py-0.5 text-[11px] font-bold ${
+                    sort === o.id ? "bg-white text-yw-navy shadow-sm ring-1 ring-[#E8ECF2]" : "text-slate-500"
+                  }`}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <ol ref={listRef} className="space-y-0.5" aria-label={`${UNIT_WORD[unit].many}, ${sortLabel(sort)}, on ${showing}`}>
+            {listed.map((a) => {
               const on = a.id === selectedId;
               const held = singleStream ? null : heldBackBy(a, casey, mode);
               const hint = held?.kind === "stream" ? `Mainly ${held.name.toLowerCase()}` : null;
               const v = areaValue(a, mode, view);
               return (
-                <li key={a.id}>
+                <li key={a.id} data-flip-id={a.id}>
                   <button
                     type="button"
                     aria-pressed={on}
                     onClick={() => (on ? clearSelection() : selectArea(a))}
-                    className={`flex min-h-11 w-full items-center gap-2.5 rounded-xl border px-2 py-1.5 text-left ${
+                    className={`flex min-h-11 w-full items-center gap-2.5 rounded-md border px-2 py-1.5 text-left ${
                       on ? "border-yw-teal bg-yw-day-surface" : "border-transparent hover:bg-yw-day-surface"
                     }`}
                   >
-                    <span
-                      className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-extrabold ${
-                        on ? "bg-yw-teal text-white" : "bg-yw-day-surface text-slate-600"
-                      }`}
-                    >
-                      {i + 1}
-                    </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[13px] font-bold text-slate-900">{a.name}</span>
                       {hint || a.thin ? (
-                        <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+                        <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[12px] text-slate-500">
                           {hint ? <span>{hint}</span> : null}
                           {a.thin ? (
-                            <span className="rounded px-1.5 py-px text-[10px] font-bold text-slate-500 ring-1 ring-[#E8ECF2]">
+                            <span className="rounded px-1.5 py-px text-[11px] font-bold text-slate-500 ring-1 ring-[#E8ECF2]">
                               Thin data
                             </span>
                           ) : null}
                         </span>
                       ) : null}
                     </span>
-                    <span className="text-[16px] font-extrabold text-yw-navy">{fmt10(v)}</span>
+                    <AnimatedNumber value={v} className="text-[16px] font-extrabold text-yw-navy" />
                   </button>
                 </li>
               );
             })}
           </ol>
-          <p className="mt-3 text-[11px] leading-snug text-slate-500">
-            All scores are out of 10. Casey {showing.toLowerCase()}:{" "}
-            {fmt10(areaValue(casey, mode, view))}. Averages are weighted by path length, {UNIT_WORD[unit].one} as tagged
-            on Casey footpaths. &ldquo;Mainly&rdquo; names the part that pulls the score furthest below Casey.
+          <p className="mt-3 text-[12px] leading-snug text-slate-500">
+            All scores are out of 10. Casey {showing.toLowerCase()}: {fmt10(areaValue(casey, mode, view))}. Averages are
+            weighted by path length, {UNIT_WORD[unit].one} as tagged on Casey footpaths. &ldquo;Mainly&rdquo; names the
+            part that pulls the score furthest below the Casey average.
           </p>
         </aside>
       </div>
@@ -1071,7 +1324,7 @@ export function CouncilDashboard() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="dash-intro-title"
-            className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl"
+            className="w-full max-w-md rounded-lg bg-white p-5 shadow-2xl"
           >
             <p id="dash-intro-title" className="text-[16px] font-extrabold text-yw-navy">
               How to read Council insights
@@ -1091,7 +1344,7 @@ export function CouncilDashboard() {
               </li>
             </ul>
             {example && exampleParts ? (
-              <div className="mt-3 rounded-xl bg-yw-day-surface p-3 text-[12px] leading-snug text-slate-700 ring-1 ring-[#E8ECF2]">
+              <div className="mt-3 rounded-lg bg-yw-day-surface p-3 text-[12px] leading-snug text-slate-700 ring-1 ring-[#E8ECF2]">
                 <p className="font-bold text-yw-navy">Example: {example.name}, Day</p>
                 <p className="mt-1">
                   Footpaths {fmt10(exampleParts.footpaths.points)} of 6, plus heat and shade{" "}
@@ -1100,7 +1353,7 @@ export function CouncilDashboard() {
                 </p>
               </div>
             ) : null}
-            <p className="mt-3 text-[11px] leading-snug text-slate-500">
+            <p className="mt-3 text-[12px] leading-snug text-slate-500">
               Crossings and kerb ramps are not in the data yet. Heat data is from 2018. Scores are not a promise that a
               walk will feel safe.
             </p>
@@ -1155,11 +1408,11 @@ function AreaCard({
   const headline = areaValue(stats, mode, view);
   const headlineCasey = isCasey ? null : areaValue(casey, mode, view);
   return (
-    <div className="rounded-xl bg-yw-day-surface p-3.5 ring-1 ring-[#E8ECF2]">
+    <div className="rounded-lg bg-yw-day-surface p-3.5 ring-1 ring-[#E8ECF2]">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate text-[16px] font-extrabold text-yw-navy">{title}</p>
-          <p className="text-[11px] text-slate-500">
+          <p className="text-[12px] text-slate-500">
             {stats.segments.toLocaleString()} scored segments · {stats.lengthKm.toLocaleString()} km · {unitLabel}
           </p>
         </div>
@@ -1176,23 +1429,28 @@ function AreaCard({
       </div>
       <div className="my-3 flex items-end justify-between gap-2">
         <div>
-          <p className="text-[11px] font-semibold text-slate-700">{headlineLabel}</p>
-          <p className="text-[11px] text-slate-500">
+          <p className="text-[12px] font-semibold text-slate-700">{headlineLabel}</p>
+          <p className="text-[12px] text-slate-500">
             {view === "index" ? "Out of 10 · higher is better" : `One part of the ${indexName}`}
           </p>
         </div>
         <div className="text-right" aria-live="polite">
           <p>
-            <span className="text-[36px] font-extrabold leading-none tracking-tight text-yw-navy">{fmt10(headline)}</span>
+            <AnimatedNumber
+              value={headline}
+              className="text-[36px] font-extrabold leading-none tracking-tight text-yw-navy"
+            />
             <span className="ml-0.5 text-[12px] font-semibold text-slate-500">/ 10</span>
           </p>
           {headlineCasey != null ? (
-            <p className="text-[11px] text-slate-500">Casey average {fmt10(headlineCasey)}</p>
+            <p className="text-[12px] text-slate-500">
+              Casey average <AnimatedNumber value={headlineCasey} />
+            </p>
           ) : null}
         </div>
       </div>
 
-      <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">
+      <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">
         Parts · tap to show one on the map
       </p>
       <PartRow
@@ -1214,23 +1472,23 @@ function AreaCard({
       <div className="mt-1.5 flex items-center justify-between border-t border-[#E8ECF2] pt-1.5">
         <span className="text-[12px] font-bold text-slate-700">
           {indexName}
-          <span className="font-medium text-slate-400">
+          <span className="font-medium text-slate-500">
             {" "}
-            = {fmt10(parts.footpaths.points)} + {fmt10(parts.stream.points)}
+            = <AnimatedNumber value={parts.footpaths.points} /> + <AnimatedNumber value={parts.stream.points} />
           </span>
         </span>
         <span className="text-[12px] font-extrabold text-yw-navy">
-          {fmt10(parts.total)} <span className="font-medium text-slate-400">/ 10</span>
+          <AnimatedNumber value={parts.total} /> <span className="font-medium text-slate-500">/ 10</span>
         </span>
       </div>
 
       {heldText ? <p className="mt-2 text-[12px] font-semibold leading-snug text-slate-700">{heldText}</p> : null}
-      <p className="mt-2 text-[11px] leading-snug text-slate-500">
+      <p className="mt-2 text-[12px] leading-snug text-slate-500">
         {conf}
         {thin ? " Few scored paths here, so treat this with care." : ""}
       </p>
       {empty ? (
-        <p className="mt-2 text-[11px] leading-snug text-slate-500">
+        <p className="mt-2 text-[12px] leading-snug text-slate-500">
           Pick a row on the right or search to focus one area. Click a path for its scores.
         </p>
       ) : null}
@@ -1264,7 +1522,7 @@ function PartRow({
   const pct = Math.max(0, Math.min(100, (part.score ?? 0) * 10));
   const tick = casey == null ? null : Math.max(0, Math.min(100, casey * 10));
   return (
-    <div className={`my-1 rounded-lg px-1.5 py-1.5 ${on ? "" : "opacity-55"}`}>
+    <div className={`my-1 rounded-md px-1.5 py-1.5 ${on ? "" : "opacity-55"}`}>
       <div className="flex items-center gap-2">
         <button
           type="button"
@@ -1288,8 +1546,8 @@ function PartRow({
           </span>
           <span className="min-w-0 flex-1 text-[12px] font-bold text-slate-800">{part.name}</span>
           <span className="text-[13px] font-extrabold text-slate-800">
-            {fmt10(part.score)}
-            <span className="text-[11px] font-medium text-slate-400"> /10</span>
+            <AnimatedNumber value={part.score} />
+            <span className="text-[12px] font-medium text-slate-500"> /10</span>
           </span>
         </button>
         <button
@@ -1297,7 +1555,7 @@ function PartRow({
           onClick={() => setHelpOpen((o) => !o)}
           aria-expanded={helpOpen}
           aria-label={`What goes into ${part.name}`}
-          className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-bold ring-1 ${
+          className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[12px] font-bold ring-1 ${
             helpOpen ? "bg-yw-navy text-white ring-yw-navy" : "bg-white text-slate-500 ring-[#E8ECF2]"
           }`}
         >
@@ -1305,17 +1563,23 @@ function PartRow({
         </button>
       </div>
       <div className="relative ml-6 mt-1 h-2 rounded-full bg-white ring-1 ring-[#E8ECF2]" aria-hidden>
-        <span className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${pct}%`, background: color }} />
+        <span
+          className="absolute inset-y-0 left-0 rounded-full transition-[width] duration-300 ease-out motion-reduce:transition-none"
+          style={{ width: `${pct}%`, background: color }}
+        />
         {tick != null ? (
-          <span className="absolute -top-1 -bottom-1 w-0.5 rounded bg-slate-700" style={{ left: `calc(${tick}% - 1px)` }} />
+          <span
+            className="absolute -top-1 -bottom-1 w-0.5 rounded bg-slate-700 transition-[left] duration-300 ease-out motion-reduce:transition-none"
+            style={{ left: `calc(${tick}% - 1px)` }}
+          />
         ) : null}
       </div>
-      <p className="ml-6 mt-1 text-[10px] leading-snug text-slate-500">
+      <p className="ml-6 mt-1 text-[11px] leading-snug text-slate-500">
         {casey != null ? `Casey ${fmt10(casey)} (marked) · ` : ""}counts {weightPct}% · {fmt10(part.points)} of{" "}
         {part.maxPoints} points
       </p>
       {helpOpen ? (
-        <p className="ml-6 mt-1 rounded-lg bg-white px-2 py-1.5 text-[11px] leading-snug text-slate-600 ring-1 ring-[#E8ECF2]">
+        <p className="ml-6 mt-1 rounded-md bg-white px-2 py-1.5 text-[12px] leading-snug text-slate-600 ring-1 ring-[#E8ECF2]">
           {STREAM_HELP[part.name]}
         </p>
       ) : null}
