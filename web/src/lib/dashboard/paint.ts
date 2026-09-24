@@ -11,11 +11,14 @@ export type DashboardField =
   | "lighting_after_dark_score";
 
 /**
- * Colour scales under review (24 Sep 2026). "current" is the lab red-to-green.
- * The two candidates avoid the red/green axis that about 1 in 12 men cannot
- * separate, and avoid red reading as "danger". Low scores stay warm.
+ * Dashboard score scale: orange to teal (DB-12, 24 Sep 2026). Avoids the
+ * red/green pair about 1 in 12 men cannot separate and red reading as
+ * "danger"; the teal end stays visible on the dark Night basemap, where a
+ * navy end would vanish. "current" is the lab and planner red-to-green.
  */
 export type RampId = "current" | "teal" | "blue";
+
+export const DASHBOARD_RAMP: RampId = "teal";
 
 export const RAMPS: Record<RampId, { label: string; colors: readonly string[] }> = {
   current: { label: "Current (red to green)", colors: RAMP_COLORS },

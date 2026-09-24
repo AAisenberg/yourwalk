@@ -37,14 +37,7 @@ import {
   type IndexMode,
   type ScoreView,
 } from "@/lib/dashboard/areas";
-import {
-  RAMPS,
-  colorExpression,
-  fieldFor,
-  isRampId,
-  rampColors,
-  type RampId,
-} from "@/lib/dashboard/paint";
+import { DASHBOARD_RAMP, colorExpression, fieldFor, rampColors } from "@/lib/dashboard/paint";
 import {
   DASHBOARD_LAYERS,
   DEFAULT_DASHBOARD_LAYERS,
@@ -55,6 +48,8 @@ import {
   type DashboardLayerDef,
   type DashboardLayerId,
   type DashboardLayerState,
+  type LegendKey,
+  type PathMode,
 } from "@/lib/dashboard/layers";
 import { DASHBOARD_SOURCES, PENDING_DATA_NOTE } from "@/lib/dashboard/sources";
 import {
@@ -122,6 +117,12 @@ const UNIT_WORD: Record<AreaUnit, { one: string; many: string }> = {
   ward: { one: "ward", many: "wards" },
 };
 
+const PATH_MODES: { id: PathMode; label: string }[] = [
+  { id: "full", label: "Full" },
+  { id: "faint", label: "Faint" },
+  { id: "off", label: "Off" },
+];
+
 type SortOrder = "low" | "high" | "az";
 
 const SORT_OPTIONS: { id: SortOrder; label: string; title: string }[] = [
@@ -167,6 +168,122 @@ function AnimatedNumber({ value, className }: { value: number | null; className?
     return () => cancelAnimationFrame(raf);
   }, [value]);
   return <span className={`tabular-nums ${className ?? ""}`}>{fmt10(shown)}</span>;
+}
+
+const LEGEND_MAX_ROWS = 3;
+
+function LegendKeyView({ legend }: { legend: LegendKey }) {
+  if (legend.kind === "dot") {
+    return <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-black/15" style={{ background: legend.color }} />;
+  }
+  if (legend.kind === "gradient") {
+    return (
+      <span className="mt-1 block w-full">
+        <span
+          aria-hidden
+          className="block h-2 rounded-full"
+          style={{ background: `linear-gradient(90deg, ${legend.colors.join(", ")})` }}
+        />
+        <span className="mt-0.5 flex justify-between text-[11px] text-slate-500">
+          <span>{legend.low}</span>
+          <span>{legend.high}</span>
+        </span>
+      </span>
+    );
+  }
+  return (
+    <span className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+      {legend.items.map((it) => (
+        <span key={it.label} className="flex items-center gap-1 text-[11px] text-slate-600">
+          <span aria-hidden className="h-2.5 w-2.5 rounded-sm ring-1 ring-black/10" style={{ background: it.color }} />
+          {it.label}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/**
+ * Score key plus one row per layer that is on, in map order, so a screenshot
+ * explains itself. Beyond three layers the extra rows fold away.
+ */
+function MapLegend({
+  title,
+  singleStreamNote,
+  pathMode,
+  fadingLabel,
+  selectedName,
+  layers,
+}: {
+  title: string;
+  singleStreamNote: string | null;
+  pathMode: PathMode;
+  fadingLabel: string | null;
+  selectedName: string | null;
+  layers: DashboardLayerDef[];
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const shown = expanded ? layers : layers.slice(0, LEGEND_MAX_ROWS);
+  const more = layers.length - shown.length;
+  return (
+    <div className="yw-sheet-scroll absolute bottom-3 left-3 z-10 max-h-[60%] w-64 overflow-y-auto rounded-lg bg-white p-3 shadow-md ring-1 ring-[#E8ECF2]">
+      <p className="text-[12px] font-extrabold text-yw-navy">{title}</p>
+      {pathMode === "off" ? (
+        <p className="mt-1 text-[12px] leading-snug text-slate-600">
+          Score colours hidden. Scores still show in the card and list.
+        </p>
+      ) : (
+        <>
+          <p className="mt-1 text-[12px] leading-snug text-slate-600">
+            Higher = better walking conditions. Colours are stretched across Casey.
+            {singleStreamNote ? ` ${singleStreamNote}` : ""}
+          </p>
+          <div
+            className={`mt-2 h-2 rounded-full ${pathMode === "faint" ? "opacity-50" : ""}`}
+            aria-hidden
+            style={{ background: `linear-gradient(90deg, ${rampColors(DASHBOARD_RAMP).join(", ")})` }}
+          />
+          <div className="mt-1 flex justify-between text-[11px] text-slate-500">
+            <span>Lower</span>
+            <span>Higher</span>
+          </div>
+          {pathMode === "faint" ? (
+            <p className="mt-1 text-[11px] leading-snug text-slate-500">
+              Paths faint{fadingLabel ? ` while ${fadingLabel.toLowerCase()} is on` : ""}.
+            </p>
+          ) : null}
+        </>
+      )}
+      {selectedName ? (
+        <p className="mt-2 text-[11px] leading-snug text-slate-500">
+          Dashed outline is the extent of scored footpaths in {selectedName}, not the official boundary.
+        </p>
+      ) : null}
+      {shown.length ? (
+        <ul className="mt-2 space-y-1.5 border-t border-[#E8ECF2] pt-2">
+          {shown.map((def) => (
+            <li key={def.id}>
+              <p className="flex items-center gap-1.5 text-[12px] font-bold text-slate-800">
+                {def.legend.kind === "dot" ? <LegendKeyView legend={def.legend} /> : null}
+                <span className="min-w-0 flex-1">{def.label}</span>
+                <span className="text-[11px] font-medium text-slate-500">{def.group === "score" ? "in the score" : "context"}</span>
+              </p>
+              {def.legend.kind !== "dot" ? <LegendKeyView legend={def.legend} /> : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {more > 0 || expanded ? (
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          className="mt-1.5 text-[11px] font-bold text-yw-navy hover:underline"
+        >
+          {expanded ? "Show fewer" : `+${more} more`}
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 /** Rows glide to new positions when the order changes (FLIP). */
@@ -337,7 +454,7 @@ type MapState = {
   selectedName: string | null;
   basemap: Basemap;
   layers: DashboardLayerState;
-  ramp: RampId;
+  pathMode: PathMode;
 };
 
 export function CouncilDashboard() {
@@ -373,7 +490,11 @@ export function CouncilDashboard() {
   const [query, setQuery] = useState("");
   const [introOpen, setIntroOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [ramp, setRamp] = useState<RampId>("current");
+  /** null = automatic: faint while a layer that covers the paths is on. */
+  const [userPathMode, setUserPathMode] = useState<PathMode | null>(null);
+  const areaLayerOn = DASHBOARD_LAYERS.some((d) => d.fadesPaths && layers[d.id]);
+  const pathMode: PathMode = userPathMode ?? (areaLayerOn ? "faint" : "full");
+  const fadingLayer = DASHBOARD_LAYERS.find((d) => d.fadesPaths && layers[d.id]) ?? null;
   const [sort, setSort] = useState<SortOrder>("low");
 
   const areasByUnit = useMemo(
@@ -401,8 +522,8 @@ export function CouncilDashboard() {
   const selectedName = selected?.name ?? null;
   // Layout effect so map effects below always read the current state.
   useLayoutEffect(() => {
-    stateRef.current = { mode, view, unit, selectedName, basemap, layers, ramp };
-  }, [mode, view, unit, selectedName, basemap, layers, ramp]);
+    stateRef.current = { mode, view, unit, selectedName, basemap, layers, pathMode };
+  }, [mode, view, unit, selectedName, basemap, layers, pathMode]);
 
   /* eslint-disable react-hooks/set-state-in-effect -- one-time client
      read from localStorage and the URL; cannot be lazy-initialised under SSR */
@@ -412,10 +533,23 @@ export function CouncilDashboard() {
     } catch {
       setIntroOpen(true);
     }
-    const r = new URLSearchParams(window.location.search).get("ramp");
-    if (isRampId(r)) setRamp(r);
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  /** Toggle a layer; area layers that share ground cannot both be on. */
+  const toggleLayer = (def: DashboardLayerDef, on: boolean) => {
+    setLayers((prev) => {
+      const next = { ...prev, [def.id]: on };
+      if (on && def.exclusive) {
+        for (const other of DASHBOARD_LAYERS) {
+          if (other.id !== def.id && other.exclusive === def.exclusive) next[other.id] = false;
+        }
+      }
+      // Back to automatic path strength once nothing covers the paths
+      if (!DASHBOARD_LAYERS.some((d) => d.fadesPaths && next[d.id])) setUserPathMode(null);
+      return next;
+    });
+  };
 
   const closeIntro = () => {
     setIntroOpen(false);
@@ -435,26 +569,29 @@ export function CouncilDashboard() {
     if (!s || !map.getLayer(SEG_SETS.A.fill)) return;
     const sat = s.basemap === "satellite";
     const field = fieldFor(s.mode, s.view);
-    const key = `${field}:${s.ramp}`;
-    const fillOn = sat ? 0.62 : 0.8;
-    const lineOn = sat ? 0.8 : 0.95;
+    const key = `${field}:${DASHBOARD_RAMP}`;
+    const faint = s.pathMode === "faint";
+    const pathsOff = s.pathMode === "off";
+    const fillOn = pathsOff ? 0 : faint ? 0.12 : sat ? 0.62 : 0.8;
+    const lineOn = pathsOff ? 0 : faint ? 0.4 : sat ? 0.8 : 0.95;
+    const w = faint ? 0.6 : 1;
     const width: ExpressionSpecification = [
       "interpolate",
       ["linear"],
       ["zoom"],
       9,
-      sat ? 0.8 : 1.1,
+      (sat ? 0.8 : 1.1) * w,
       13,
-      sat ? 1.2 : 1.6,
+      (sat ? 1.2 : 1.6) * w,
       16,
-      sat ? 1.6 : 2.4,
+      (sat ? 1.6 : 2.4) * w,
     ];
     const setOpacity = (set: SegSet, on: boolean) => {
       map.setPaintProperty(SEG_SETS[set].fill, "fill-opacity", on ? fillOn : 0);
       map.setPaintProperty(SEG_SETS[set].line, "line-opacity", on ? lineOn : 0);
     };
     const setColor = (set: SegSet) => {
-      const color = colorExpression(field, s.ramp);
+      const color = colorExpression(field, DASHBOARD_RAMP);
       map.setPaintProperty(SEG_SETS[set].fill, "fill-color", color);
       map.setPaintProperty(SEG_SETS[set].line, "line-color", color);
     };
@@ -661,7 +798,9 @@ export function CouncilDashboard() {
       const points = DASHBOARD_LAYERS.filter((d) => !d.under).map((d) => layerDraw(d.id));
       const areas = DASHBOARD_LAYERS.filter((d) => d.under).map((d) => layerDraw(d.id));
       const seg = SEG_SETS[activeSetRef.current];
-      const order = [...points, seg.line, seg.fill, ...areas].filter(visible);
+      // Hidden paths are drawn at zero opacity but still hit-test
+      const paths = stateRef.current?.pathMode === "off" ? [] : [seg.line, seg.fill];
+      const order = [...points, ...paths, ...areas].filter(visible);
       const hits = map.queryRenderedFeatures(e.point, { layers: order });
       const hit = [...hits].sort(
         (a, b) => order.indexOf(a.layer?.id ?? "") - order.indexOf(b.layer?.id ?? ""),
@@ -773,7 +912,7 @@ export function CouncilDashboard() {
     applyLook(map, mode);
     applyPaint(map, true);
     popupRef.current?.remove();
-  }, [mode, view, ramp, phase, applyPaint]);
+  }, [mode, view, phase, applyPaint]);
 
   // Selection: outline, soft fade, fit bounds
   useEffect(() => {
@@ -805,7 +944,7 @@ export function CouncilDashboard() {
     const map = mapRef.current;
     if (!map || phase !== "ready") return;
     applyPaint(map);
-  }, [basemap, phase, applyPaint]);
+  }, [basemap, pathMode, phase, applyPaint]);
 
   // Overlay toggles
   useEffect(() => {
@@ -1087,6 +1226,30 @@ export function CouncilDashboard() {
                     <MdClose className="h-4 w-4" aria-hidden />
                   </button>
                 </div>
+                <p className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">Scored paths</p>
+                <div role="radiogroup" aria-label="Scored paths" className="mb-1 grid grid-cols-3 gap-1">
+                  {PATH_MODES.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={pathMode === m.id}
+                      onClick={() => setUserPathMode(m.id)}
+                      className={`h-9 rounded-md text-[12px] font-bold ring-1 ${
+                        pathMode === m.id
+                          ? "bg-yw-navy text-white ring-yw-navy"
+                          : "bg-yw-day-surface text-slate-600 ring-[#E8ECF2]"
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mb-3 text-[11px] leading-snug text-slate-500">
+                  {userPathMode == null && fadingLayer
+                    ? `Faint while ${fadingLayer.label.toLowerCase()} is on, so the layer reads clearly.`
+                    : "Scores in the card and list stay the same whatever you pick."}
+                </p>
                 <p className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">Basemap</p>
                 <div className="mb-3 grid grid-cols-2 gap-1.5">
                   {(
@@ -1123,7 +1286,7 @@ export function CouncilDashboard() {
                               type="checkbox"
                               className="yw-check mt-0.5"
                               checked={layers[def.id]}
-                              onChange={(e) => setLayers((prev) => ({ ...prev, [def.id]: e.target.checked }))}
+                              onChange={(e) => toggleLayer(def, e.target.checked)}
                             />
                             <span
                               aria-hidden
@@ -1199,48 +1362,14 @@ export function CouncilDashboard() {
             </p>
           ) : null}
 
-          <div className="absolute bottom-3 left-3 z-10 w-64 rounded-lg bg-white p-3 shadow-md ring-1 ring-[#E8ECF2]">
-            <p className="text-[12px] font-extrabold text-yw-navy">
-              {singleStream ? `${showing} only · ${indexLabel}` : `${indexLabel} score`}
-            </p>
-            <p className="mt-1 text-[12px] leading-snug text-slate-600">
-              Higher = better walking conditions. Colours are stretched across Casey.
-              {singleStream ? ` One part of the ${indexLabel} score, not the score itself.` : ""}
-            </p>
-            <div
-              className="mt-2 h-2 rounded-full"
-              aria-hidden
-              style={{ background: `linear-gradient(90deg, ${rampColors(ramp).join(", ")})` }}
-            />
-            <div className="mt-1 flex justify-between text-[11px] text-slate-500">
-              <span>Weaker</span>
-              <span>Better</span>
-            </div>
-            {selected ? (
-              <p className="mt-2 text-[11px] leading-snug text-slate-500">
-                Dashed outline is the extent of scored footpaths in {selected.name}, not the official boundary.
-              </p>
-            ) : null}
-            {process.env.NODE_ENV === "development" ? (
-              <label className="mt-2 flex items-center gap-1.5 border-t border-[#E8ECF2] pt-2 text-[11px] text-slate-500">
-                Colour scale (review)
-                <select
-                  value={ramp}
-                  onChange={(e) => {
-                    const next = e.target.value;
-                    if (isRampId(next)) setRamp(next);
-                  }}
-                  className="min-w-0 flex-1 rounded-md border border-[#E8ECF2] bg-white px-1 py-0.5 text-[12px] text-slate-700"
-                >
-                  {(Object.keys(RAMPS) as RampId[]).map((id) => (
-                    <option key={id} value={id}>
-                      {RAMPS[id].label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : null}
-          </div>
+          <MapLegend
+            title={singleStream ? `${showing} only · ${indexLabel}` : `${indexLabel} score`}
+            singleStreamNote={singleStream ? `One part of the ${indexLabel} score, not the score itself.` : null}
+            pathMode={pathMode}
+            fadingLabel={userPathMode == null && fadingLayer ? fadingLayer.label : null}
+            selectedName={selected?.name ?? null}
+            layers={DASHBOARD_LAYERS.filter((d) => layers[d.id])}
+          />
         </section>
 
         <aside className="order-3 min-h-0 overflow-y-auto border-[#E8ECF2] bg-white p-4 lg:border-l">

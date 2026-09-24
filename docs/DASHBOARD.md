@@ -316,7 +316,15 @@ Built: Day/Night index switch; View by Suburb | Ward above the ranked list (righ
 - **List:** header is "Suburbs · Day score" (no "weaker"); sort Lowest, Highest, or A–Z; no rank numbers, so the list does not read as a league table.
 - **Layers:** two groups. *In the score:* tree canopy (Vicmap 2019/20), urban heat (2018), speed zones, school crossings, street and park lights, fountains, benches. *Context only:* toilets, dog bags. Graffiti and night pedestrian crashes also feed the score but stay off until the XYX language pass. Casey's own tree inventory is not in the score (canopy comes from Vicmap). New layer files are local-only for now (`web/public/overlays` symlinks); speed zones (9 MB) and canopy (6 MB) need simplifying or tiling before deploy.
 - **Style tokens:** cards, panels, menus and legend 8 px radius; rows and buttons 6 px; pills stay round. Text floor 12 px for reading, 11 px small print; greys darkened to meet contrast.
-- **Colour scale under review (DB-12):** the dev build has a picker in the legend (or `?ramp=teal|blue`). soft fade outside the selection with a dashed extent outline, thin segment popup (streams only), circular Layers button (Standard or Satellite, plus six Casey asset layers), data sources with links and vintages, scored date, first-visit onboarding, locate within Casey. No analytics (DB-7 open). No export.
+- **Colour scale (DB-12, decided 24 Sep):** orange to teal on the dashboard. Lab and planner keep red to green for now.
+
+**Pass 24 Sep 2026 (layers).**
+
+- **Scored paths: Full, Faint or Off**, set in Layers and separate from the card switches (which choose the score). Paths go Faint automatically while tree canopy, urban heat or speed zones are on, and return to Full once those are off. Off hides the colours only; the card and list keep their scores and the legend says so.
+- **Tree canopy and urban heat cannot both be on**: ticking one unticks the other. Speed zones combine with either.
+- **Layer colours stay off the score scale:** urban heat pink to magenta, speed zones greys to purples, canopy greens. Orange means score only.
+- **Legend grows with the layers:** the score key, then one row per active layer in map order (canopy classes, heat cooler to hotter, speed steps, dots for points), tagged "in the score" or "context". Beyond three rows the rest fold behind "+N more".
+- **Labels:** fountains and seats "feed heat and shade (small share, Day only)" (comfort is 15% of heat and shade, about 6% of the Day score); canopy and urban heat "Day only"; lights "Night only". soft fade outside the selection with a dashed extent outline, thin segment popup (streams only), circular Layers button (Standard or Satellite, plus six Casey asset layers), data sources with links and vintages, scored date, first-visit onboarding, locate within Casey. No analytics (DB-7 open). No export.
 
 **Grant:** Q3 dashboard development. **Product phase:** MVP “basic insights”.
 
@@ -498,7 +506,7 @@ Do not say: safe route, high risk, crime hotspot, vulnerable people (when you me
 | DB-8 | Public evidence later | A. Stay staff-only. B. Public read-only after pilot. | Council comms; no safety copy | Not D1 |
 | DB-9 | D1 Layers | **A (built, XYX 23 Sep: Casey assets toggleable).** Lights + resident amenities, default off. B. Lights only in D1; amenities wait for D2. C. No overlays in D1. | Officers can see assets under a weak score without a fourth index; copy must separate evidence from overlay-only | Officer testing confirms |
 | DB-10 | Basemap | A. YourWalk Standard only. **B (built for testing).** Standard + Mapbox satellite, one switch in the Layers circle. C. Extra Council GIS basemaps (out for D1). | Aerials help with lights and paths; do not promise Nearmap; Night must not auto-switch satellite | Officer testing. Keep or drop |
-| DB-12 | Score colour scale | A. Current red to green (shared with lab and planner). B. Orange to teal (brand teal end). C. Orange to navy (brand navy end). | About 1 in 12 men cannot separate red and green; red also reads as "danger" on a Council screen | Product pick, then officer testing |
+| DB-12 | Score colour scale | A. Current red to green (shared with lab and planner). **B. Orange to teal (chosen 24 Sep).** C. Orange to navy (navy end vanishes on the dark Night basemap). | About 1 in 12 men cannot separate red and green; red also reads as "danger" on a Council screen | Officer testing confirms |
 | DB-11 | Area unit switcher | A. Suburb only. **B (XYX 23 Sep, built).** View by Suburb / Ward, default Suburb. SA2 deferred until the data is accurate. C. Ward default. | What they would paste into a briefing; zoom still reaches segments | Revisit SA2 with D2 Community Need |
 
 Do not reopen Day/Night 60/40, Mapbox, T1EAM as the segment master, or the host table to answer these.

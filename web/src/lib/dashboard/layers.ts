@@ -28,6 +28,11 @@ type Draw =
   | { type: "fill"; color: ExpressionSpecification | string; opacity: number }
   | { type: "line"; color: ExpressionSpecification | string; width: [number, number] };
 
+export type LegendKey =
+  | { kind: "swatches"; items: { color: string; label: string }[] }
+  | { kind: "gradient"; colors: string[]; low: string; high: string }
+  | { kind: "dot"; color: string };
+
 export type DashboardLayerDef = {
   id: DashboardLayerId;
   label: string;
@@ -39,6 +44,13 @@ export type DashboardLayerDef = {
   draw: Draw;
   /** Draw under the score paint (area layers) or above it (points). */
   under: boolean;
+  /**
+   * Covers the same ground as the score paint, so scored paths fade while it
+   * is on. Area layers of the same `exclusive` group cannot both be on.
+   */
+  fadesPaths: boolean;
+  exclusive?: "area";
+  legend: LegendKey;
   url: () => string;
   /** Title and lines for the click popup (plain text, escaped by caller). */
   popup: (p: GeoJSON.GeoJsonProperties) => { title: string; lines: string[] };
@@ -63,54 +75,65 @@ function text(v: unknown): string | null {
   return t && t.toLowerCase() !== "none" && t.toLowerCase() !== "null" ? t : null;
 }
 
+// Kept off the orange/teal score scale so a colour means one thing
+const SPEED_STEPS: { min: number; color: string; label: string }[] = [
+  { min: 0, color: "#CBD5E1", label: "40 or less" },
+  { min: 45, color: "#94A3B8", label: "50" },
+  { min: 55, color: "#8B5CF6", label: "60" },
+  { min: 65, color: "#6D28D9", label: "70" },
+  { min: 75, color: "#3B0764", label: "80+" },
+];
+
 const SPEED_COLOR: ExpressionSpecification = [
   "step",
   ["coalesce", ["get", "speed_limit_kmh"], 50],
-  "#94A3B8",
-  45,
-  "#FCD34D",
-  55,
-  "#F59E0B",
-  65,
-  "#EA580C",
-  75,
-  "#9A3412",
+  SPEED_STEPS[0].color,
+  ...SPEED_STEPS.slice(1).flatMap((s) => [s.min, s.color]),
+] as ExpressionSpecification;
+
+const CANOPY_CLASSES = [
+  { value: "dense", color: "#0B6E3A", label: "Dense" },
+  { value: "medium", color: "#3F9D5A", label: "Medium" },
+  { value: "sparse", color: "#A6D3A0", label: "Sparse" },
 ];
 
 const CANOPY_COLOR: ExpressionSpecification = [
   "match",
   ["get", "tree_density"],
   "dense",
-  "#0B6E3A",
+  CANOPY_CLASSES[0].color,
   "medium",
-  "#3F9D5A",
-  "#A6D3A0",
+  CANOPY_CLASSES[1].color,
+  CANOPY_CLASSES[2].color,
 ];
 
-// uhi18_m: degrees warmer than non-urban baseline; Casey p5≈7, p95≈14
+// uhi18_m: degrees warmer than a non-urban baseline; Casey p5≈7, p95≈14
+const HEAT_STOPS: [number, string][] = [
+  [7, "#FCE7F3"],
+  [10, "#F9A8D4"],
+  [12, "#DB2777"],
+  [14.5, "#831843"],
+];
+
 const HEAT_COLOR: ExpressionSpecification = [
   "interpolate",
   ["linear"],
   ["coalesce", ["get", "uhi18_m"], 10],
-  7,
-  "#FEF3C7",
-  10,
-  "#FDBA74",
-  12,
-  "#F97316",
-  14.5,
-  "#B91C1C",
-];
+  ...HEAT_STOPS.flat(),
+] as ExpressionSpecification;
 
 export const DASHBOARD_LAYERS: DashboardLayerDef[] = [
   {
     id: "tree_canopy",
     label: "Tree canopy",
     group: "score",
-    note: "Feeds heat and shade. Vicmap 2019/20, dense to sparse.",
+    note: "Feeds heat and shade (Day only). Vicmap 2019/20.",
     swatch: "#3F9D5A",
-    draw: { type: "fill", color: CANOPY_COLOR, opacity: 0.45 },
+    draw: { type: "fill", color: CANOPY_COLOR, opacity: 0.55 },
     under: true,
+    fadesPaths: true,
+    exclusive: "area",
+    legend: { kind: "swatches", items: CANOPY_CLASSES.map(({ color, label }) => ({ color, label })) },
     url: localOrProxy("tree_density.geojson"),
     popup: (p) => ({
       title: "Tree canopy",
@@ -121,10 +144,13 @@ export const DASHBOARD_LAYERS: DashboardLayerDef[] = [
     id: "urban_heat",
     label: "Urban heat (2018)",
     group: "score",
-    note: "Feeds heat and shade. Hotter areas darker. 2018 data.",
-    swatch: "#F97316",
-    draw: { type: "fill", color: HEAT_COLOR, opacity: 0.45 },
+    note: "Feeds heat and shade (Day only). Hotter areas darker.",
+    swatch: "#DB2777",
+    draw: { type: "fill", color: HEAT_COLOR, opacity: 0.55 },
     under: true,
+    fadesPaths: true,
+    exclusive: "area",
+    legend: { kind: "gradient", colors: HEAT_STOPS.map(([, c]) => c), low: "Cooler", high: "Hotter (2018)" },
     url: localOrProxy("urban_heat.geojson"),
     popup: (p) => {
       const uhi = typeof p?.uhi18_m === "number" ? p.uhi18_m.toFixed(1) : null;
@@ -139,9 +165,11 @@ export const DASHBOARD_LAYERS: DashboardLayerDef[] = [
     label: "Speed zones",
     group: "score",
     note: "Feeds footpaths: faster traffic alongside lowers the score.",
-    swatch: "#EA580C",
-    draw: { type: "line", color: SPEED_COLOR, width: [1, 3] },
+    swatch: "#8B5CF6",
+    draw: { type: "line", color: SPEED_COLOR, width: [1.2, 3.5] },
     under: true,
+    fadesPaths: true,
+    legend: { kind: "swatches", items: SPEED_STEPS.map(({ color, label }) => ({ color, label: `${label}` })) },
     url: localOrProxy("speed_zones.geojson"),
     popup: (p) => ({
       title: `${text(p?.speed_limit_kmh) ?? "–"} km/h`,
@@ -156,6 +184,8 @@ export const DASHBOARD_LAYERS: DashboardLayerDef[] = [
     swatch: "#4F46E5",
     draw: { type: "circle", color: "#4F46E5", radius: [4, 7], stroke: "light" },
     under: false,
+    fadesPaths: false,
+    legend: { kind: "dot", color: "#4F46E5" },
     url: localOrProxy("school_crossings.geojson"),
     popup: (p) => ({
       title: text(p?.school_name) ?? "School crossing",
@@ -167,7 +197,7 @@ export const DASHBOARD_LAYERS: DashboardLayerDef[] = [
       id: def.id,
       label: def.label,
       group: "score",
-      note: "Feeds night lighting.",
+      note: "Feeds night lighting (Night only).",
       swatch: def.color,
       draw: {
         type: "circle",
@@ -176,6 +206,8 @@ export const DASHBOARD_LAYERS: DashboardLayerDef[] = [
         stroke: "dark",
       },
       under: false,
+      fadesPaths: false,
+      legend: { kind: "dot", color: def.color },
       url: () => resolveEvidenceUrl(def),
       popup: (p) => ({
         title: def.label.replace(/s$/, ""),
@@ -193,10 +225,13 @@ export const DASHBOARD_LAYERS: DashboardLayerDef[] = [
       id: def.id,
       label: def.label,
       group: inScore ? "score" : "context",
-      note: inScore ? "Feeds heat and shade." : "Not in either score.",
+      // Comfort is 15% of heat and shade, about 6% of the Day score
+      note: inScore ? "Feeds heat and shade (small share, Day only)." : "Not in either score.",
       swatch: def.color,
       draw: { type: "circle", color: def.color, radius: [3.5, 6], stroke: "light" },
       under: false,
+      fadesPaths: false,
+      legend: { kind: "dot", color: def.color },
       url:
         process.env.NODE_ENV === "development"
           ? localOrProxy(AMENITY_FILES[def.id])
@@ -236,3 +271,6 @@ export const YOURWALK_STANDARD_STYLE =
 export const SATELLITE_TILES = "mapbox://mapbox.satellite";
 
 export type Basemap = "standard" | "satellite";
+
+/** How strongly the scored paths are drawn. Separate from which score is shown. */
+export type PathMode = "full" | "faint" | "off";
