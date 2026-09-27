@@ -1,6 +1,13 @@
 # Council insights dashboard
 
-**Status:** D1 MVP complete 27 Sep 2026: `dashboard.yourwalk.au` behind a shared-password gate (DB-1), Phase 1 of the rollout below. Spec 20 Sep; sitting 2 brief 21 Sep; XYX input 23 Sep; local build 24 Sep. The planner host and apex never serve `/dashboard` (ADR-012).  
+**Status:** Dashboard **0.2.0** live 27 Sep 2026 on `dashboard.yourwalk.au` (shared-password gate, DB-1). Phase 1 of the rollout below. Spec 20 Sep; sitting 2 brief 21 Sep; XYX input 23 Sep; local build 24 Sep; D1 MVP 0.1.0 same day. The planner host and apex never serve `/dashboard` (ADR-012).
+
+**Build versions** (header shows `Pilot · dashboard x.y.z · scores 1.1.3`):
+
+| Version | Date | What changed |
+|---------|------|----------------|
+| 0.1.0 | 27 Sep 2026 | D1 MVP: host, password gate, Day/Night, suburbs and wards, layers, popups |
+| 0.2.0 | 27 Sep 2026 | Version label, link to the resident app (new tab), usage counting (DB-7), street names on path popups |
 **Audience:** City of Casey staff first (transport, urban design, assets, inclusion, grant sponsor). Not residents.  
 **Build SoT for this surface:** this document. Older FLOW / REQS / mockup are inputs.
 
@@ -257,7 +264,7 @@ Sitting captures: [`screenshots/dashboard-d0/frame-1-empty-day.png`](screenshots
 | DB-4 | B. Day / Night paint only (reopened 24 Sep: single-stream Show is in D1) | A third Accessibility paint reads as another overall score. Footpaths stay as the 0–100 bar. |
 | DB-6 | A. Thin segment popup | Assets need to click a path. Streams only. Not Lab sub-scores. |
 
-**Parked:** DB-5 Community Need (D2). **Still open:** DB-1 access (before DNS), DB-7 analytics (before D1 prod), DB-8 public later.
+**Parked:** DB-5 Community Need (D2). **Decided:** DB-1 access, DB-7 analytics. **Still open:** DB-8 public later.
 
 **Product lean after sitting 1 (not locked until officer):** D1 Layers = lights + resident amenities, default off (DB-9). Satellite and View by Suburb | Ward | SA2 stay sitting-2 questions (DB-10, DB-11).
 
@@ -325,7 +332,7 @@ Built: Day/Night index switch; View by Suburb | Ward above the ranked list (righ
 - **Layer colours stay off the score scale:** urban heat pink to magenta, speed zones greys to purples, canopy greens. Orange means score only.
 - **Legend grows with the layers:** the score key, then one row per active layer in map order (canopy classes, heat cooler to hotter, speed steps, dots for points), tagged "in the score" or "context". Beyond three rows the rest fold behind "+N more".
 - **Map popups (24 Sep evening):** one YourWalk popup for paths and every layer, built from the dashboard's own components. Type tag with swatch and "In the score" or "Context", title, a few facts, source line. Path popups are mini score cards: the score for the current view with the Casey average, both parts as 0–10 bars with Casey ticks, plain-language confidence, "Show [suburb or ward]" (hidden if already selected), and the T1EAM segment ID with Copy ID for asset officers. The popup stays open and updates when Day/Night or the shown part changes; Escape or the close button dismisses it. Paths get a hover outline and a navy-on-white selected outline; clicked points get a ring. Path titles read "Footpath in [suburb]" until a street-name join lands (pipeline, not built).
-- **Labels:** fountains and seats "feed heat and shade (small share, Day only)" (comfort is 15% of heat and shade, about 6% of the Day score); canopy and urban heat "Day only"; lights "Night only". soft fade outside the selection with a dashed extent outline, thin segment popup (streams only), circular Layers button (Standard or Satellite, plus six Casey asset layers), data sources with links and vintages, scored date, first-visit onboarding, locate within Casey. No analytics (DB-7 open). No export.
+- **Labels:** fountains and seats "feed heat and shade (small share, Day only)" (comfort is 15% of heat and shade, about 6% of the Day score); canopy and urban heat "Day only"; lights "Night only". soft fade outside the selection with a dashed extent outline, thin segment popup (streams only), circular Layers button (Standard or Satellite, plus six Casey asset layers), data sources with links and vintages, scored date, first-visit onboarding, locate within Casey. Street name on the path popup when T1EAM has a clean description. Usage counting (DB-7): allowlisted `dash_*` events, no coordinates, no path IDs, no officer names. No export.
 
 **Grant:** Q3 dashboard development. **Product phase:** MVP “basic insights”.
 
@@ -490,7 +497,7 @@ Still out, even beyond the pilot, unless the grant or a new agreement changes:
 
 **Map data hosting:** scores, boundary and all layers stream through `/api/map-data/*` from the `map-data-v1` GitHub release. Dashboard layers are slimmed by `pipeline/scripts/export_dashboard_layers.py` (streetlights 8.5 MB, canopy 5.5 MB, speed zones 4.8 MB; each loads only when switched on).
 
-Residents stay anonymous on the planner (ADR-004 lean). Dashboard usage telemetry, if any, follows the allowlist pattern: no addresses, no coordinates, no named officer required in D1.
+Residents stay anonymous on the planner (ADR-004 lean). Dashboard usage (DB-7, decided 27 Sep 2026) uses the same first-party table as the planner: allowlisted `dash_*` events only (session, view change, suburb or ward opened, layer toggle, path opened, resident app opened). No addresses, no coordinates, no path IDs, no officer names. Weekly readout: `supabase/queries/weekly_dashboard_analytics.sql`.
 
 Language bank (use these, do not invent slogans):
 
@@ -523,7 +530,7 @@ Do not say: safe route, high risk, crime hotspot, vulnerable people (when you me
 | DB-4 | Single-stream paint in D1? | **A (reopened by product, 24 Sep).** Switch a part off in the card to show the other part only. Labelled "only" and "one part of the score, not the score itself" on the card, legend and list. B. Day / Night paint only (sitting 1). | Officers ask stream questions ("where is lighting weak?"); avoid it reading as another overall score | Officer testing confirms |
 | DB-5 | Community Need fields in D2 | A. SEIFA decile only. B. SEIFA + 65+ + disability + no vehicle (mockup). C. Defer all need | Data already on Casey portal at SA2; extra Census fields need an ingest + privacy pass | Before D2 |
 | DB-6 | Segment click in D1 | **A (sitting 1).** Popup with 0–100 streams only. B. Wait for D2 sub-scores. | Useful without looking like Lab | Officer sitting may reopen |
-| DB-7 | Dashboard analytics | A. None in D1. B. Allowlisted first-party events (recommended if we need EVALUATION counts). | Grant KPI vs privacy | Before D1 prod |
+| DB-7 | Dashboard analytics | A. None in D1. **B (decided 27 Sep).** Allowlisted first-party `dash_*` events on the existing analytics table. | Grant KPI vs privacy; same rules as ADR-013 | Decided; on before officer testing |
 | DB-8 | Public evidence later | A. Stay staff-only. B. Public read-only after pilot. | Council comms; no safety copy | Not D1 |
 | DB-9 | D1 Layers | **A (built, XYX 23 Sep: Casey assets toggleable).** Lights + resident amenities, default off. B. Lights only in D1; amenities wait for D2. C. No overlays in D1. | Officers can see assets under a weak score without a fourth index; copy must separate evidence from overlay-only | Officer testing confirms |
 | DB-10 | Basemap | A. YourWalk Standard only. **B (built for testing).** Standard + Mapbox satellite, one switch in the Layers circle. C. Extra Council GIS basemaps (out for D1). | Aerials help with lights and paths; do not promise Nearmap; Night must not auto-switch satellite | Officer testing. Keep or drop |

@@ -246,7 +246,7 @@ Before a backlog item is considered complete, it must meet all of the following:
 
 **Dependencies**: D0 design sitting ([`DASHBOARD.md`](DASHBOARD.md)); scored GeoJSON / PostGIS (N0a); host access decision (DB-1). Not blocked on crossings/kerbs, Clerk, or submissions.
 
-**Status**: ✅ D1 MVP live 27 Sep 2026 on `dashboard.yourwalk.au` behind a shared password (Phase 1: internal and XYX). Next: usage counting (DB-7), street names on paths, then Phase 2 officer testing. Specced 20 Sep 2026. D1 built for local testing 24 Sep 2026 at `/dashboard` after the 23 Sep XYX catch-up (suburb + ward, Night lighting wording, soft fade, source links, onboarding, locate, Layers circle with satellite). Not deployed: planner host redirects `/dashboard`; no DNS until DB-1 access is chosen. See [`DASHBOARD.md`](DASHBOARD.md) D1.
+**Status**: ✅ D1 MVP live 27 Sep 2026 on `dashboard.yourwalk.au` (0.1.0). **0.2.0** same day: version label, resident app link, usage counting (DB-7), street names on path popups. Next: Nikki wording review (graffiti, night crashes, CFA), then Phase 2 officer testing. Specced 20 Sep 2026. D1 built for local testing 24 Sep 2026 at `/dashboard` after the 23 Sep XYX catch-up (suburb + ward, Night lighting wording, soft fade, source links, onboarding, locate, Layers circle with satellite). Not deployed: planner host redirects `/dashboard`; no DNS until DB-1 access is chosen. See [`DASHBOARD.md`](DASHBOARD.md) D1.
 
 ---
 

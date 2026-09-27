@@ -12,6 +12,7 @@ import {
 } from "./events";
 
 assert.equal(isAnalyticsEventName("find_completed"), true);
+assert.equal(isAnalyticsEventName("dash_session_started"), true);
 assert.equal(isAnalyticsEventName("page_view"), false);
 assert.equal(
   isAnalyticsSessionId("2c1f0e3a-9b8a-4c11-a222-0d9f6e5c4b3a"),
@@ -49,5 +50,20 @@ assert.deepEqual(stripped, { suburb: "Berwick", intent: "trip" });
 
 const dirtySuburb = sanitizeProperties({ suburb: "12 Smith St" });
 assert.deepEqual(dirtySuburb, {});
+
+const dash = sanitizeProperties({
+  view: "index",
+  unit: "suburb",
+  area: "Cranbourne North",
+  version: "0.2.0",
+  street_name: "Crosswater Boulevard",
+  segment_id: "90858",
+});
+assert.deepEqual(dash, {
+  view: "index",
+  unit: "suburb",
+  area: "Cranbourne North",
+  version: "0.2.0",
+});
 
 console.log("analytics sanitize tests ok");

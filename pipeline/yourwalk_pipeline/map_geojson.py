@@ -18,6 +18,7 @@ MAP_COLUMNS = [
     "walk_path_class",
     "suburb",
     "ward",
+    "street_name",
     "day_index_score",
     "night_index_score",
     "accessibility_score",
@@ -34,6 +35,28 @@ MAP_COLUMNS = [
 
 # ~2–3 m at Casey latitudes — keeps network shape, shrinks payload
 SIMPLIFY_DEG = 0.000025
+
+
+def _with_street_names(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """Join cleaned street labels from the footpaths intermediate, if it has them."""
+    import pandas as pd
+
+    from yourwalk_pipeline.paths import INTERMEDIATE_DIR
+    from yourwalk_pipeline.street_names import street_label
+
+    src = INTERMEDIATE_DIR / "footpaths_ply_t1eam.parquet"
+    if not src.exists():
+        return gdf
+    import pyarrow.parquet as pq
+
+    if "asset_description" not in pq.read_schema(src).names:
+        return gdf
+    desc = pd.read_parquet(src, columns=["segment_id", "asset_description"])
+    desc["street_name"] = desc["asset_description"].map(street_label)
+    names = desc.set_index(desc["segment_id"].astype(str))["street_name"]
+    gdf = gdf.copy()
+    gdf["street_name"] = gdf["segment_id"].astype(str).map(names)
+    return gdf
 
 
 def build_map_geojson(
@@ -66,6 +89,9 @@ def build_map_geojson(
     scored_at = None
     if "scored_at" in gdf.columns and gdf["scored_at"].notna().any():
         scored_at = str(gdf["scored_at"].dropna().iloc[0])
+
+    if "street_name" not in gdf.columns:
+        gdf = _with_street_names(gdf)
 
     keep = [c for c in MAP_COLUMNS if c in gdf.columns]
     gdf = gdf[keep].copy()

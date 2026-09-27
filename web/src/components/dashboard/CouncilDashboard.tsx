@@ -18,7 +18,9 @@ import {
 
 import { IconLocate, IconMoon, IconSun } from "@/components/resident/icons";
 import { SegmentedPill } from "@/components/resident/SegmentedPill";
-import { BETA_LABEL, SCORING_SPEC_VERSION } from "@/lib/beta";
+import { deviceClass, markAnalyticsVisit, track } from "@/lib/analytics/client";
+import { DASHBOARD_LABEL, DASHBOARD_VERSION, SCORING_SPEC_VERSION } from "@/lib/beta";
+import { PLANNER_URL } from "@/lib/frontDoorCopy";
 import {
   areaValue,
   breakdown,
@@ -483,6 +485,14 @@ export function CouncilDashboard() {
     window.location.assign("/dashboard/sign-in");
   };
 
+  const dashProps = () => ({
+    version: DASHBOARD_VERSION,
+    when: mode,
+    view,
+    unit,
+    device: deviceClass(),
+  });
+
   const areasByUnit = useMemo(
     () => ({
       suburb: rollUpAreas(features, "suburb"),
@@ -520,6 +530,12 @@ export function CouncilDashboard() {
       setIntroOpen(true);
     }
     setOnDashboardHost(window.location.hostname.startsWith("dashboard."));
+    if (markAnalyticsVisit()) {
+      track("dash_session_started", {
+        version: DASHBOARD_VERSION,
+        device: deviceClass(),
+      });
+    }
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -536,6 +552,7 @@ export function CouncilDashboard() {
       if (!DASHBOARD_LAYERS.some((d) => d.fadesPaths && next[d.id])) setUserPathMode(null);
       return next;
     });
+    track("dash_layer_toggled", { ...dashProps(), layer: def.id, layer_on: on });
   };
 
   const closeIntro = () => {
@@ -883,6 +900,17 @@ export function CouncilDashboard() {
       setSelectedPoint(null);
       setSelectedSeg(segId != null ? String(segId) : null);
       setPopupInfo({ kind: "segment", props: hit.properties, lngLat });
+      const suburb =
+        typeof hit.properties?.suburb === "string" ? hit.properties.suburb : undefined;
+      const s = stateRef.current;
+      track("dash_path_opened", {
+        version: DASHBOARD_VERSION,
+        when: s?.mode,
+        view: s?.view,
+        unit: s?.unit,
+        device: deviceClass(),
+        suburb,
+      });
     });
 
     const pointer = () => (map.getCanvas().style.cursor = "pointer");
@@ -1101,19 +1129,33 @@ export function CouncilDashboard() {
     if (hit) selectArea(hit);
   };
 
-  const togglePart = (part: "footpaths" | "stream") => setView((v) => nextView(v, part));
+  const togglePart = (part: "footpaths" | "stream") => {
+    setView((v) => {
+      const next = nextView(v, part);
+      if (next !== v) track("dash_view_changed", { ...dashProps(), view: next });
+      return next;
+    });
+  };
 
   const changeUnit = (next: AreaUnit) => {
     if (next === unit) return;
     setUnit(next);
     setSelectedId(null);
     setQuery("");
+    track("dash_view_changed", { ...dashProps(), unit: next });
   };
 
   const selectArea = (a: AreaStats | null) => {
     setSelectedId(a?.id ?? null);
     setQuery(a?.name ?? "");
     setPopupInfo(null);
+    if (a) {
+      track("dash_area_opened", {
+        ...dashProps(),
+        area: a.name,
+        suburb: unit === "suburb" ? a.name : undefined,
+      });
+    }
   };
 
   const clearSelection = () => {
@@ -1198,21 +1240,24 @@ export function CouncilDashboard() {
         <SegmentedPill
           value={mode}
           options={MODE_OPTIONS}
-          onChange={(m) => setMode(m)}
+          onChange={(m) => {
+            setMode(m);
+            if (m !== mode) track("dash_view_changed", { ...dashProps(), when: m });
+          }}
           isNight={false}
           ariaLabel="Walking conditions index"
           className="h-9! w-40!"
         />
         <span
-          className="rounded-md bg-yw-navy/8 px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-yw-navy ring-1 ring-yw-navy/15"
-          title="Pilot build for City of Casey staff"
+          className="hidden rounded-md bg-yw-navy/8 px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-yw-navy ring-1 ring-yw-navy/15 sm:inline"
+          title={`Pilot build ${DASHBOARD_VERSION} for City of Casey staff`}
         >
-          {BETA_LABEL}
+          {DASHBOARD_LABEL}
         </span>
-        <span className="rounded-md bg-yw-day-surface px-1.5 py-0.5 font-mono text-[11px] text-slate-600 ring-1 ring-[#E8ECF2]">
-          scores {spec}
+        <span className="hidden rounded-md bg-yw-day-surface px-1.5 py-0.5 font-mono text-[11px] text-slate-600 ring-1 ring-[#E8ECF2] md:inline">
+          dashboard {DASHBOARD_VERSION} · scores {spec}
         </span>
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-2 sm:gap-3">
           <button
             type="button"
             onClick={() => setIntroOpen(true)}
@@ -1221,7 +1266,18 @@ export function CouncilDashboard() {
             <MdInfoOutline className="h-4 w-4" aria-hidden />
             How to read this
           </button>
-          <p className="text-[12px] font-semibold text-slate-600">City of Casey</p>
+          <a
+            href={PLANNER_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="See what residents see (public beta)"
+            onClick={() => track("dash_resident_app_opened", dashProps())}
+            className="hidden h-9 items-center gap-1 rounded-full px-3 text-[12px] font-semibold text-yw-navy hover:bg-yw-day-surface sm:inline-flex"
+          >
+            Resident app
+            <MdOpenInNew className="h-3.5 w-3.5" aria-hidden />
+          </a>
+          <p className="hidden text-[12px] font-semibold text-slate-600 lg:block">City of Casey</p>
           {onDashboardHost ? (
             <button
               type="button"
