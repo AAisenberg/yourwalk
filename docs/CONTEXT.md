@@ -78,11 +78,12 @@ This documentation set is organised to support both strategic decision-making an
 - **`PHASES.md`**: MVP, Beta, and v1 definitions with clear entry/exit criteria and demo scripts.
 - **`DELIVERY_PLAN.md`**: Practical sprint-by-sprint plan with dependencies and Council touchpoints.
 - **`BACKLOG.md`**: Prioritised work items organised as vertical slices.
+- **`DASHBOARD.md`**: Council insights build spec (phases D0–D4, visual rules, D1 acceptance).
 
 ### Requirements Documents
 
 - **`REQS/`**: Detailed requirements by capability area (routing, scoring, map layers, data ingestion, accounts, privacy, analytics, performance, reporting).
-- **`FLOWS/`**: Step-by-step user journeys with acceptance criteria and edge cases.
+- **`FLOWS/`**: Step-by-step user journeys with acceptance criteria and edge cases. Council insights journey is FLOW 06; build phases live in `DASHBOARD.md`.
 
 ### Supporting Documents
 

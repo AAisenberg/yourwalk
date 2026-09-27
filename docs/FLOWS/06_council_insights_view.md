@@ -1,5 +1,7 @@
 # Flow: View Council Insights
 
+**Build SoT:** [`DASHBOARD.md`](../DASHBOARD.md) (20 Sep 2026). This flow is the older observation-era journey. Use it for later-phase corridors, filters, and export steps. Do not implement D1 as community “issue density”.
+
 ## Purpose
 
 Council staff access aggregated insights about walking network performance, including hotspots, corridors, and prioritisation evidence, to support infrastructure planning and decision-making.
@@ -196,6 +198,7 @@ Council project officers, transport and urban design staff, and assets team memb
 
 ## Related Documents
 
+- [`DASHBOARD.md`](../DASHBOARD.md): Build spec and phases (SoT)
 - [`REQS/reporting_exports.md`](../REQS/reporting_exports.md): Reporting and export requirements
 - [`REQS/accounts_and_roles.md`](../REQS/accounts_and_roles.md): Account and role requirements
 - [`FLOWS/07_export_report.md`](07_export_report.md): Export report flow

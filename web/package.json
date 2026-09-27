@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:analytics": "npx tsx src/lib/analytics/events.test.ts",
-    "test:elevation": "npx --yes tsx --test src/lib/routing/elevation.test.ts"
+    "test:elevation": "npx --yes tsx --test src/lib/routing/elevation.test.ts",
+    "test:dashboard": "npx --yes tsx --test src/lib/dashboard/areas.test.ts src/lib/dashboard/session.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.5",

@@ -14,7 +14,7 @@ Deliver a vertical slice that demonstrates core value: a resident can plan a rou
 - **Basic scoring**: Routes show overall score with simple breakdown (lighting, accessibility, climate)
 - **Map layers**: Toggle one layer per stream (lighting, accessibility, climate) with basic visualisation
 - **One submission type**: Users can submit accessibility audits (most structured, easiest to validate)
-- **Basic insights**: Council can view hotspot map (issue density visualisation)
+- **Basic insights**: Council can view the D1 evidence map (Day/Night segment choropleth, suburb rank). See [`DASHBOARD.md`](DASHBOARD.md). Not community-issue density.
 - **Data transparency**: Source indicators and basic confidence levels visible
 - **Pilot area**: Single defined pilot area within Casey (boundaries TBD)
 - **Web interface**: Responsive web app, no mobile app
@@ -51,10 +51,11 @@ Deliver a vertical slice that demonstrates core value: a resident can plan a rou
 **And** they receive confirmation that their contribution was recorded
 
 **Given** a Council staff member accesses the insights dashboard  
-**When** they view the hotspot map  
-**Then** they see issue density visualised across the pilot area  
-**And** they can identify areas where multiple issues converge  
-**And** data source and confidence information is visible
+**When** they view the evidence map  
+**Then** they see Day/Night segment scores across Casey  
+**And** they can identify weaker suburbs on the selected index  
+**And** data source and confidence information is visible  
+(See [`DASHBOARD.md`](DASHBOARD.md) D1.)
 
 ### Instrumentation Required
 
@@ -72,7 +73,7 @@ Deliver a vertical slice that demonstrates core value: a resident can plan a rou
 - Routes calculate correctly for 50+ test origin/destination pairs in pilot area
 - All three map layers render without errors
 - Submission form validates input and saves successfully
-- Insights dashboard loads and displays hotspot data
+- Insights dashboard loads and displays the D1 evidence map
 
 **Performance**:
 - Initial map load < 3 seconds on 4G connection
@@ -107,7 +108,7 @@ Deliver a vertical slice that demonstrates core value: a resident can plan a rou
 6. **Toggle accessibility layer** - Show footpath audits and Council data
 7. **Toggle climate layer** - Show heat mapping and shade data
 8. **Submit observation** - Complete accessibility audit form, show submission confirmation
-9. **Switch to Council view** - Show insights dashboard, highlight hotspot areas
+9. **Switch to Council view** - Show D1 evidence map ([`DASHBOARD.md`](DASHBOARD.md)), highlight weaker suburbs on Day or Night
 10. **Explain transparency** - Point out data sources and confidence indicators
 
 **Duration**: 5-7 minutes

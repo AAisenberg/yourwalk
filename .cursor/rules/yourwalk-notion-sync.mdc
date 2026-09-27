@@ -36,6 +36,7 @@ Optional read-only context: `notion-fetch` hub or Development. **Do not** treat 
 | Trigger alias | Read (in order) |
 |---------------|-----------------|
 | **`pull spec`** (default) | `docs/VULNERABILITY_INDEX.md` → `docs/PRD.md` (scope + open questions) → `docs/BACKLOG.md` (Now) → `docs/DELIVERY_PLAN.md` (current sprint) |
+| **`pull spec dashboard`** | `docs/DASHBOARD.md` + `docs/VULNERABILITY_INDEX.md` §3–4 + ADR-012 |
 | **`pull spec methodology`** | `docs/VULNERABILITY_INDEX.md` only |
 | **`pull spec prd`** | `docs/PRD.md` + `docs/PHASES.md` |
 | **`pull spec backlog`** | `docs/BACKLOG.md` |

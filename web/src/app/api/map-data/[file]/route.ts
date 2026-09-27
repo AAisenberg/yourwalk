@@ -21,6 +21,13 @@ const ALLOWED = new Set([
   "benches.geojson",
   "toilets.geojson",
   "dog_bags.geojson",
+  // Council insights layers (pipeline/scripts/export_dashboard_layers.py)
+  "streetlights.geojson",
+  "park_lights.geojson",
+  "tree_density.geojson",
+  "urban_heat.geojson",
+  "speed_zones.geojson",
+  "school_crossings.geojson",
 ]);
 
 const DEFAULT_BASE =
