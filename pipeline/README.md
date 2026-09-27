@@ -371,6 +371,17 @@ Use the plain `.geojson` URL (not `.gz`) — Supabase/Cloudflare already compres
 
 PostGIS remains the source of truth for routing / SQL; Storage is the map paint layer.
 
+**Production (from Sep 2026):** the old Supabase Storage host no longer resolves. Production serves map files through `web/src/app/api/map-data/[file]/route.ts`, which proxies the `map-data-v1` GitHub release (`NEXT_PUBLIC_SEGMENTS_GEOJSON_URL=/api/map-data/segment_scores.geojson`).
+
+### Council dashboard layers
+
+```bash
+python scripts/export_dashboard_layers.py   # slims data/viewer layers into data/viewer/dashboard/*.geojson
+gh release upload map-data-v1 data/viewer/dashboard/*.geojson --clobber
+```
+
+Keeps only the fields the dashboard reads and rounds coordinates to 6 dp. New files must also be added to the allowlist in the map-data route.
+
 ### Resident analytics (ADR-013)
 
 Anonymous planner events (`find_started`, suburb, A to B vs Loop). No coordinates.

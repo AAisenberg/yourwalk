@@ -476,6 +476,12 @@ export function CouncilDashboard() {
   const pathMode: PathMode = userPathMode ?? (areaLayerOn ? "faint" : "full");
   const fadingLayer = DASHBOARD_LAYERS.find((d) => d.fadesPaths && layers[d.id]) ?? null;
   const [sort, setSort] = useState<SortOrder>("low");
+  const [onDashboardHost, setOnDashboardHost] = useState(false);
+
+  const signOut = async () => {
+    await fetch("/api/dashboard-session", { method: "DELETE" }).catch(() => undefined);
+    window.location.assign("/dashboard/sign-in");
+  };
 
   const areasByUnit = useMemo(
     () => ({
@@ -513,6 +519,7 @@ export function CouncilDashboard() {
     } catch {
       setIntroOpen(true);
     }
+    setOnDashboardHost(window.location.hostname.startsWith("dashboard."));
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -1215,11 +1222,20 @@ export function CouncilDashboard() {
             How to read this
           </button>
           <p className="text-[12px] font-semibold text-slate-600">City of Casey</p>
+          {onDashboardHost ? (
+            <button
+              type="button"
+              onClick={signOut}
+              className="h-9 rounded-full px-3 text-[12px] font-semibold text-slate-600 ring-1 ring-[#E8ECF2] hover:bg-yw-day-surface"
+            >
+              Sign out
+            </button>
+          ) : null}
         </div>
       </header>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[20rem_minmax(0,1fr)_22rem]">
-        <aside className="order-2 min-h-0 overflow-y-auto border-[#E8ECF2] bg-white p-4 lg:order-1 lg:border-r">
+      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-[17.5rem_minmax(0,1fr)_17.5rem] lg:overflow-visible xl:grid-cols-[20rem_minmax(0,1fr)_22rem]">
+        <aside className="order-2 min-h-0 border-[#E8ECF2] bg-white p-4 lg:order-1 lg:overflow-y-auto lg:border-r">
           <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">
             {selected ? `Selected ${UNIT_WORD[unit].one}` : "City of Casey"}
           </p>
@@ -1283,7 +1299,7 @@ export function CouncilDashboard() {
         </aside>
 
         <section
-          className="relative order-1 min-h-[55vh] lg:order-2 lg:min-h-0"
+          className="relative order-1 min-h-[60vh] lg:order-2 lg:min-h-0"
           aria-label={`${indexLabel} walking conditions map`}
         >
           <div ref={containerRef} className="absolute inset-0" />
@@ -1488,7 +1504,7 @@ export function CouncilDashboard() {
           />
         </section>
 
-        <aside className="order-3 min-h-0 overflow-y-auto border-[#E8ECF2] bg-white p-4 lg:border-l">
+        <aside className="order-3 min-h-0 border-[#E8ECF2] bg-white p-4 lg:overflow-y-auto lg:border-l">
           <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">View by</p>
           <SegmentedPill
             value={unit}
@@ -1696,8 +1712,8 @@ function AreaCard({
             {view === "index" ? "Out of 10 · higher is better" : `One part of the ${indexName}`}
           </p>
         </div>
-        <div className="text-right" aria-live="polite">
-          <p>
+        <div className="shrink-0 text-right" aria-live="polite">
+          <p className="whitespace-nowrap">
             <AnimatedNumber
               value={headline}
               className="text-[36px] font-extrabold leading-none tracking-tight text-yw-navy"

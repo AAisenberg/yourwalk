@@ -9,7 +9,7 @@
 
 import type { ExpressionSpecification } from "mapbox-gl";
 
-import { EVIDENCE_LAYER_DEFS, resolveEvidenceUrl } from "@/lib/evidenceLayers";
+import { EVIDENCE_LAYER_DEFS } from "@/lib/evidenceLayers";
 import { OVERLAY_DEFS, type OverlayId } from "@/lib/overlays";
 
 export type DashboardLayerId =
@@ -208,7 +208,8 @@ export const DASHBOARD_LAYERS: DashboardLayerDef[] = [
       under: false,
       fadesPaths: false,
       legend: { kind: "dot", color: def.color },
-      url: () => resolveEvidenceUrl(def),
+      // Same-origin proxy; the lab's Supabase Storage fallback no longer resolves
+      url: localOrProxy(def.id === "street_lights" ? "streetlights.geojson" : "park_lights.geojson"),
       popup: (p) => ({
         title: def.label.replace(/s$/, ""),
         lines: [

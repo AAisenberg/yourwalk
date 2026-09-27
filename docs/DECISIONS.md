@@ -411,7 +411,7 @@ For v1 dusk / mixed routes, use the Night Index if any material part of the walk
 | `yourwalk.au` | Public front door (press, partners, Casey pilot). Not a login. Not the resident planner. |
 | `www.yourwalk.au` | Redirect to the apex |
 | `app.yourwalk.au` | Resident planner (today's `/`) |
-| `dashboard.yourwalk.au` | Council insights when we build it (N5 / FLOW 06). Clerk later (L1). Do not add this host until that work starts. |
+| `dashboard.yourwalk.au` | Council insights (N5 / FLOW 06), live 27 Sep 2026 behind a host-scoped shared-password gate in `web/src/proxy.ts` (DB-1 in [`DASHBOARD.md`](DASHBOARD.md)). Clerk later (L1). |
 
 Prefer `app.` over `/app` or `/map`. Path `/` on the planner host stays the resident app (N1b). Do not put a login wall on the apex. Residents stay anonymous (ADR-004 lean). Optional accounts remain Later L1 and do not apply to the front door.
 
@@ -430,7 +430,7 @@ Vercel prefers `www` as the primary hostname (CNAME steering). We still lock **w
 **Consequences**:
 
 - Do not attach the apex to the planner until a front-door page exists. Pointing `yourwalk.au` at today's `/` would publish the planner as the front door.
-- First DNS cut: `app.yourwalk.au` live 4 Sep 2026 (Squarespace CNAME + Vercel cert). Apex and `www` live 14 Sep 2026 (front door on `yourwalk.au`, `www` 308 to apex). `dashboard.yourwalk.au` waits for N5.
+- First DNS cut: `app.yourwalk.au` live 4 Sep 2026 (Squarespace CNAME + Vercel cert). Apex and `www` live 14 Sep 2026 (front door on `yourwalk.au`, `www` 308 to apex). `dashboard.yourwalk.au` live 27 Sep 2026 (Squarespace CNAME + Vercel cert), gated in the app because Vercel password protection would also lock the public hosts in this single project.
 - `yourwalk.vercel.app` remains a valid production URL until a later cutover; do not delete it in this ADR.
 - Mapbox GL JS only on every public host (ADR-002). No MapLibre.
 - Clerk and dashboard UI stay out of scope until an explicit go. Front-door **spec**: [`FRONT_DOOR.md`](FRONT_DOOR.md) (4 Sep 2026). Council insights **spec**: [`DASHBOARD.md`](DASHBOARD.md) (20 Sep 2026). Do not add `dashboard.yourwalk.au` until D1 build starts.

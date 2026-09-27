@@ -1,6 +1,6 @@
 # Council insights dashboard
 
-**Status:** D1 built for local testing (24 Sep 2026) at `/dashboard`. Spec 20 Sep; sitting 2 brief 21 Sep; XYX input 23 Sep. Not deployed: the production planner host redirects `/dashboard` away, and there is no `dashboard.yourwalk.au` DNS until DB-1 (ADR-012).  
+**Status:** D1 MVP complete 27 Sep 2026: `dashboard.yourwalk.au` behind a shared-password gate (DB-1), Phase 1 of the rollout below. Spec 20 Sep; sitting 2 brief 21 Sep; XYX input 23 Sep; local build 24 Sep. The planner host and apex never serve `/dashboard` (ADR-012).  
 **Audience:** City of Casey staff first (transport, urban design, assets, inclusion, grant sponsor). Not residents.  
 **Build SoT for this surface:** this document. Older FLOW / REQS / mockup are inputs.
 
@@ -468,7 +468,27 @@ Still out, even beyond the pilot, unless the grant or a new agreement changes:
 
 ## Auth, privacy, language
 
-**D1 access (choose in DB-1):** the host is real but unlisted. Not in the resident header. Not on the holding front door.
+**D1 access (DB-1, decided 27 Sep 2026):** a shared-password gate on `dashboard.yourwalk.au` only, in `web/src/proxy.ts`. Not in the resident header. Not on the holding front door.
+
+- Sign-in at `/dashboard/sign-in`; the password is the server-only `DASHBOARD_PASSWORD` in Vercel. A correct password sets a signed, httpOnly, 30-day cookie (`DASHBOARD_SESSION_SECRET`). No accounts and no personal data.
+- Revoke everyone by rotating both values in Vercel and redeploying.
+- Fails closed: if either secret is missing, the public host only ever shows sign-in.
+- Map data paths stay open on the host because the same open data is already public through the planner. The gate protects the tool, not secret data.
+- Vercel's own password protection was ruled out: it covers whole deployments, so it would also lock `yourwalk.au` and `app.yourwalk.au`, and it is a paid add-on.
+- Previews (`*.vercel.app`) stay behind Vercel login (CrowdLab only).
+
+**Rollout phases:**
+
+| Phase | Who | Access | When |
+|-------|-----|--------|------|
+| 1 · Internal | Product, Nikki, XYX | Shared password | From 27 Sep 2026 |
+| 2 · Officer testing | 3–5 named Casey officers (sitting 2 script) | Same password; names recorded here; usage counting (DB-7) on first | Next 1–2 weeks |
+| 3 · Casey staff | Wider Council teams | Individual accounts (Clerk, L1) or Council sign-in if Casey IT asks, for per-person access and revocation | After officer feedback |
+| 4 · Beyond pilot | Possibly public read-only | DB-8 | Not in the pilot |
+
+**Named users (Phase 2):** _add names and teams here when the password is shared._
+
+**Map data hosting:** scores, boundary and all layers stream through `/api/map-data/*` from the `map-data-v1` GitHub release. Dashboard layers are slimmed by `pipeline/scripts/export_dashboard_layers.py` (streetlights 8.5 MB, canopy 5.5 MB, speed zones 4.8 MB; each loads only when switched on).
 
 Residents stay anonymous on the planner (ADR-004 lean). Dashboard usage telemetry, if any, follows the allowlist pattern: no addresses, no coordinates, no named officer required in D1.
 
@@ -497,7 +517,7 @@ Do not say: safe route, high risk, crime hotspot, vulnerable people (when you me
 
 | ID | Question | Options | Decision criteria | Decide when |
 |----|----------|---------|-------------------|-------------|
-| DB-1 | How do officers open D1? | A. Vercel Deployment Protection password, shared with named staff. B. Vercel Authentication (CrowdLab seats only; poor for Council). C. Unlisted URL, no password (scores are from open data). D. Clerk org (L1, too early). | Least friction for 5–15 Casey staff; no login on other hosts; revoke without a rebuild | Before DNS |
+| DB-1 | How do officers open D1? | A. Vercel Deployment Protection password (locks every host in the project; paid). B. Vercel Authentication (CrowdLab seats only; poor for Council). C. Unlisted URL, no password. D. Clerk org (L1). **E (decided 27 Sep). Our own shared-password gate on the dashboard host only.** | Least friction for 5–15 Casey staff; no login on other hosts; revoke by rotating secrets | Decided; revisit at Phase 3 |
 | DB-2 | Night chrome | **A (sitting 1).** Day shell always. B. Full Night surfaces when Night index is on. | Screenshot contrast in a meeting room | Reopen only after an officer sitting |
 | DB-3 | Default rank geography | **A (sitting 1).** Suburb list. B. SA2 only. C. Ward. | Officers can name the unit in a briefing without a glossary | Officer sitting 2 may reopen via DB-11 |
 | DB-4 | Single-stream paint in D1? | **A (reopened by product, 24 Sep).** Switch a part off in the card to show the other part only. Labelled "only" and "one part of the score, not the score itself" on the card, legend and list. B. Day / Night paint only (sitting 1). | Officers ask stream questions ("where is lighting weak?"); avoid it reading as another overall score | Officer testing confirms |
