@@ -186,7 +186,9 @@ function SegmentPopup({
           : casey.night;
   const suburb = text(p?.suburb);
   const ward = text(p?.ward);
+  const street = text(p?.street_name);
   const area = unit === "ward" ? ward : suburb;
+  const placeLine = [street ? suburb : null, ward ? `${ward} ward` : null].filter(Boolean).join(" · ");
   const kind = p?.walk_path_class === "shared_use" ? "Shared path" : "Footpath";
   const conf = text(mode === "day" ? p?.confidence_day : p?.confidence_night);
   const id = p?.segment_id != null ? String(p.segment_id) : null;
@@ -197,7 +199,7 @@ function SegmentPopup({
       tag={kind}
       swatch="#292984"
       group={null}
-      title={suburb ? `${kind} in ${suburb}` : kind}
+      title={street ?? (suburb ? `${kind} in ${suburb}` : kind)}
       onClose={onClose}
       footer={
         <span className="flex items-center justify-between gap-2">
@@ -208,7 +210,7 @@ function SegmentPopup({
         </span>
       }
     >
-      {ward ? <p className="-mt-1 mb-2 text-[12px] text-slate-500">{ward} ward</p> : null}
+      {placeLine ? <p className="-mt-1 mb-2 text-[12px] text-slate-500">{placeLine}</p> : null}
       <div className="flex items-end justify-between gap-2">
         <div>
           <p className="text-[12px] font-semibold text-slate-700">{label}</p>

@@ -66,6 +66,7 @@ def build_intermediate(con: duckdb.DuckDBPyConnection) -> None:
             ward,
             postcode,
             gismoddate AS gis_modified_date,
+            description AS asset_description,
             geom,
             {WIDTH_QA_SQL} AS width_qa_flag
         FROM ST_Read('{RAW_GEOJSON.as_posix()}')

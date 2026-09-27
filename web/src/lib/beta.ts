@@ -14,6 +14,12 @@ export const MAP_DATA_RELEASE = "map-data-v1";
 
 export const BETA_LABEL = "Beta";
 
+/** Council insights build. Bump when officers would notice a change. */
+export const DASHBOARD_VERSION =
+  process.env.NEXT_PUBLIC_DASHBOARD_VERSION?.trim() || "0.2.0";
+
+export const DASHBOARD_LABEL = "Pilot";
+
 export function betaVersionTitle(): string {
   return `${BETA_LABEL} · app ${APP_VERSION}`;
 }

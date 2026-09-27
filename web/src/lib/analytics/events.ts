@@ -9,6 +9,13 @@ export const ANALYTICS_EVENT_NAMES = [
   "use_this_route",
   "layer_toggled",
   "area_context",
+  // Council insights (DASHBOARD.md DB-7). Signed-in officers only; same privacy rules.
+  "dash_session_started",
+  "dash_view_changed",
+  "dash_area_opened",
+  "dash_layer_toggled",
+  "dash_path_opened",
+  "dash_resident_app_opened",
 ] as const;
 
 export type AnalyticsEventName = (typeof ANALYTICS_EVENT_NAMES)[number];
@@ -29,6 +36,10 @@ export const ANALYTICS_PROP_KEYS = [
   "layer_on",
   "suburb",
   "device",
+  "view",
+  "unit",
+  "area",
+  "version",
 ] as const;
 
 export type AnalyticsPropKey = (typeof ANALYTICS_PROP_KEYS)[number];
@@ -49,6 +60,10 @@ export type AnalyticsProperties = Partial<{
   layer_on: boolean;
   suburb: string;
   device: "phone" | "desktop";
+  view: "index" | "footpaths" | "stream";
+  unit: "suburb" | "ward";
+  area: string;
+  version: string;
 }>;
 
 const FORBIDDEN_KEY =
@@ -218,6 +233,18 @@ export function sanitizeProperties(
         break;
       case "suburb":
         if (!/\d/.test(text)) out.suburb = text;
+        break;
+      case "area":
+        if (!/\d/.test(text)) out.area = text;
+        break;
+      case "view":
+        if (text === "index" || text === "footpaths" || text === "stream") out.view = text;
+        break;
+      case "unit":
+        if (text === "suburb" || text === "ward") out.unit = text;
+        break;
+      case "version":
+        if (/^\d{1,2}\.\d{1,2}\.\d{1,2}$/.test(text)) out.version = text;
         break;
       default:
         break;
