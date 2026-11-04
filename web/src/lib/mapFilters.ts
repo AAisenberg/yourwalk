@@ -30,6 +30,45 @@ export function listSuburbs(features: GeoJSON.Feature[]): string[] {
   return [...set].sort((a, b) => a.localeCompare(b));
 }
 
+function firstCoord(geom: GeoJSON.Geometry | null | undefined): [number, number] | null {
+  if (!geom || !("coordinates" in geom)) return null;
+  const walk = (coords: unknown): [number, number] | null => {
+    if (!Array.isArray(coords) || coords.length === 0) return null;
+    if (typeof coords[0] === "number" && typeof coords[1] === "number") {
+      return [coords[0], coords[1]];
+    }
+    return walk(coords[0]);
+  };
+  return walk(geom.coordinates);
+}
+
+/** One label point per Casey suburb, averaged from scored footpath geometry. */
+export function suburbLabelPoints(
+  features: GeoJSON.Feature[],
+): GeoJSON.FeatureCollection<GeoJSON.Point> {
+  const acc = new Map<string, { x: number; y: number; n: number }>();
+  for (const f of features) {
+    const raw = f.properties?.suburb;
+    if (typeof raw !== "string" || !raw.trim()) continue;
+    const pt = firstCoord(f.geometry);
+    if (!pt) continue;
+    const key = raw.trim();
+    const cur = acc.get(key) ?? { x: 0, y: 0, n: 0 };
+    cur.x += pt[0];
+    cur.y += pt[1];
+    cur.n += 1;
+    acc.set(key, cur);
+  }
+  return {
+    type: "FeatureCollection",
+    features: [...acc.entries()].map(([suburb, { x, y, n }]) => ({
+      type: "Feature",
+      properties: { suburb },
+      geometry: { type: "Point", coordinates: [x / n, y / n] },
+    })),
+  };
+}
+
 export function countMatching(
   features: GeoJSON.Feature[],
   suburb: string,
