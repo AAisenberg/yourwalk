@@ -105,12 +105,14 @@ import {
   tripRankScore,
 } from "@/lib/routing/preferences";
 import type { LngLat, ScoredRoute } from "@/lib/routing/types";
-import { suburbLabelPoints } from "@/lib/mapFilters";
 import {
-  CASEY_BOUNDS,
-  CASEY_MASK_BOUNDS,
-  CASEY_MAX_BOUNDS,
-} from "@/lib/scores";
+  caseyOutsideMask,
+  caseyOutsidePaint,
+  ensureCaseySuburbLabels,
+  hideBasemapPlaceLabels,
+  hideClassicPlaceLabels,
+} from "@/lib/caseyMapChrome";
+import { CASEY_BOUNDS, CASEY_MAX_BOUNDS } from "@/lib/scores";
 import { findFailReason } from "@/lib/analytics/events";
 import {
   deviceClass,
@@ -227,23 +229,9 @@ function applyStandardLook(map: mapboxgl.Map, preset: LightPreset) {
   };
   setBasemap("lightPreset", preset);
   setBasemap("showPointOfInterestLabels", false);
-  // Casey-only suburb names are drawn by us; basemap places sit on the veil.
-  setBasemap("showPlaceLabels", false);
+  hideBasemapPlaceLabels(map);
   // Standard paints OSM paths/trails as a neon dotted line at night.
   setBasemap("showPedestrianRoads", false);
-}
-
-/** Classic Streets / Dark fallback: hide settlement labels we cannot clip. */
-function hideClassicPlaceLabels(map: mapboxgl.Map) {
-  const style = map.getStyle();
-  if (!style?.layers) return;
-  for (const layer of style.layers) {
-    if (layer.type !== "symbol") continue;
-    if (!/place|settlement|country|state|continent/i.test(layer.id)) continue;
-    if (map.getLayer(layer.id)) {
-      map.setLayoutProperty(layer.id, "visibility", "none");
-    }
-  }
 }
 
 const T1EAM_UNDERLAY_SRC = "t1eam-underlay";
@@ -411,146 +399,17 @@ function ensureT1eamUnderlay(
   }
 }
 
-/** World-outside-Casey fill: Casey LGA rings punched out of the view bbox. */
-function caseyOutsideMask(
-  lga: GeoJSON.FeatureCollection,
-): GeoJSON.Feature | null {
-  const holes: GeoJSON.Position[][] = [];
-  for (const feature of lga.features) {
-    const geom = feature.geometry;
-    if (geom?.type === "Polygon") holes.push(geom.coordinates[0]!);
-    if (geom?.type === "MultiPolygon") {
-      for (const poly of geom.coordinates) holes.push(poly[0]!);
-    }
-  }
-  if (!holes.length) return null;
-  const outer: GeoJSON.Position[] = [
-    [CASEY_MASK_BOUNDS.west, CASEY_MASK_BOUNDS.south],
-    [CASEY_MASK_BOUNDS.east, CASEY_MASK_BOUNDS.south],
-    [CASEY_MASK_BOUNDS.east, CASEY_MASK_BOUNDS.north],
-    [CASEY_MASK_BOUNDS.west, CASEY_MASK_BOUNDS.north],
-    [CASEY_MASK_BOUNDS.west, CASEY_MASK_BOUNDS.south],
-  ];
-  return {
-    type: "Feature",
-    properties: {},
-    geometry: { type: "Polygon", coordinates: [outer, ...holes] },
-  };
-}
-
-function lgaMaskPaint(night: boolean): {
-  color: string;
-  opacity: number;
-} {
-  return night
-    ? { color: "#070810", opacity: 0.62 }
-    : { color: "#0f172a", opacity: 0.4 };
-}
-
-const SUBURB_LABEL_SRC = "casey-suburb-labels";
-const SUBURB_LABEL_LAYER = "casey-suburb-labels";
-
-function suburbLabelPaint(night: boolean): {
-  "text-color": string;
-  "text-halo-color": string;
-  "text-halo-width": number;
-  "text-emissive-strength": number;
-} {
-  return night
-    ? {
-        "text-color": "#F8FAFC",
-        "text-halo-color": "#0B0C1A",
-        "text-halo-width": 1.4,
-        "text-emissive-strength": 1,
-      }
-    : {
-        "text-color": "#292984",
-        "text-halo-color": "#FFFFFF",
-        "text-halo-width": 1.6,
-        "text-emissive-strength": 0.4,
-      };
-}
-
 function ensureSuburbLabels(
   map: mapboxgl.Map,
   features: GeoJSON.Feature[],
   night: boolean,
 ) {
-  const data = suburbLabelPoints(features);
-  const existing = map.getSource(SUBURB_LABEL_SRC);
-  if (existing && existing.type === "geojson") {
-    existing.setData(data);
-  } else {
-    map.addSource(SUBURB_LABEL_SRC, { type: "geojson", data });
-  }
-  if (!map.getLayer(SUBURB_LABEL_LAYER)) {
-    const beforeRoutes = map.getLayer("routes-alt-casing")
-      ? "routes-alt-casing"
-      : map.getLayer("routes-alt")
-        ? "routes-alt"
-        : undefined;
-    const layout: mapboxgl.SymbolLayout = {
-      "text-field": ["get", "suburb"],
-      "text-size": [
-        "interpolate",
-        ["linear"],
-        ["zoom"],
-        9.5,
-        11,
-        12,
-        13,
-        15,
-        15,
-      ],
-      "text-padding": 6,
-      "text-optional": true,
-      "text-allow-overlap": false,
-      "text-ignore-placement": false,
-    };
-    const fonts: string[][] = [
-      ["DIN Pro Medium", "Arial Unicode MS Regular"],
-      ["Open Sans Regular", "Arial Unicode MS Regular"],
-    ];
-    for (const textFont of fonts) {
-      try {
-        map.addLayer(
-          {
-            id: SUBURB_LABEL_LAYER,
-            type: "symbol",
-            source: SUBURB_LABEL_SRC,
-            slot: "top",
-            minzoom: 9.5,
-            layout: { ...layout, "text-font": [...textFont] },
-            paint: suburbLabelPaint(night),
-          },
-          beforeRoutes,
-        );
-        break;
-      } catch {
-        if (map.getLayer(SUBURB_LABEL_LAYER)) {
-          map.removeLayer(SUBURB_LABEL_LAYER);
-        }
-      }
-    }
-  } else {
-    const paint = suburbLabelPaint(night);
-    map.setPaintProperty(SUBURB_LABEL_LAYER, "text-color", paint["text-color"]);
-    map.setPaintProperty(
-      SUBURB_LABEL_LAYER,
-      "text-halo-color",
-      paint["text-halo-color"],
-    );
-    map.setPaintProperty(
-      SUBURB_LABEL_LAYER,
-      "text-halo-width",
-      paint["text-halo-width"] ?? 1.4,
-    );
-    map.setPaintProperty(
-      SUBURB_LABEL_LAYER,
-      "text-emissive-strength",
-      paint["text-emissive-strength"] ?? 0,
-    );
-  }
+  const beforeRoutes = map.getLayer("routes-alt-casing")
+    ? "routes-alt-casing"
+    : map.getLayer("routes-alt")
+      ? "routes-alt"
+      : undefined;
+  ensureCaseySuburbLabels(map, features, night, { beforeId: beforeRoutes });
 }
 
 /** Install route + optional LGA / T1EAM layers after load or basemap style switch. */
@@ -728,8 +587,8 @@ function installMapChrome(
           source: "lga-mask",
           slot: "top",
           paint: {
-            "fill-color": lgaMaskPaint(opts.night).color,
-            "fill-opacity": lgaMaskPaint(opts.night).opacity,
+            "fill-color": caseyOutsidePaint(opts.night).color,
+            "fill-opacity": caseyOutsidePaint(opts.night).opacity,
             "fill-emissive-strength": 1,
           },
         },
@@ -1682,7 +1541,7 @@ export function ResidentApp() {
       );
     }
     if (map.getLayer("lga-mask")) {
-      const paint = lgaMaskPaint(walkMode === "night");
+      const paint = caseyOutsidePaint(walkMode === "night");
       map.setPaintProperty("lga-mask", "fill-color", paint.color);
       map.setPaintProperty("lga-mask", "fill-opacity", paint.opacity);
     }
