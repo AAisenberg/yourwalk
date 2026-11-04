@@ -450,7 +450,12 @@ function lgaMaskPaint(night: boolean): {
 const SUBURB_LABEL_SRC = "casey-suburb-labels";
 const SUBURB_LABEL_LAYER = "casey-suburb-labels";
 
-function suburbLabelPaint(night: boolean): mapboxgl.SymbolPaint {
+function suburbLabelPaint(night: boolean): {
+  "text-color": string;
+  "text-halo-color": string;
+  "text-halo-width": number;
+  "text-emissive-strength": number;
+} {
   return night
     ? {
         "text-color": "#F8FAFC",
@@ -484,7 +489,7 @@ function ensureSuburbLabels(
       : map.getLayer("routes-alt")
         ? "routes-alt"
         : undefined;
-    const layout = {
+    const layout: mapboxgl.SymbolLayout = {
       "text-field": ["get", "suburb"],
       "text-size": [
         "interpolate",
@@ -501,11 +506,11 @@ function ensureSuburbLabels(
       "text-optional": true,
       "text-allow-overlap": false,
       "text-ignore-placement": false,
-    } as const;
-    const fonts = [
+    };
+    const fonts: string[][] = [
       ["DIN Pro Medium", "Arial Unicode MS Regular"],
       ["Open Sans Regular", "Arial Unicode MS Regular"],
-    ] as const;
+    ];
     for (const textFont of fonts) {
       try {
         map.addLayer(
@@ -639,8 +644,6 @@ function ensureRoutePaintLayers(map: mapboxgl.Map, night: boolean) {
         "line-width": 5.5,
         "line-opacity": 1,
         "line-dasharray": [0.12, 1.65],
-        "line-dasharray-transition": { duration: 0 },
-        "line-width-transition": { duration: 0 },
         "line-emissive-strength": night ? 1 : 0.2,
       },
     });
@@ -650,13 +653,18 @@ function ensureRoutePaintLayers(map: mapboxgl.Map, night: boolean) {
       "line-emissive-strength",
       night ? 1 : 0.2,
     );
-    map.setPaintProperty("routes-selected", "line-dasharray-transition", {
-      duration: 0,
-    });
-    map.setPaintProperty("routes-selected", "line-width-transition", {
-      duration: 0,
-    });
   }
+  // Types omit dasharray transition. Zero duration so Mapbox does not
+  // ease from the default dash (looks longer) when a walk is selected.
+  const setTransition = map.setPaintProperty.bind(map) as (
+    id: string,
+    name: string,
+    value: { duration: number },
+  ) => void;
+  setTransition("routes-selected", "line-dasharray-transition", {
+    duration: 0,
+  });
+  setTransition("routes-selected", "line-width-transition", { duration: 0 });
 }
 
 function installMapChrome(
