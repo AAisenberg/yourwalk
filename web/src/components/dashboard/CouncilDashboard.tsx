@@ -61,6 +61,12 @@ import {
   type SegmentsMeta,
 } from "@/lib/fetchSegments";
 import { DashboardPopup, type PopupInfo } from "@/components/dashboard/DashboardPopup";
+import {
+  caseyOutsideMask,
+  caseyOutsidePaint,
+  ensureCaseySuburbLabels,
+  hideBasemapPlaceLabels,
+} from "@/lib/caseyMapChrome";
 import { CASEY_BOUNDS } from "@/lib/scores";
 
 const INTRO_KEY = "yw-dashboard-intro-v2";
@@ -89,6 +95,10 @@ const MASK_SRC = "dash-mask";
 const MASK_FILL = "dash-mask-fill";
 const LGA_SRC = "dash-lga";
 const LGA_LINE = "dash-lga-line";
+const LGA_OUTSIDE_SRC = "dash-lga-outside";
+const LGA_OUTSIDE_FILL = "dash-lga-outside-fill";
+const SUBURB_LABEL_SRC = "dash-suburb-labels";
+const SUBURB_LABEL_LAYER = "dash-suburb-labels";
 const SAT_SRC = "dash-satellite";
 const SAT_LAYER = "dash-satellite-raster";
 
@@ -384,6 +394,7 @@ function applyLook(map: mapboxgl.Map, mode: IndexMode) {
   } catch {
     /* style without Standard config */
   }
+  hideBasemapPlaceLabels(map);
 }
 
 function formatScoredAt(iso: string | null | undefined): string | null {
@@ -626,6 +637,18 @@ export function CouncilDashboard() {
       map.setPaintProperty(MASK_FILL, "fill-color", veil);
       map.setPaintProperty(MASK_FILL, "fill-opacity", sat ? 0.45 : s.mode === "night" ? 0.5 : 0.62);
     }
+    if (map.getLayer(LGA_OUTSIDE_FILL)) {
+      const outside = sat
+        ? { color: "#0B0C1A", opacity: 0.5 }
+        : caseyOutsidePaint(s.mode === "night");
+      map.setPaintProperty(LGA_OUTSIDE_FILL, "fill-color", outside.color);
+      map.setPaintProperty(LGA_OUTSIDE_FILL, "fill-opacity", outside.opacity);
+    }
+    ensureCaseySuburbLabels(map, featuresRef.current, s.mode === "night", {
+      sourceId: SUBURB_LABEL_SRC,
+      layerId: SUBURB_LABEL_LAYER,
+      slot: null,
+    });
     if (map.getLayer(LGA_LINE)) {
       map.setPaintProperty(LGA_LINE, "line-color", sat ? "#ffffff" : "#292984");
     }
@@ -762,6 +785,30 @@ export function CouncilDashboard() {
           paint: { "fill-emissive-strength": 1, "fill-opacity-transition": { duration: 300, delay: 0 } },
         });
       }
+      const outside = lgaRef.current ? caseyOutsideMask(lgaRef.current) : null;
+      if (outside && !map.getSource(LGA_OUTSIDE_SRC)) {
+        map.addSource(LGA_OUTSIDE_SRC, { type: "geojson", data: outside });
+        const veil = caseyOutsidePaint(s.mode === "night");
+        map.addLayer(
+          {
+            id: LGA_OUTSIDE_FILL,
+            type: "fill",
+            source: LGA_OUTSIDE_SRC,
+            slot: "top",
+            paint: {
+              "fill-color": veil.color,
+              "fill-opacity": veil.opacity,
+              "fill-emissive-strength": 1,
+            },
+          },
+          MASK_FILL,
+        );
+      }
+      ensureCaseySuburbLabels(map, featuresRef.current, s.mode === "night", {
+        sourceId: SUBURB_LABEL_SRC,
+        layerId: SUBURB_LABEL_LAYER,
+        slot: null,
+      });
       if (!map.getSource(AREA_SRC)) {
         map.addSource(AREA_SRC, { type: "geojson", data: hullRef.current });
         map.addLayer({
