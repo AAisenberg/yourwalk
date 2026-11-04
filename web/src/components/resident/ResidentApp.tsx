@@ -633,10 +633,14 @@ function ensureRoutePaintLayers(map: mapboxgl.Map, night: boolean) {
       },
       paint: {
         "line-color": ["get", "color"],
-        // Round caps + short dashes ≈ dotted circles along the path
+        // Round caps + short dashes ≈ dotted circles along the path.
+        // Duration 0: Mapbox otherwise eases from the default dash (looks
+        // like a longer dash) into this pattern when a walk is selected.
         "line-width": 5.5,
         "line-opacity": 1,
         "line-dasharray": [0.12, 1.65],
+        "line-dasharray-transition": { duration: 0 },
+        "line-width-transition": { duration: 0 },
         "line-emissive-strength": night ? 1 : 0.2,
       },
     });
@@ -646,6 +650,12 @@ function ensureRoutePaintLayers(map: mapboxgl.Map, night: boolean) {
       "line-emissive-strength",
       night ? 1 : 0.2,
     );
+    map.setPaintProperty("routes-selected", "line-dasharray-transition", {
+      duration: 0,
+    });
+    map.setPaintProperty("routes-selected", "line-width-transition", {
+      duration: 0,
+    });
   }
 }
 
