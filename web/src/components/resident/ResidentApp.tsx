@@ -21,7 +21,6 @@ import {
   IconTrip,
 } from "@/components/resident/icons";
 import { AboutAnalyticsOptOut } from "@/components/resident/AboutAnalyticsOptOut";
-import { AddToHomeScreen } from "@/components/resident/AddToHomeScreen";
 import { PlaceField } from "@/components/resident/PlaceField";
 import { RingedAmenityIcon } from "@/components/resident/RingedAmenityIcon";
 import {
@@ -33,13 +32,7 @@ import { SegmentedPill } from "@/components/resident/SegmentedPill";
 import { WalkModeSwitch } from "@/components/resident/WalkModeSwitch";
 import { MdClose, MdEdit, MdLayers } from "react-icons/md";
 import { MD_UP, useMediaQuery } from "@/hooks/useMediaQuery";
-import {
-  APP_VERSION,
-  BETA_LABEL,
-  betaVersionDetail,
-  betaVersionTitle,
-  SCORING_SPEC_VERSION,
-} from "@/lib/beta";
+import { RESIDENT_STATUS_LABEL } from "@/lib/beta";
 import {
   defaultLgaBoundaryUrl,
   defaultSegmentsGeoJsonUrl,
@@ -112,7 +105,12 @@ import {
   tripRankScore,
 } from "@/lib/routing/preferences";
 import type { LngLat, ScoredRoute } from "@/lib/routing/types";
-import { CASEY_BOUNDS } from "@/lib/scores";
+import { suburbLabelPoints } from "@/lib/mapFilters";
+import {
+  CASEY_BOUNDS,
+  CASEY_MASK_BOUNDS,
+  CASEY_MAX_BOUNDS,
+} from "@/lib/scores";
 import { findFailReason } from "@/lib/analytics/events";
 import {
   deviceClass,
@@ -126,8 +124,8 @@ import {
   selectedRouteProps,
 } from "@/lib/analytics/resident";
 
-/** Beta QA affordance: show which engine drew each card. Flip off for launch. */
-const SHOW_ENGINE_BADGE = true;
+/** Beta QA affordance: show which engine drew each card. Off for user testing. */
+const SHOW_ENGINE_BADGE = false;
 
 type PickMode = "idle" | "origin" | "destination";
 /** Type of walk — trip A→B vs timed outing from a start. */
@@ -135,7 +133,7 @@ type WalkIntent = "trip" | "outing";
 /** Bottom sheet snap — Google Maps-style peek / half / full. */
 type SheetSnap = "peek" | "half" | "full";
 
-const ABOUT_STORAGE_KEY = "yw-resident-about-v1";
+const ABOUT_STORAGE_KEY = "yw-resident-about-v2";
 const PREFS_STORAGE_KEY = "yw-resident-prefs-v1";
 const LAYERS_STORAGE_KEY = "yw-resident-layers-v1";
 const LAYERS_TIP_KEY = "yw-resident-layers-tip-v1";
@@ -143,16 +141,38 @@ const LAYERS_TIP_KEY = "yw-resident-layers-tip-v1";
 /**
  * Semantic walk colours (17 Aug 2026): a walk keeps its colour by meaning,
  * not list position. "Best for you" is always teal, "Away from roads" is
- * always green; the remaining options (Neighbourhood links, Another loop,
- * Shortest...) take warm ambers so nothing clashes with the teal brand or
- * the blue-grey basemap roads. Night variants are brighter for the dark
- * Standard basemap but stay in the same hue family.
+ * always green (day is a darker green so the line still reads on parks);
+ * the remaining options (Local paths, Another loop, Shortest...) take warm
+ * ambers so nothing clashes with the teal brand or the blue-grey basemap
+ * roads. Night variants are brighter for the dark Standard basemap but stay
+ * in the same hue family.
  */
 const ROUTE_EXTRA_COLORS_DAY = ["#F59E0B", "#E8654F"] as const;
 const ROUTE_EXTRA_COLORS_NIGHT = ["#FFCB1F", "#F6871F"] as const;
 
 function routeCasingColor(night: boolean): string {
   return night ? "#0B0C1A" : "#FFFFFF";
+}
+
+/** Relative luminance of `#RRGGBB` (sRGB). Used so chip labels stay readable. */
+function hexLuminance(hex: string): number {
+  const n = hex.replace("#", "");
+  if (n.length < 6) return 0;
+  const toLin = (c: number) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  };
+  return (
+    0.2126 * toLin(parseInt(n.slice(0, 2), 16)) +
+    0.7152 * toLin(parseInt(n.slice(2, 4), 16)) +
+    0.0722 * toLin(parseInt(n.slice(4, 6), 16))
+  );
+}
+
+/** White on night teal / lime / amber fails; dark text on those fills. */
+function routeChipLabelColor(fill: string, selected: boolean, night: boolean): string {
+  if (!selected) return night ? "#e2e8f0" : "#334155";
+  return hexLuminance(fill) > 0.4 ? "#0B0C1A" : "#ffffff";
 }
 
 function liveOverlayLayerIds(map: mapboxgl.Map): string[] {
@@ -168,7 +188,8 @@ function routeColorFor(
 ): string {
   const label = routeCardLabel(route, ranked);
   if (label === "Best for you") return night ? "#2DE0D8" : "#00AAA6";
-  if (label === "Away from roads") return night ? "#A3E635" : "#43A047";
+  // Day: darker than park fill so the walk still reads on reserves.
+  if (label === "Away from roads") return night ? "#A3E635" : "#2E7D32";
   // Other options keep a stable warm colour by their position among peers
   const extras = ranked.filter((r) => {
     const l = routeCardLabel(r, ranked);
@@ -197,14 +218,31 @@ const DAY_BASEMAP = "mapbox://styles/mapbox/streets-v12";
 const NIGHT_BASEMAP = "mapbox://styles/mapbox/dark-v11";
 
 function applyStandardLook(map: mapboxgl.Map, preset: LightPreset) {
-  try {
-    map.setConfigProperty("basemap", "lightPreset", preset);
-    map.setConfigProperty("basemap", "showPointOfInterestLabels", false);
-    // Standard paints OSM paths/trails as a neon dotted line at night.
-    // That is not Casey T1EAM and only covers part of the network — hide it.
-    map.setConfigProperty("basemap", "showPedestrianRoads", false);
-  } catch {
-    /* classic streets / dark has no Standard basemap config */
+  const setBasemap = (key: string, value: string | boolean) => {
+    try {
+      map.setConfigProperty("basemap", key, value);
+    } catch {
+      /* classic streets / dark, or an older Standard build */
+    }
+  };
+  setBasemap("lightPreset", preset);
+  setBasemap("showPointOfInterestLabels", false);
+  // Casey-only suburb names are drawn by us; basemap places sit on the veil.
+  setBasemap("showPlaceLabels", false);
+  // Standard paints OSM paths/trails as a neon dotted line at night.
+  setBasemap("showPedestrianRoads", false);
+}
+
+/** Classic Streets / Dark fallback: hide settlement labels we cannot clip. */
+function hideClassicPlaceLabels(map: mapboxgl.Map) {
+  const style = map.getStyle();
+  if (!style?.layers) return;
+  for (const layer of style.layers) {
+    if (layer.type !== "symbol") continue;
+    if (!/place|settlement|country|state|continent/i.test(layer.id)) continue;
+    if (map.getLayer(layer.id)) {
+      map.setLayoutProperty(layer.id, "visibility", "none");
+    }
   }
 }
 
@@ -373,6 +411,143 @@ function ensureT1eamUnderlay(
   }
 }
 
+/** World-outside-Casey fill: Casey LGA rings punched out of the view bbox. */
+function caseyOutsideMask(
+  lga: GeoJSON.FeatureCollection,
+): GeoJSON.Feature | null {
+  const holes: GeoJSON.Position[][] = [];
+  for (const feature of lga.features) {
+    const geom = feature.geometry;
+    if (geom?.type === "Polygon") holes.push(geom.coordinates[0]!);
+    if (geom?.type === "MultiPolygon") {
+      for (const poly of geom.coordinates) holes.push(poly[0]!);
+    }
+  }
+  if (!holes.length) return null;
+  const outer: GeoJSON.Position[] = [
+    [CASEY_MASK_BOUNDS.west, CASEY_MASK_BOUNDS.south],
+    [CASEY_MASK_BOUNDS.east, CASEY_MASK_BOUNDS.south],
+    [CASEY_MASK_BOUNDS.east, CASEY_MASK_BOUNDS.north],
+    [CASEY_MASK_BOUNDS.west, CASEY_MASK_BOUNDS.north],
+    [CASEY_MASK_BOUNDS.west, CASEY_MASK_BOUNDS.south],
+  ];
+  return {
+    type: "Feature",
+    properties: {},
+    geometry: { type: "Polygon", coordinates: [outer, ...holes] },
+  };
+}
+
+function lgaMaskPaint(night: boolean): {
+  color: string;
+  opacity: number;
+} {
+  return night
+    ? { color: "#070810", opacity: 0.62 }
+    : { color: "#0f172a", opacity: 0.4 };
+}
+
+const SUBURB_LABEL_SRC = "casey-suburb-labels";
+const SUBURB_LABEL_LAYER = "casey-suburb-labels";
+
+function suburbLabelPaint(night: boolean): mapboxgl.SymbolPaint {
+  return night
+    ? {
+        "text-color": "#F8FAFC",
+        "text-halo-color": "#0B0C1A",
+        "text-halo-width": 1.4,
+        "text-emissive-strength": 1,
+      }
+    : {
+        "text-color": "#292984",
+        "text-halo-color": "#FFFFFF",
+        "text-halo-width": 1.6,
+        "text-emissive-strength": 0.4,
+      };
+}
+
+function ensureSuburbLabels(
+  map: mapboxgl.Map,
+  features: GeoJSON.Feature[],
+  night: boolean,
+) {
+  const data = suburbLabelPoints(features);
+  const existing = map.getSource(SUBURB_LABEL_SRC);
+  if (existing && existing.type === "geojson") {
+    existing.setData(data);
+  } else {
+    map.addSource(SUBURB_LABEL_SRC, { type: "geojson", data });
+  }
+  if (!map.getLayer(SUBURB_LABEL_LAYER)) {
+    const beforeRoutes = map.getLayer("routes-alt-casing")
+      ? "routes-alt-casing"
+      : map.getLayer("routes-alt")
+        ? "routes-alt"
+        : undefined;
+    const layout = {
+      "text-field": ["get", "suburb"],
+      "text-size": [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        9.5,
+        11,
+        12,
+        13,
+        15,
+        15,
+      ],
+      "text-padding": 6,
+      "text-optional": true,
+      "text-allow-overlap": false,
+      "text-ignore-placement": false,
+    } as const;
+    const fonts = [
+      ["DIN Pro Medium", "Arial Unicode MS Regular"],
+      ["Open Sans Regular", "Arial Unicode MS Regular"],
+    ] as const;
+    for (const textFont of fonts) {
+      try {
+        map.addLayer(
+          {
+            id: SUBURB_LABEL_LAYER,
+            type: "symbol",
+            source: SUBURB_LABEL_SRC,
+            slot: "top",
+            minzoom: 9.5,
+            layout: { ...layout, "text-font": [...textFont] },
+            paint: suburbLabelPaint(night),
+          },
+          beforeRoutes,
+        );
+        break;
+      } catch {
+        if (map.getLayer(SUBURB_LABEL_LAYER)) {
+          map.removeLayer(SUBURB_LABEL_LAYER);
+        }
+      }
+    }
+  } else {
+    const paint = suburbLabelPaint(night);
+    map.setPaintProperty(SUBURB_LABEL_LAYER, "text-color", paint["text-color"]);
+    map.setPaintProperty(
+      SUBURB_LABEL_LAYER,
+      "text-halo-color",
+      paint["text-halo-color"],
+    );
+    map.setPaintProperty(
+      SUBURB_LABEL_LAYER,
+      "text-halo-width",
+      paint["text-halo-width"] ?? 1.4,
+    );
+    map.setPaintProperty(
+      SUBURB_LABEL_LAYER,
+      "text-emissive-strength",
+      paint["text-emissive-strength"] ?? 0,
+    );
+  }
+}
+
 /** Install route + optional LGA / T1EAM layers after load or basemap style switch. */
 function ensureRoutePaintLayers(map: mapboxgl.Map, night: boolean) {
   const casing = routeCasingColor(night);
@@ -387,7 +562,7 @@ function ensureRoutePaintLayers(map: mapboxgl.Map, night: boolean) {
       paint: {
         "line-color": casing,
         "line-width": 6,
-        "line-opacity": night ? 0.55 : 0.62,
+        "line-opacity": night ? 0.55 : 0.85,
         "line-emissive-strength": 0,
       },
     });
@@ -397,7 +572,7 @@ function ensureRoutePaintLayers(map: mapboxgl.Map, night: boolean) {
     map.setPaintProperty(
       "routes-alt-casing",
       "line-opacity",
-      night ? 0.55 : 0.62,
+      night ? 0.55 : 0.85,
     );
   }
   if (!map.getLayer("routes-selected-casing")) {
@@ -429,7 +604,7 @@ function ensureRoutePaintLayers(map: mapboxgl.Map, night: boolean) {
       paint: {
         "line-color": ["get", "color"],
         "line-width": 3.5,
-        "line-opacity": night ? 0.62 : 0.5,
+        "line-opacity": night ? 0.62 : 0.85,
         "line-emissive-strength": night ? 0.85 : 0.12,
       },
     });
@@ -437,7 +612,7 @@ function ensureRoutePaintLayers(map: mapboxgl.Map, night: boolean) {
     map.setPaintProperty(
       "routes-alt",
       "line-opacity",
-      night ? 0.62 : 0.5,
+      night ? 0.62 : 0.85,
     );
     map.setPaintProperty(
       "routes-alt",
@@ -479,6 +654,7 @@ function installMapChrome(
   opts: {
     lga?: GeoJSON.FeatureCollection | null;
     t1eam?: GeoJSON.Feature[];
+    features?: GeoJSON.Feature[];
     night: boolean;
   },
 ) {
@@ -515,20 +691,46 @@ function installMapChrome(
 
   if (opts.lga) {
     if (map.getLayer("lga-line")) map.removeLayer("lga-line");
+    if (map.getLayer("lga-mask")) map.removeLayer("lga-mask");
     if (map.getSource("lga")) map.removeSource("lga");
+    if (map.getSource("lga-mask")) map.removeSource("lga-mask");
     map.addSource("lga", { type: "geojson", data: opts.lga });
+    const mask = caseyOutsideMask(opts.lga);
+    const beforeRoutes = map.getLayer("routes-alt-casing")
+      ? "routes-alt-casing"
+      : map.getLayer("routes-alt")
+        ? "routes-alt"
+        : undefined;
+    if (mask) {
+      map.addSource("lga-mask", { type: "geojson", data: mask });
+      map.addLayer(
+        {
+          id: "lga-mask",
+          type: "fill",
+          source: "lga-mask",
+          slot: "top",
+          paint: {
+            "fill-color": lgaMaskPaint(opts.night).color,
+            "fill-opacity": lgaMaskPaint(opts.night).opacity,
+            "fill-emissive-strength": 1,
+          },
+        },
+        beforeRoutes,
+      );
+    }
     map.addLayer(
       {
         id: "lga-line",
         type: "line",
         source: "lga",
+        slot: "top",
         paint: {
           "line-color": opts.night ? "#8B8DD9" : "#292984",
           "line-width": 2,
-          "line-opacity": opts.night ? 0.55 : 0.45,
+          "line-opacity": opts.night ? 0.7 : 0.55,
         },
       },
-      "routes-alt",
+      beforeRoutes,
     );
   }
 
@@ -536,6 +738,9 @@ function installMapChrome(
     ensureT1eamUnderlay(map, opts.t1eam, opts.night);
   } else {
     removePavementUnderlay(map);
+  }
+  if (opts.features?.length) {
+    ensureSuburbLabels(map, opts.features, opts.night);
   }
 }
 
@@ -597,7 +802,7 @@ export function ResidentApp() {
 
   const [mapReady, setMapReady] = useState(false);
   const [networkReady, setNetworkReady] = useState(false);
-  const [networkStatus, setNetworkStatus] = useState("Loading footpath network…");
+  const [networkStatus, setNetworkStatus] = useState("Loading Casey footpaths…");
   // NEXT_PUBLIC_ env is inlined at build time, identical on server + client
   const [error, setError] = useState<string | null>(() =>
     process.env.NEXT_PUBLIC_MAPBOX_TOKEN
@@ -1153,7 +1358,7 @@ export function ResidentApp() {
           : night
             ? "rgba(15,23,42,0.92)"
             : "rgba(255,255,255,0.95)",
-        color: selected ? "#ffffff" : night ? "#e2e8f0" : "#334155",
+        color: routeChipLabelColor(color, selected, night),
         outline: selected ? "none" : `1.5px solid ${color}`,
       });
       el.addEventListener("click", (ev) => {
@@ -1186,6 +1391,12 @@ export function ResidentApp() {
         [CASEY_BOUNDS.east, CASEY_BOUNDS.north],
       ],
       fitBoundsOptions: { padding: 48 },
+      maxBounds: [
+        [CASEY_MAX_BOUNDS.west, CASEY_MAX_BOUNDS.south],
+        [CASEY_MAX_BOUNDS.east, CASEY_MAX_BOUNDS.north],
+      ],
+      minZoom: 8,
+      renderWorldCopies: false,
       attributionControl: true,
     });
     mapRef.current = map;
@@ -1198,8 +1409,11 @@ export function ResidentApp() {
       window.setTimeout(() => map.resize(), 250);
 
       applyStandardLook(map, resolveCaseyWhen().lightPreset);
+      hideClassicPlaceLabels(map);
       installMapChrome(map, {
         lga: lgaDataRef.current,
+        t1eam: underlayRef.current ?? undefined,
+        features: featuresRef.current,
         night: walkModeRef.current === "night",
       });
 
@@ -1347,6 +1561,7 @@ export function ResidentApp() {
             installMapChrome(map, {
               lga,
               t1eam: underlayRef.current ?? undefined,
+              features: featuresRef.current,
               night: walkModeRef.current === "night",
             });
           } catch {
@@ -1355,7 +1570,7 @@ export function ResidentApp() {
         }
 
         try {
-          setNetworkStatus("Preparing route scoring…");
+          setNetworkStatus("Getting ready…");
           const body = await fetchSegmentsGeoJSON(resolveGeoJsonUrl());
           if (!mapRef.current) return;
           featuresRef.current = body.features ?? [];
@@ -1368,10 +1583,15 @@ export function ResidentApp() {
           } else {
             removePavementUnderlay(map);
           }
+          ensureSuburbLabels(
+            map,
+            featuresRef.current,
+            walkModeRef.current === "night",
+          );
           setNetworkReady(true);
           setNetworkStatus("Ready to plan a walk");
         } catch (err) {
-          setNetworkStatus("Route scoring data failed to load");
+          setNetworkStatus("Couldn’t load walking data");
           setError(err instanceof Error ? err.message : String(err));
         }
       })();
@@ -1422,9 +1642,11 @@ export function ResidentApp() {
       basemapStyleRef.current = next;
       map.setStyle(next);
       map.once("style.load", () => {
+        hideClassicPlaceLabels(map);
         installMapChrome(map, {
           lga: lgaDataRef.current,
           t1eam: underlayRef.current ?? undefined,
+          features: featuresRef.current,
           night: walkMode === "night",
         });
         paintRoutes(routesRef.current, selectedIdRef.current);
@@ -1440,6 +1662,14 @@ export function ResidentApp() {
         "line-color",
         walkMode === "night" ? "#8B8DD9" : "#292984",
       );
+    }
+    if (map.getLayer("lga-mask")) {
+      const paint = lgaMaskPaint(walkMode === "night");
+      map.setPaintProperty("lga-mask", "fill-color", paint.color);
+      map.setPaintProperty("lga-mask", "fill-opacity", paint.opacity);
+    }
+    if (featuresRef.current.length) {
+      ensureSuburbLabels(map, featuresRef.current, walkMode === "night");
     }
     if (underlayRef.current) {
       ensureT1eamUnderlay(map, underlayRef.current, walkMode === "night");
@@ -1895,25 +2125,21 @@ export function ResidentApp() {
               YourWalk
             </p>
             <span
-              className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold tracking-wide ${
+              className={`shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-bold tracking-wide sm:text-[10px] ${
                 isNight
                   ? "bg-white/10 text-white/80 ring-1 ring-white/20"
                   : "bg-yw-navy/8 text-yw-navy ring-1 ring-yw-navy/15"
               }`}
-              title={betaVersionDetail()}
+              title="Casey user testing"
             >
-              {BETA_LABEL}
+              {RESIDENT_STATUS_LABEL}
             </span>
           </div>
           <p
             className={`mt-0.5 truncate text-[10px] font-medium ${
               isNight ? "text-white/45" : "text-slate-500"
             }`}
-            title={
-              whenOverridden
-                ? `${whenHint} · app ${APP_VERSION} · scores ${SCORING_SPEC_VERSION}`
-                : `Connecting Casey walks · app ${APP_VERSION} · scores ${SCORING_SPEC_VERSION}`
-            }
+            title={whenHint}
           >
             {whenHint}
           </p>
@@ -1983,8 +2209,7 @@ export function ResidentApp() {
               <p className="font-semibold">Couldn’t load map data</p>
               <p className="mt-0.5 opacity-90">{error}</p>
               <p className="mt-1.5 opacity-80">
-                Hard-refresh the page. If it persists, the footpath network may
-                still be downloading — try again in a minute.
+                Refresh the page. If it is still loading, try again in a minute.
               </p>
             </div>
           </div>
@@ -2013,7 +2238,7 @@ export function ResidentApp() {
                     isNight ? "text-white/55" : "text-slate-600"
                   }`}
                 >
-                  Finding routes and scoring Casey footpaths
+                  Finding walks that match what you asked for
                 </p>
               </div>
             </div>
@@ -2112,7 +2337,6 @@ export function ResidentApp() {
               }`}
             >
               Show on the map
-              {walkIntent === "outing" ? " · soft bias for Loop" : ""}
             </p>
             <div className="flex flex-col gap-1">
             {OVERLAY_DEFS.map((def) => {
@@ -2307,8 +2531,7 @@ export function ResidentApp() {
                   isNight ? "text-white/55" : "text-slate-600"
                 }`}
               >
-                Longer trips take a moment — we ask Mapbox, check neighbourhood
-                links, then score each option.
+                Longer trips can take a moment.
               </p>
             </div>
           ) : null}
@@ -2393,7 +2616,7 @@ export function ResidentApp() {
                       : "bg-slate-100 text-slate-700"
                   }`}
                 >
-                  When changed. Find again to re-score.
+                  When changed. Find again to update your walks.
                 </p>
               ) : null}
 
@@ -2796,7 +3019,7 @@ export function ResidentApp() {
                         <div
                           className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-full border-2"
                           style={{ borderColor: color, color }}
-                          title="Match is mostly Footpaths + Heat & Shade (or Lighting) from your importance ratings. Around here, time only gently ranks options already within about 5 minutes of your ask. Pills are corridor stream scores (/10)."
+                          title="How well this walk matches what you asked for."
                         >
                           <span className="text-base font-extrabold leading-none">
                             {display == null ? "—" : display.toFixed(1)}
@@ -2852,7 +3075,6 @@ export function ResidentApp() {
                                   ? "text-white/55"
                                   : "text-slate-600"
                             }`}
-                            title={note.detail}
                           >
                             {note.text}
                           </p>
@@ -2946,9 +3168,8 @@ export function ResidentApp() {
                 isNight ? "text-white/45" : "text-slate-500"
               }`}
             >
-              Trip mode (pilot): Mapbox walks plus neighbourhood score-aware
-              links, ranked by Casey scores plus time and distance. Not a
-              safety guarantee. {betaVersionTitle()} · {betaVersionDetail()}.
+              Scores describe walking conditions from available data. They are
+              not a safety guarantee.
             </p>
           ) : null}
           </div>
@@ -2974,12 +3195,12 @@ export function ResidentApp() {
                 }`}
               >
                 {!networkReady
-                  ? "Loading network…"
+                  ? "Getting ready…"
                   : walkIntent === "outing"
                     ? "Find my loop"
                     : "Find my route"}
               </button>
-              {mapReady ? (
+              {mapReady && !networkReady ? (
                 <p
                   className={`mt-1.5 text-center text-[10px] ${
                     isNight ? "text-white/45" : "text-slate-500"
@@ -3044,7 +3265,7 @@ export function ResidentApp() {
               isNight ? "text-white/80" : "text-slate-700"
             }`}
           >
-            YourWalk helps Casey residents find walking routes that fit what
+            YourWalk helps you find walking routes in Casey that fit what
             matters to you: smoother footpaths, more shade on hot days, or
             better-lit streets after dark. Not just the shortest way.
           </p>
@@ -3061,19 +3282,9 @@ export function ResidentApp() {
               isNight ? "text-white/75" : "text-slate-600"
             }`}
           >
-            <li>
-              Casey&apos;s footpaths are scored street by street from Council
-              asset data and OpenStreetMap: surface, continuity, tree canopy,
-              lighting and more.
-            </li>
-            <li>
-              Plan an A to B walk or a loop from home, set what matters most,
-              and YourWalk ranks the options for day or night walking.
-            </li>
-            <li>
-              Scores describe conditions in the data, with more Council
-              datasets on the way. They are not a safety guarantee.
-            </li>
+            <li>Choose A to B, or a loop from a start.</li>
+            <li>Set what matters most.</li>
+            <li>Compare the options and pick a walk.</li>
           </ul>
 
           <h3
@@ -3088,8 +3299,8 @@ export function ResidentApp() {
               isNight ? "text-white/75" : "text-slate-600"
             }`}
           >
-            YourWalk is a City of Casey Connecting Grant pilot, built by
-            CrowdLab in partnership with Monash University&apos;s XYX Lab.
+            YourWalk is a City of Casey pilot, built by CrowdLab with Monash
+            University.
           </p>
 
           <h3
@@ -3110,6 +3321,14 @@ export function ResidentApp() {
             exact location, and we do not follow you along a walk. Locate
             stays on your device.
           </p>
+          <p
+            className={`mt-2 text-[12px] leading-relaxed sm:text-[14px] ${
+              isNight ? "text-white/75" : "text-slate-600"
+            }`}
+          >
+            Scores describe walking conditions from available data. They are
+            not a safety guarantee.
+          </p>
           <AboutAnalyticsOptOut isNight={isNight} />
 
           <button
@@ -3121,14 +3340,6 @@ export function ResidentApp() {
           >
             Start exploring
           </button>
-          <AddToHomeScreen isNight={isNight} />
-          <p
-            className={`mt-2.5 text-center text-[10px] sm:text-[11px] ${
-              isNight ? "text-white/40" : "text-slate-400"
-            }`}
-          >
-            {betaVersionTitle()} · {betaVersionDetail()}
-          </p>
         </div>
       </dialog>
     </div>
@@ -3137,8 +3348,8 @@ export function ResidentApp() {
 
 /**
  * Honest copy when Mapbox geometry and Casey T1EAM scored polygons diverge.
- * Pills are length-weighted means within ~20 m of the route — nearby streets
- * can fill scores even when the trail itself has no scoring segment.
+ * Nearby streets can fill scores even when the trail itself has no scoring
+ * segment. Resident-facing text stays non-technical.
  */
 function scoreCoverageNote(score: {
   coverage_ratio: number;
@@ -3167,7 +3378,6 @@ function scoreCoverageNote(score: {
       tone: "soft",
     };
   }
-  // High coverage: no extra chrome
   return null;
 }
 

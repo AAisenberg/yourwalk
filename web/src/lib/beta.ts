@@ -14,6 +14,9 @@ export const MAP_DATA_RELEASE = "map-data-v1";
 
 export const BETA_LABEL = "Beta";
 
+/** Resident planner chip during Monash / Casey user testing. */
+export const RESIDENT_STATUS_LABEL = "User testing";
+
 /** Council insights build. Bump when officers would notice a change. */
 export const DASHBOARD_VERSION =
   process.env.NEXT_PUBLIC_DASHBOARD_VERSION?.trim() || "0.2.0";

@@ -95,9 +95,30 @@ export function legendStops(
   }));
 }
 
+/** Tight bbox around the Casey LGA (includes the northern and eastern tips). */
 export const CASEY_BOUNDS = {
   west: 145.18,
   south: -38.25,
-  east: 145.42,
-  north: -37.95,
+  east: 145.44,
+  north: -37.935,
+} as const;
+
+/** Soft pan limit: room to see the whole LGA beside the planner chrome. */
+const CASEY_VIEW_PAD_DEG = 0.22;
+export const CASEY_MAX_BOUNDS = {
+  west: CASEY_BOUNDS.west - CASEY_VIEW_PAD_DEG,
+  south: CASEY_BOUNDS.south - CASEY_VIEW_PAD_DEG,
+  east: CASEY_BOUNDS.east + CASEY_VIEW_PAD_DEG,
+  north: CASEY_BOUNDS.north + CASEY_VIEW_PAD_DEG,
+} as const;
+
+/**
+ * Outer ring for the outside-Casey veil. Larger than the pan limit so the
+ * shade never ends as a hard rectangle at the edge of the view.
+ */
+export const CASEY_MASK_BOUNDS = {
+  west: 143.0,
+  south: -39.8,
+  east: 147.8,
+  north: -36.0,
 } as const;

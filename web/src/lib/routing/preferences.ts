@@ -506,7 +506,7 @@ export function routeCardLabel(
   if (isComplementStrategy(route.strategy)) {
     return complementLabel(route.complement_stream);
   }
-  if (isScoreAwareStrategy(route.strategy)) return "Neighbourhood links";
+  if (isScoreAwareStrategy(route.strategy)) return "Local paths";
   const shortest = [...ranked].sort((a, b) => a.distance_m - b.distance_m)[0];
   if (shortest?.id === route.id) return "Shortest";
   return "Another option";
@@ -543,10 +543,10 @@ export function routeCardBlurb(
     return "A different neighbourhood path that leans toward smoother footpaths";
   }
   if (ranked[0]?.id === route.id) {
-    return "Best fit for what you marked as important among the walks we found";
+    return "Best fit for what you marked as important";
   }
   if (isScoreAwareStrategy(route.strategy)) {
-    return "Uses local paths and cut-throughs scored from Casey footpaths";
+    return "Uses local paths and cut-throughs";
   }
   if (ranked.length === 1) {
     return "Only one sensible trip found for these points";
@@ -580,7 +580,7 @@ export function prefSliderDescription(
     if (tier === "mid") {
       return "Balance smoother paths with time when ranking.";
     }
-    return "Prioritise smoother surfaces, continuity, and crossings when ranking.";
+    return "Prioritise smoother, easier paths.";
   }
   if (kind === "shadeHeat") {
     if (tier === "low") {
